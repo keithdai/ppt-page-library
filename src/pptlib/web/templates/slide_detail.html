@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ slide.title or "页面预览" }} · PPT 页库{% endblock %}
+{% block content %}
+<section class="detail-shell detail-page">
+  <a class="text-link back-link" href="/library">← 返回页面库</a>
+  <div class="detail-grid">
+    <div class="detail-preview">
+      {% if slide.preview_url %}<img src="{{ slide.preview_url }}" alt="{{ slide.title }} 预览">{% else %}<div class="thumbnail-placeholder"><span>{{ "%02d"|format(slide.slide_number) }}</span><small>缩略图生成中</small></div>{% endif %}
+    </div>
+    <div class="detail-copy">
+      <p class="panel-kicker">{{ slide.deck_name }} · 第 {{ slide.slide_number }} 页</p>
+      <h1>{{ slide.title or "未命名页面" }}</h1>
+      <p class="detail-text">{{ slide.text or "暂无文本摘要。导入解析完成后会在这里展示页面文字。" }}</p>
+      <button class="add-slide{% if selected %} is-added{% endif %}" type="button" data-slide-id="{{ slide.id }}" data-selected="{{ 'true' if selected else 'false' }}"{% if selected %} disabled{% endif %}>{% if selected %}已在选片单{% else %}加入选片单{% endif %}</button>
+      {% if selected %}<a class="text-link detail-selection-link" href="/selection">查看选片单 →</a>{% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

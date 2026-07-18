@@ -1,0 +1,76 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ppt-page-library:local
+    restart: unless-stopped
+    environment:
+      PPTLIB_HOME: /data
+      PPTLIB_OUTPUT_ROOT: /exports
+      PPTLIB_TEMP_DIR: /tmp/pptlib
+      PPTLIB_LOG_DIR: /logs
+      PPTLIB_HOST: 0.0.0.0
+      PPTLIB_PORT: 8765
+      PPTLIB_MAX_WORKERS: "1"
+      PPTLIB_MAX_FILE_BYTES: "3221225472"
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - pptlib-data:/data
+      - ./sources:/sources:ro
+      - pptlib-exports:/exports
+      - pptlib-logs:/logs
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8765/api/v1/health', timeout=3)
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ppt-page-library:local
+    restart: unless-stopped
+    # The image healthcheck targets the web port; a worker intentionally does
+    # not listen on that port and must not inherit the web healthcheck.
+    healthcheck:
+      disable: true
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      PPTLIB_HOME: /data
+      PPTLIB_OUTPUT_ROOT: /exports
+      PPTLIB_TEMP_DIR: /tmp/pptlib
+      PPTLIB_LOG_DIR: /logs
+      PPTLIB_MAX_WORKERS: "1"
+      PPTLIB_MAX_FILE_BYTES: "3221225472"
+    volumes:
+      - pptlib-data:/data
+      - ./sources:/sources:ro
+      - pptlib-exports:/exports
+      - pptlib-logs:/logs
+    # M0.0 exposes a one-shot worker command. Keep one worker alive until the
+    # queue daemon is introduced, while allowing transient failures to retry.
+    command:
+      - sh
+      - -c
+      - >-
+        while true; do
+          pptlib worker --once || exit $$?;
+          sleep 2;
+        done
+
+volumes:
+  pptlib-data:
+  pptlib-exports:
+  pptlib-logs:

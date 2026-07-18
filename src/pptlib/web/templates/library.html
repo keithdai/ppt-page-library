@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}页面库 · PPT 页库{% endblock %}
+{% block content %}
+{% set current_view = view %}
+{% set q_param = result.query|urlencode %}
+{% set topic_param = filters.topic|urlencode %}
+{% set subtopic_param = filters.subtopic|urlencode %}
+{% set page_type_param = filters.page_type|urlencode %}
+{% set deck_param = filters.deck_id|urlencode %}
+<section class="library-shell library-page">
+  <div class="page-heading library-heading">
+    <div>
+      <p class="eyebrow">PAGE LIBRARY / 02</p>
+      <h1>页面库</h1>
+      <p class="muted">按内容找到可复用页面，也可以从归档文件回到完整上下文。</p>
+    </div>
+    <a class="selection-pill" href="/selection"><span>选片单</span><strong id="selection-count">{{ selected_ids|length }}</strong><span>→</span></a>
+  </div>
+
+  <div class="library-workbench">
+    <aside class="library-sidebar" data-library-view="{{ current_view }}" aria-label="页面库筛选">
+      <div class="view-switch" role="tablist" aria-label="页面库入口">
+        <a class="view-tab{% if current_view != 'source' %} is-active{% endif %}" data-view="content" href="/library?q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view=content" role="tab" aria-selected="{{ 'true' if current_view != 'source' else 'false' }}">按内容找</a>
+        <a class="view-tab{% if current_view == 'source' %} is-active{% endif %}" data-view="source" href="/library?q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view=source" role="tab" aria-selected="{{ 'true' if current_view == 'source' else 'false' }}">按文件找</a>
+      </div>
+
+      {% if current_view == 'source' %}
+      <section class="view-context source-mode-panel" aria-label="按文件找说明">
+        <p class="panel-kicker">SOURCE INDEX</p>
+        <strong>按文件找</strong>
+        <span>先选演示文稿，再按页码回到完整上下文。</span>
+      </section>
+      {% else %}
+      <section class="view-context content-mode-panel" aria-label="按内容找说明">
+        <p class="panel-kicker">CONTENT INDEX</p>
+        <strong>按内容找</strong>
+        <span>先按主题和页面结构缩小范围。</span>
+      </section>
+      {% endif %}
+
+      <nav class="topic-tree content-nav" aria-label="内容主题">
+        <div class="filter-section-heading"><span>内容主题</span><small>固定分类</small></div>
+        <a class="filter-link topic-root{% if not filters.topic and not filters.subtopic %} is-active{% endif %}" data-filter-topic="" href="/library?q={{ q_param }}&topic=&subtopic=&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view={{ current_view }}"{% if not filters.topic and not filters.subtopic %} aria-current="page"{% endif %}>全部主题 <span>{{ result.total if not filters.topic and not filters.subtopic else '' }}</span></a>
+        {% for option in facets.topics %}
+        <details class="topic-group"{% if filters.topic == option.id or filters.subtopic in option.children|map(attribute='id')|list %} open{% endif %}>
+          <summary class="topic-summary">
+            <a class="topic-summary-link{% if filters.topic == option.id and not filters.subtopic %} is-active{% endif %}" data-filter-topic="{{ option.id }}" data-filter-subtopic="" href="/library?q={{ q_param }}&topic={{ option.id|urlencode }}&subtopic=&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view={{ current_view }}"{% if filters.topic == option.id and not filters.subtopic %} aria-current="page"{% endif %}><span>{{ option.label }}</span><small>{{ option.count }}</small></a>
+          </summary>
+          <div class="subtopic-list">
+          {% for child in option.children %}
+          <a class="filter-link subtopic-link{% if filters.subtopic == child.id %} is-active{% endif %}" data-filter-topic="{{ option.id }}" data-filter-subtopic="{{ child.id }}" href="/library?q={{ q_param }}&topic={{ option.id|urlencode }}&subtopic={{ child.id|urlencode }}&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view={{ current_view }}"{% if filters.subtopic == child.id %} aria-current="page"{% endif %}>{{ child.label }} <span>{{ child.count }}</span></a>
+          {% endfor %}
+          </div>
+        </details>
+        {% endfor %}
+      </nav>
+
+      <div class="page-type-nav">
+        <div class="filter-section-heading"><span>页面类型</span><small>表达结构</small></div>
+        {% for option in facets.page_types %}
+        <a class="filter-link{% if filters.page_type == option.id %} is-active{% endif %}" href="/library?q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ option.id|urlencode }}&deck_id={{ deck_param }}&view={{ current_view }}"{% if filters.page_type == option.id %} aria-current="page"{% endif %}>{{ option.label }} <span>{{ option.count }}</span></a>
+        {% endfor %}
+      </div>
+
+      <details class="source-nav"{% if filters.deck_id or current_view == 'source' %} open{% endif %}>
+        <summary><span>来源文件</span><small>{{ facets.decks|length }} 个文件</small></summary>
+        <div class="source-nav-list">
+          <a class="filter-link{% if not filters.deck_id %} is-active{% endif %}" data-filter-deck="" href="/library?q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}&view={{ current_view }}"{% if not filters.deck_id %} aria-current="page"{% endif %}>全部文件 <span>·</span></a>
+          {% for option in facets.decks %}
+          <a class="filter-link{% if filters.deck_id == option.id %} is-active{% endif %}" data-filter-deck="{{ option.id }}" href="/library?q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}&deck_id={{ option.id|urlencode }}&view={{ current_view }}"{% if filters.deck_id == option.id %} aria-current="page"{% endif %} title="{{ option.label }}">{{ option.label }} <span>{{ option.count }}</span></a>
+          {% endfor %}
+        </div>
+      </details>
+    </aside>
+
+    <div class="library-results" data-library-view="{{ current_view }}">
+      {% if current_view == 'source' and not selected_deck %}
+      <div class="deck-index" aria-label="来源文件索引">
+        <div class="library-toolbar">
+          <div class="library-meta"><strong>{{ decks|length }} 个文件</strong><span class="view-note">按文件浏览归档页面</span></div>
+        </div>
+        <div class="deck-grid">
+          {% for deck in decks %}
+          <article class="deck-card" data-deck-id="{{ deck.id }}">
+            <a class="deck-cover" href="/library?view=source&deck_id={{ deck.id|urlencode }}&q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}" aria-label="打开 {{ deck.name }}">
+              {% if deck.cover_thumbnail_url %}<img src="{{ deck.cover_thumbnail_url }}" alt="{{ deck.name }} 封面缩略图">{% else %}<div class="thumbnail-placeholder"><span>封面</span><small>缩略图生成中</small></div>{% endif %}
+            </a>
+            <div class="deck-card-body">
+              <p class="panel-kicker">SOURCE DECK</p>
+              <h2>{{ deck.name }}</h2>
+              <p class="muted">{{ deck.slide_count }} 个页面</p>
+              <a class="button-link" href="/library?view=source&deck_id={{ deck.id|urlencode }}&q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}">查看文件页面 →</a>
+            </div>
+          </article>
+          {% else %}
+          <div class="empty-state"><h2>还没有归档文件</h2><p>完成一次 PPTX 扫描后，文件会出现在这里。</p></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      {% if current_view == 'source' and selected_deck %}
+      <section class="deck-detail" aria-label="文件详情">
+        <a class="breadcrumb-link" href="/library?view=source&q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}">← 返回文件索引</a>
+        <p class="panel-kicker">SOURCE DECK</p>
+        <h2>{{ selected_deck.name }}</h2>
+        <p class="muted">{{ selected_deck.slide_count }} 个页面 · 按页码查看完整上下文</p>
+      </section>
+      {% endif %}
+      <form class="searchbar" method="get" action="/library">
+        <label class="sr-only" for="slide-query">搜索页面</label>
+        <span class="search-prefix" aria-hidden="true">⌕</span><input id="slide-query" name="q" value="{{ result.query }}" placeholder="搜索标题、正文或演示文稿名称" autocomplete="off">
+        <input type="hidden" name="topic" value="{{ filters.topic }}"><input type="hidden" name="subtopic" value="{{ filters.subtopic }}"><input type="hidden" name="page_type" value="{{ filters.page_type }}"><input type="hidden" name="deck_id" value="{{ filters.deck_id }}"><input type="hidden" name="view" value="{{ current_view }}">
+        <button type="submit">搜索 <span>↵</span></button>
+      </form>
+
+      <div class="library-toolbar">
+        <div class="library-meta"><strong>{{ result.total }}个页面</strong>{% if result.query %}<span class="query-chip">匹配 “{{ result.query }}”</span>{% endif %}</div>
+        <span class="view-note">{% if current_view == 'source' %}按来源文件 · 页码排序{% else %}按内容主题 · 页面类型整理{% endif %}</span>
+      </div>
+
+      <div class="active-filters" aria-label="当前筛选">
+        {% if filters.topic %}<a class="filter-chip" href="/library?q={{ q_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view={{ current_view }}">主题：{{ filter_labels.get(filters.topic, filters.topic) }} <span aria-hidden="true">×</span></a>{% endif %}
+        {% if filters.subtopic %}<a class="filter-chip" href="/library?q={{ q_param }}&topic={{ topic_param }}&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view={{ current_view }}">场景：{{ filter_labels.get(filters.subtopic, filters.subtopic) }} <span aria-hidden="true">×</span></a>{% endif %}
+        {% if filters.page_type %}<a class="filter-chip" href="/library?q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&deck_id={{ deck_param }}&view={{ current_view }}">类型：{{ filter_labels.get(filters.page_type, filters.page_type) }} <span aria-hidden="true">×</span></a>{% endif %}
+        {% if filters.deck_id %}<a class="filter-chip" href="/library?q={{ q_param }}&topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}&view={{ current_view }}">文件：{{ filter_labels.get(filters.deck_id, filters.deck_id) }} <span aria-hidden="true">×</span></a>{% endif %}
+        {% if result.query %}<a class="filter-chip filter-chip-muted" href="/library?topic={{ topic_param }}&subtopic={{ subtopic_param }}&page_type={{ page_type_param }}&deck_id={{ deck_param }}&view={{ current_view }}">清除搜索 <span aria-hidden="true">×</span></a>{% endif %}
+      </div>
+
+      <div class="slide-grid" id="slide-grid">
+        {% for slide in slides %}
+        <article class="slide-card{% if slide.id in selected_ids %} is-selected{% endif %}" data-slide-id="{{ slide.id }}">
+          <a class="slide-preview" href="/library/slides/{{ slide.id }}" aria-label="查看 {{ slide.title }}">
+            {% if slide.thumbnail_url %}<img src="{{ slide.thumbnail_url }}" alt="{{ slide.title }} 缩略图">{% else %}<div class="thumbnail-placeholder"><span>{{ "%02d"|format(slide.slide_number) }}</span><small>缩略图生成中</small></div>{% endif %}
+            <span class="slide-number">{{ "%02d"|format(slide.slide_number) }}</span><span class="preview-hint">查看大图 ↗</span>
+          </a>
+          <div class="slide-card-body">
+            <p class="slide-source"><span class="source-dot"></span>{{ slide.deck_name }} <span class="source-page">· {{ slide.slide_number }} 页</span></p>
+            <h2>{{ slide.title or "未命名页面" }}</h2>
+            <div class="slide-tags" data-classification="{{ slide.topic or '待分类' }}{% if slide.subtopic %}/{{ slide.subtopic }}{% endif %}">
+              <span class="tag-topic">{{ slide.topic or "待分类" }}</span>
+              {% if slide.subtopic %}<span class="tag-subtopic">{{ slide.subtopic }}</span>{% endif %}
+              <span class="tag-page-type">{{ slide.page_type or "待识别" }}</span>
+              {% if slide.confidence == "low" %}<span class="confidence-marker is-low" title="分类置信度较低，建议人工确认">待确认</span>{% endif %}
+            </div>
+            <p class="slide-excerpt">{{ slide.text[:120] }}</p>
+            <div class="slide-card-actions"><button class="add-slide{% if slide.id in selected_ids %} is-added{% endif %}" type="button" data-slide-id="{{ slide.id }}" data-selected="{{ 'true' if slide.id in selected_ids else 'false' }}"{% if slide.id in selected_ids %} disabled{% endif %}>{% if slide.id in selected_ids %}已在选片单{% else %}加入选片单{% endif %}</button><a class="card-link" href="/library/slides/{{ slide.id }}">详情 <span>↗</span></a></div>
+          </div>
+        </article>
+        {% else %}
+        <div class="empty-state"><h2>没有匹配的页面</h2><p>试试清除筛选，或者换一个主题、页面类型或来源文件。</p><a class="button-link" href="/library?q=&amp;topic=&amp;subtopic=&amp;page_type=&amp;deck_id=&amp;view={{ current_view }}">查看全部页面 →</a></div>
+        {% endfor %}
+      </div>
+
+      {% if total_pages > 1 %}
+      {% set pagination_query = "q=" ~ q_param ~ "&topic=" ~ topic_param ~ "&subtopic=" ~ subtopic_param ~ "&page_type=" ~ page_type_param ~ "&view=" ~ current_view ~ "&deck_id=" ~ deck_param %}
+      <nav class="pagination" aria-label="页面库分页">
+        {% if result.page > 1 %}<a href="/library?{{ pagination_query }}&page={{ result.page - 1 }}" aria-label="上一页">上一页</a>{% else %}<span aria-disabled="true">上一页</span>{% endif %}
+        <span>第 {{ result.page }} / {{ total_pages }} 页</span>
+        {% if result.page < total_pages %}<a href="/library?{{ pagination_query }}&page={{ result.page + 1 }}" aria-label="下一页">下一页</a>{% else %}<span aria-disabled="true">下一页</span>{% endif %}
+      </nav>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <aside class="selection-drawer" id="selection-drawer" aria-label="当前选片">
+    <div class="selection-drawer-copy"><p class="panel-kicker">SELECTION BOARD</p><strong id="drawer-selection-count">{{ selected_ids|length }}</strong><span>页已选</span></div>
+    <a class="drawer-action" href="/selection">查看选片单 <span>→</span></a>
+    <button class="drawer-toggle" type="button" aria-label="收起选片单" aria-expanded="true" data-drawer-toggle>收起</button>
+  </aside>
+</section>
+{% endblock %}
