@@ -6,10 +6,21 @@ from pathlib import Path
 import pytest
 
 from pptlib.application.compose import (
+    _export_error_code,
     _remap_source_path,
     load_manifest_slide_ids,
 )
 from pptlib.domain.errors import AppError, ErrorCode
+
+
+def test_export_error_code_maps_user_actionable_vs_internal() -> None:
+    assert _export_error_code("SOURCE_CHANGED") == ErrorCode.SOURCE_CHANGED
+    assert _export_error_code("INCOMPATIBLE_SLIDE_SIZE") == ErrorCode.REQUEST_INVALID
+    assert _export_error_code("EMPTY_SELECTION") == ErrorCode.REQUEST_INVALID
+    assert _export_error_code("SLIDE_NOT_FOUND") == ErrorCode.REQUEST_INVALID
+    assert _export_error_code("INVALID_SOURCE_PACKAGE") == ErrorCode.REQUEST_INVALID
+    assert _export_error_code("EXPORT_FAILED") == ErrorCode.INTERNAL_ERROR
+    assert _export_error_code("OUTPUT_INVALID") == ErrorCode.INTERNAL_ERROR
 
 
 def test_load_manifest_accepts_bare_list(tmp_path: Path) -> None:

@@ -165,12 +165,30 @@ def compose_from_slide_ids(
     try:
         return export_slides(refs, output_path, manifest_path)
     except ExportError as error:
-        code = (
-            ErrorCode.SOURCE_CHANGED
-            if error.code == ErrorCode.SOURCE_CHANGED.value
-            else ErrorCode.INTERNAL_ERROR
-        )
-        raise AppError(code, error.message, details=error.to_dict()) from error
+        raise AppError(
+            _export_error_code(error.code), error.message, details=error.to_dict()
+        ) from error
+
+
+# Map the exporter's structured codes onto app-level error codes so callers
+# (CLI/desktop/web) can distinguish user-actionable problems (bad selection,
+# changed source) from genuine internal failures.
+_REQUEST_ERROR_CODES = frozenset(
+    {
+        "EMPTY_SELECTION",
+        "INCOMPATIBLE_SLIDE_SIZE",
+        "SLIDE_NOT_FOUND",
+        "INVALID_SOURCE_PACKAGE",
+    }
+)
+
+
+def _export_error_code(export_code: str) -> ErrorCode:
+    if export_code == ErrorCode.SOURCE_CHANGED.value:
+        return ErrorCode.SOURCE_CHANGED
+    if export_code in _REQUEST_ERROR_CODES:
+        return ErrorCode.REQUEST_INVALID
+    return ErrorCode.INTERNAL_ERROR
 
 
 def compose_from_manifest(
