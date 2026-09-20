@@ -58,6 +58,9 @@ def scan_and_import(
                         imported_deck.slide_count,
                         assets_dir=settings.assets_dir,
                         temp_dir=settings.temp_dir,
+                        renderer=settings.renderer,
+                        thumbnail_long_edge=settings.thumbnail_long_edge,
+                        preview_long_edge=settings.preview_long_edge,
                     )
                 except ThumbnailError as error:
                     logger.warning(

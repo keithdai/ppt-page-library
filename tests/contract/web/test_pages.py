@@ -19,7 +19,7 @@ def test_setup_page_has_local_navigation_and_doctor_action(tmp_path: Path) -> No
     assert 'data-doctor-url="/api/v1/doctor"' in response.text
     assert 'id="import-form"' in response.text
     assert 'data-import-url="/api/v1/imports"' in response.text
-    assert 'value="/sources"' in response.text
+    assert 'value="./sources"' in response.text
     assert 'id="upload-form"' in response.text
     assert 'data-upload-url="/api/v1/imports/files"' in response.text
     assert 'id="source-files"' in response.text

@@ -1,0 +1,30 @@
+{
+  "name": "ppt-page-library-desktop",
+  "productName": "PPT 页库控制台",
+  "version": "0.1.0",
+  "description": "本地控制台：导入 PPTX、渲染缩略图、同步到妙搭、拉取选片清单本地组合导出",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.pptlib.desktop",
+    "productName": "PPT 页库控制台",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ]
+    }
+  }
+}

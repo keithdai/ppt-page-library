@@ -9,3 +9,22 @@ def test_cli_exposes_required_foundation_commands() -> None:
     assert parser.parse_args(["serve"]).command == "serve"
     assert parser.parse_args(["worker", "--once"]).once is True
     assert parser.parse_args(["import", "./sources"]).root.name == "sources"
+
+    compose = parser.parse_args(["compose", "./sel.json", "./out.pptx"])
+    assert compose.command == "compose"
+    assert compose.manifest.name == "sel.json"
+    assert compose.output.name == "out.pptx"
+    assert compose.no_verify_hash is False
+    assert parser.parse_args(
+        ["compose", "./sel.json", "./out.pptx", "--no-verify-hash"]
+    ).no_verify_hash is True
+
+    catalog = parser.parse_args(["catalog", "./out"])
+    assert catalog.command == "catalog"
+    assert catalog.output_dir.name == "out"
+
+    sync = parser.parse_args(["sync", "--app-id", "app_123", "--dry-run"])
+    assert sync.command == "sync"
+    assert sync.app_id == "app_123"
+    assert sync.environment == "online"
+    assert sync.dry_run is True

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PPT 页库控制台</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>PPT 页库控制台</h1>
+      <p class="subtitle">
+        源 PPTX 只留在本地 · 缩略图与描述同步到妙搭 · 在妙搭��片后回本地组合导出
+      </p>
+      <p class="paths" id="paths"></p>
+    </header>
+
+    <main>
+      <section class="card">
+        <div class="card-head">
+          <span class="step">1</span>
+          <h2>导入并渲染</h2>
+        </div>
+        <p>选择本地 PPTX。导入会抽取文本、分类，并用 officecli 按页渲染缩略图/预览。</p>
+        <div class="actions">
+          <button id="pick-import">选择 PPTX…</button>
+          <button id="run-import" class="primary" disabled>导入并渲染</button>
+        </div>
+        <ul id="import-files" class="filelist"></ul>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="step">2</span>
+          <h2>同步到妙搭</h2>
+        </div>
+        <p>导出本地 catalog，并用本机 lark-cli 把缩略图和元数据推到妙搭应用。</p>
+        <div class="form-row">
+          <label>妙搭 App ID<input id="app-id" placeholder="app_xxxxxxxx" /></label>
+          <label>环境
+            <select id="environment">
+              <option value="online">online</option>
+              <option value="dev">dev</option>
+            </select>
+          </label>
+          <label class="checkbox"><input type="checkbox" id="dry-run" checked /> 干跑（只打印命令）</label>
+        </div>
+        <div class="actions">
+          <button id="run-catalog">仅导出 catalog</button>
+          <button id="run-sync" class="primary">同步到妙搭</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span class="step">3</span>
+          <h2>本地组合导出</h2>
+        </div>
+        <p>在妙搭选好页后下载 manifest.json，这里读回它、按序拼出 PPTX。</p>
+        <div class="actions">
+          <button id="pick-manifest">选择 manifest.json…</button>
+          <button id="pick-output">选择输出位置…</button>
+          <label class="checkbox"><input type="checkbox" id="verify-hash" checked /> 校验源文件哈希</label>
+          <button id="run-compose" class="primary" disabled>组合导出</button>
+        </div>
+        <p class="chosen" id="compose-chosen"></p>
+      </section>
+    </main>
+
+    <section class="console">
+      <div class="console-head">
+        <h2>运行日志</h2>
+        <button id="clear-log">清空</button>
+      </div>
+      <pre id="log"></pre>
+    </section>
+
+    <script src="app.js"></script>
+  </body>
+</html>

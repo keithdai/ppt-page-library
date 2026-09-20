@@ -19,6 +19,7 @@ class Settings:
     port: int
     max_workers: int
     job_lease_seconds: int
+    renderer: str
     thumbnail_long_edge: int
     preview_long_edge: int
     max_file_bytes: int
@@ -31,6 +32,7 @@ class Settings:
             ("port", 0 <= self.port <= 65535),
             ("max_workers", 1 <= self.max_workers <= 2),
             ("job_lease_seconds", self.job_lease_seconds > 0),
+            ("renderer", self.renderer in {"auto", "officecli", "libreoffice"}),
             ("thumbnail_long_edge", self.thumbnail_long_edge > 0),
             ("preview_long_edge", self.preview_long_edge > 0),
             ("max_file_bytes", self.max_file_bytes > 0),
@@ -96,6 +98,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         job_lease_seconds=_int_setting(
             values, "PPTLIB_JOB_LEASE_SECONDS", defaults["job_lease_seconds"], "job_lease_seconds"
         ),
+        renderer=values.get("PPTLIB_RENDERER", str(defaults["renderer"])),
         thumbnail_long_edge=_int_setting(
             values,
             "PPTLIB_THUMBNAIL_LONG_EDGE",

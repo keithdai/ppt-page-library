@@ -43,6 +43,16 @@ def _thumbnail_url(slide_id: str, assets_dir: Path | None) -> str | None:
     return f"/assets/thumbnails/{slide_id}.jpg" if thumbnail.is_file() else None
 
 
+def _preview_url(slide_id: str, assets_dir: Path | None) -> str | None:
+    if assets_dir is None:
+        return None
+    preview = assets_dir / "previews" / f"{slide_id}.jpg"
+    if preview.is_file():
+        return f"/assets/previews/{slide_id}.jpg"
+    thumbnail = assets_dir / "thumbnails" / f"{slide_id}.jpg"
+    return f"/assets/thumbnails/{slide_id}.jpg" if thumbnail.is_file() else None
+
+
 def _summary(row: sqlite3.Row, assets_dir: Path | None = None) -> SlideSummary:
     text = "\n".join(value for value in (row["body_text"], row["notes_text"]) if value)
     thumbnail_url = _thumbnail_url(str(row["slide_id"]), assets_dir)
@@ -54,7 +64,7 @@ def _summary(row: sqlite3.Row, assets_dir: Path | None = None) -> SlideSummary:
         title=str(row["title"]),
         text=text,
         thumbnail_url=thumbnail_url,
-        preview_url=thumbnail_url,
+        preview_url=_preview_url(str(row["slide_id"]), assets_dir),
         topic=str(row["topic"] or ""),
         page_type=str(row["page_type"] or ""),
         subtopic=str(row["subtopic"] or ""),
@@ -93,7 +103,7 @@ class SqliteSlideCatalog(SlideCatalog):
                 title=result.title,
                 text="\n".join(value for value in (result.body_text, result.notes_text) if value),
                 thumbnail_url=_thumbnail_url(result.slide_id, self.assets_dir),
-                preview_url=_thumbnail_url(result.slide_id, self.assets_dir),
+                preview_url=_preview_url(result.slide_id, self.assets_dir),
                 topic=result.topic,
                 page_type=result.page_type,
                 subtopic=result.subtopic,

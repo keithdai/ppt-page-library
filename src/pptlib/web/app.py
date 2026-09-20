@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import sqlite3
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -19,7 +18,6 @@ from pptlib.application.library import (
     SelectionStore,
     SlideCatalog,
 )
-from pptlib.application.render_assets import backfill_thumbnails
 from pptlib.config import Settings, load_settings
 from pptlib.domain.ids import new_id
 from pptlib.infrastructure.db.connection import connect
@@ -33,20 +31,9 @@ logger = logging.getLogger("pptlib.web")
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    async def run_backfill() -> None:
-        try:
-            await asyncio.to_thread(backfill_thumbnails, app.state.settings)
-        except Exception:
-            logger.exception("thumbnail backfill failed")
-
-    task = asyncio.create_task(run_backfill())
-    app.state.thumbnail_backfill_task = task
-    try:
-        yield
-    finally:
-        if not task.done():
-            task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+    # Thumbnail rendering is done at import time (and via `pptlib` CLI), not on
+    # web startup: a startup backfill re-rendered huge decks and blocked boot.
+    yield
 
 
 def create_app(

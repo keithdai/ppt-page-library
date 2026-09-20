@@ -280,9 +280,36 @@ def _clone_relationships(
         rel.set("Target", _relative(target_part, mapped_target))
         if rel_type.endswith(("/oleObject", "/audio", "/video", "/control")):
             warnings.add("UNSUPPORTED_OBJECT_PRESERVED")
-    output_parts[_rels_path(target_part)] = ET.tostring(
-        root, encoding="utf-8", xml_declaration=True
-    )
+    output_parts[_rels_path(target_part)] = _serialize_opc(root, _REL_NS)
+
+
+def _serialize_opc(root: ET.Element, namespace: str) -> bytes:
+    """Serialize an OPC part whose single namespace must be the default xmlns.
+
+    ``[Content_Types].xml`` and ``.rels`` parts declare their namespace with a
+    bare ``xmlns=``; PowerPoint and LibreOffice reject prefixed roots such as
+    ``<ns0:Types>``. ElementTree cannot emit an unprefixed default namespace
+    here (``default_namespace`` rejects the unqualified attributes these parts
+    use), so we rewrite the qualified element tags to local names and declare
+    the namespace explicitly on the root. These parts only contain elements and
+    attributes from ``namespace`` (attributes are unqualified), so this is safe.
+    """
+    clark_prefix = f"{{{namespace}}}"
+    localized = _localize_element(root, clark_prefix)
+    localized.set("xmlns", namespace)
+    return bytes(ET.tostring(localized, encoding="utf-8", xml_declaration=True))
+
+
+def _localize_element(element: ET.Element, clark_prefix: str) -> ET.Element:
+    tag = element.tag
+    if isinstance(tag, str) and tag.startswith(clark_prefix):
+        tag = tag[len(clark_prefix) :]
+    clone = ET.Element(tag, dict(element.attrib))
+    clone.text = element.text
+    clone.tail = element.tail
+    for child in element:
+        clone.append(_localize_element(child, clark_prefix))
+    return clone
 
 
 def _add_content_types(
@@ -502,11 +529,11 @@ def export_slides(
         output_parts["ppt/presentation.xml"] = ET.tostring(
             presentation, encoding="utf-8", xml_declaration=True
         )
-        output_parts["ppt/_rels/presentation.xml.rels"] = ET.tostring(
-            presentation_rels, encoding="utf-8", xml_declaration=True
+        output_parts["ppt/_rels/presentation.xml.rels"] = _serialize_opc(
+            presentation_rels, _REL_NS
         )
-        output_parts["[Content_Types].xml"] = ET.tostring(
-            first.content_types, encoding="utf-8", xml_declaration=True
+        output_parts["[Content_Types].xml"] = _serialize_opc(
+            first.content_types, _NS["ct"]
         )
         _validate_output_parts(output_parts)
         export_id = f"export_{uuid.uuid4().hex}"

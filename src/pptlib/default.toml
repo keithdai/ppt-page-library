@@ -2,6 +2,7 @@ host = "127.0.0.1"
 port = 8765
 max_workers = 1
 job_lease_seconds = 120
+renderer = "auto"
 thumbnail_long_edge = 640
 preview_long_edge = 1440
 max_file_bytes = 3221225472

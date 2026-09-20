@@ -31,6 +31,21 @@ def test_load_settings_defaults_to_three_gib_upload_limit(tmp_path: Path) -> Non
     assert settings.max_file_bytes == 3 * 1024 * 1024 * 1024
 
 
+def test_renderer_defaults_to_auto_and_accepts_known_backends(tmp_path: Path) -> None:
+    default = load_settings({"PPTLIB_HOME": str(tmp_path / "home")})
+    assert default.renderer == "auto"
+    for backend in ("officecli", "libreoffice", "auto"):
+        settings = load_settings(
+            {"PPTLIB_HOME": str(tmp_path / "home"), "PPTLIB_RENDERER": backend}
+        )
+        assert settings.renderer == backend
+
+
+def test_invalid_renderer_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=r"^invalid renderer"):
+        load_settings({"PPTLIB_HOME": str(tmp_path / "home"), "PPTLIB_RENDERER": "magic"})
+
+
 def test_load_settings_works_from_built_wheel(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     wheel_dir = tmp_path / "wheel"

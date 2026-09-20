@@ -37,6 +37,10 @@ def backfill_thumbnails(settings: Settings) -> int:
                 int(row[2]),
                 assets_dir=settings.assets_dir,
                 temp_dir=settings.temp_dir,
+                renderer=settings.renderer,
+                thumbnail_long_edge=settings.thumbnail_long_edge,
+                preview_long_edge=settings.preview_long_edge,
+                generate_previews=False,
             )
         except ThumbnailError as error:
             logger.warning(

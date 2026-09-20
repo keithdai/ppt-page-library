@@ -28,10 +28,10 @@
       <form id="import-form" data-import-url="/api/v1/imports" class="directory-form">
         <label for="source-root">来源目录</label>
         <div class="import-controls">
-          <input id="source-root" name="root" value="/sources" required>
+          <input id="source-root" name="root" value="./sources" required>
           <button type="submit" id="import-button">扫描</button>
         </div>
-        <small>Docker 挂载目录默认是 <code>/sources</code>。</small>
+        <small>填写要递归扫描的本地目录（绝对路径或相对当前目录）。</small>
       </form>
     </details>
   </div>
