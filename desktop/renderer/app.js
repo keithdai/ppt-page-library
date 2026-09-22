@@ -165,21 +165,24 @@ runImportBtn.addEventListener('click', async () => {
 // Browse the local page library (real thumbnails), multi-select, reorder by
 // dragging, then compose — entirely local, no upload/round-trip.
 
-const catalog = { slides: [], byId: {} };
+const catalog = { slides: [], byId: {}, decks: [] };
 const selectedIds = [];
+let currentDeckId = null; // which file's pages the grid shows
 const gridEl = document.getElementById('grid');
+const gridHeadEl = document.getElementById('grid-head');
 const gridEmptyEl = document.getElementById('grid-empty');
+const deckListEl = document.getElementById('deck-list');
 const selListEl = document.getElementById('sel-list');
 const selEmptyEl = document.getElementById('sel-empty');
 const selCountEl = document.getElementById('sel-count');
 const selExportBtn = document.getElementById('sel-export');
-const filterTopicEl = document.getElementById('filter-topic');
 const filterTypeEl = document.getElementById('filter-type');
 const gridSearchEl = document.getElementById('grid-search');
 
 const TICK = '<span class="tick"><svg class="ico sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>';
 const GRIP = '<svg class="ico sm" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>';
 const RM = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+const DECK_ICON = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
@@ -187,24 +190,41 @@ function esc(s) {
   );
 }
 
+// Group slides into decks (files), preserving first-seen order.
+function buildDecks() {
+  const map = new Map();
+  for (const s of catalog.slides) {
+    if (!map.has(s.deck_id)) {
+      map.set(s.deck_id, { deck_id: s.deck_id, deck_name: s.deck_name, slides: [] });
+    }
+    map.get(s.deck_id).slides.push(s);
+  }
+  catalog.decks = [...map.values()];
+  if (!catalog.decks.some((d) => d.deck_id === currentDeckId)) {
+    currentDeckId = catalog.decks.length ? catalog.decks[0].deck_id : null;
+  }
+}
+
+function currentDeck() {
+  return catalog.decks.find((d) => d.deck_id === currentDeckId) || null;
+}
+
 function fillFilters() {
-  const topics = [...new Set(catalog.slides.map((s) => s.topic).filter(Boolean))].sort();
   const types = [...new Set(catalog.slides.map((s) => s.page_type).filter(Boolean))].sort();
-  filterTopicEl.innerHTML =
-    '<option value="">全部主题</option>' + topics.map((t) => `<option>${esc(t)}</option>`).join('');
   filterTypeEl.innerHTML =
     '<option value="">全部类型</option>' + types.map((t) => `<option>${esc(t)}</option>`).join('');
 }
 
+// Pages shown in the grid = current deck, filtered by type + search.
 function visibleSlides() {
-  const topic = filterTopicEl.value;
+  const deck = currentDeck();
+  if (!deck) return [];
   const type = filterTypeEl.value;
   const q = gridSearchEl.value.trim().toLowerCase();
-  return catalog.slides.filter((s) => {
-    if (topic && s.topic !== topic) return false;
+  return deck.slides.filter((s) => {
     if (type && s.page_type !== type) return false;
     if (q) {
-      const hay = `${s.title} ${s.deck_name} ${s.topic} ${s.subtopic}`.toLowerCase();
+      const hay = `${s.title} ${s.topic} ${s.subtopic}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -217,8 +237,60 @@ function pic(s) {
     : '<div class="pic ph">无缩略图</div>';
 }
 
+function renderDeckList() {
+  deckListEl.innerHTML = catalog.decks
+    .map((d) => {
+      const picked = d.slides.filter((s) => selectedIds.includes(s.slide_id)).length;
+      return (
+        `<li data-deck="${esc(d.deck_id)}" class="${d.deck_id === currentDeckId ? 'on' : ''}">` +
+        `<span class="dico">${DECK_ICON}</span>` +
+        `<span class="dinfo"><div class="dname">${esc(d.deck_name)}</div>` +
+        `<div class="dmeta">${d.slides.length} 页</div></span>` +
+        `<span class="dpick"${picked ? '' : ' hidden'}>已选 ${picked}</span></li>`
+      );
+    })
+    .join('');
+  deckListEl.querySelectorAll('li').forEach((li) => {
+    li.addEventListener('click', () => {
+      currentDeckId = li.dataset.deck;
+      renderDeckList();
+      renderGrid();
+    });
+  });
+}
+
 function renderGrid() {
+  const deck = currentDeck();
   const slides = visibleSlides();
+  // header: current file name + count + select-all toggle
+  if (deck) {
+    const allSelected = slides.length > 0 && slides.every((s) => selectedIds.includes(s.slide_id));
+    gridHeadEl.hidden = false;
+    gridHeadEl.innerHTML =
+      `<span class="gt">${esc(deck.deck_name)}</span>` +
+      `<span class="gc">显示 ${slides.length} / ${deck.slides.length} 页</span>` +
+      '<span class="spacer"></span>' +
+      `<button class="btn sm" id="grid-selall">${allSelected ? '取消全选' : '全选本页'}</button>`;
+    const selAll = document.getElementById('grid-selall');
+    if (selAll) {
+      selAll.addEventListener('click', () => {
+        const ids = slides.map((s) => s.slide_id);
+        if (allSelected) {
+          for (const id of ids) {
+            const i = selectedIds.indexOf(id);
+            if (i >= 0) selectedIds.splice(i, 1);
+          }
+        } else {
+          for (const id of ids) if (!selectedIds.includes(id)) selectedIds.push(id);
+        }
+        renderGrid();
+        renderSelected();
+        renderDeckList();
+      });
+    }
+  } else {
+    gridHeadEl.hidden = true;
+  }
   gridEl.innerHTML = slides
     .map((s) => {
       const on = selectedIds.includes(s.slide_id);
@@ -229,7 +301,7 @@ function renderGrid() {
         TICK +
         pic(s) +
         `<div class="meta"><div class="t">${esc(s.title || '(无标题)')}</div>` +
-        `<div class="s">${esc(s.deck_name)} · p${s.slide_number}</div></div></div>`
+        `<div class="s">p${s.slide_number}</div></div></div>`
       );
     })
     .join('');
@@ -275,6 +347,7 @@ function toggleSelect(id) {
   else selectedIds.push(id);
   renderGrid();
   renderSelected();
+  renderDeckList();
 }
 
 // native drag-to-reorder for the selected list
@@ -321,12 +394,14 @@ async function loadCatalog() {
     for (let i = selectedIds.length - 1; i >= 0; i--) {
       if (!catalog.byId[selectedIds[i]]) selectedIds.splice(i, 1);
     }
+    buildDecks();
     fillFilters();
+    renderDeckList();
     renderGrid();
     renderSelected();
     gridEmptyEl.hidden = catalog.slides.length > 0;
     gridEl.hidden = catalog.slides.length === 0;
-    log(`页库已加载：${catalog.slides.length} 页`, 'ok');
+    log(`页库已加载：${catalog.slides.length} 页，${catalog.decks.length} 个文件`, 'ok');
     navState(2, catalog.slides.length ? 'green' : 'gray');
   } catch (error) {
     log(`加载页库失败：${error.message}`, 'stderr');
@@ -343,8 +418,8 @@ document.getElementById('sel-clear').addEventListener('click', () => {
   selectedIds.length = 0;
   renderGrid();
   renderSelected();
+  renderDeckList();
 });
-filterTopicEl.addEventListener('change', renderGrid);
 filterTypeEl.addEventListener('change', renderGrid);
 gridSearchEl.addEventListener('input', renderGrid);
 
