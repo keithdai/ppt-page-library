@@ -108,40 +108,41 @@
             <div class="page-head">
               <div class="t">
                 <h2>选片</h2>
-                <p>在本地页库里浏览、筛选、多选并排序。选好后直接进入组合导出——全程本地，无需上传。</p>
+                <p>左侧挑文件、筛选、搜索；中间浏览缩略图多选；右侧排序后进入组合——全程本地。</p>
               </div>
               <span class="spacer"></span>
-            </div>
-
-            <div class="toolbar">
-              <select id="filter-type" class="select sm"><option value="">全部类型</option></select>
-              <span class="spacer"></span>
-              <div class="search">
-                <svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input id="grid-search" class="input sm" placeholder="在当前文件内搜索标题 / 关键词" />
-              </div>
               <button id="reload-catalog" class="btn sm">
                 <svg class="ico sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 刷新页库
               </button>
             </div>
+
             <div class="sel-layout">
-              <!-- left: deck (file) list -->
+              <!-- left: search + filter + file list -->
               <div class="deck-panel">
+                <div class="deck-tools">
+                  <div class="search">
+                    <svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input id="grid-search" class="input sm" placeholder="搜索标题 / 关键词" />
+                  </div>
+                  <select id="filter-type" class="select sm"><option value="">全部类型</option></select>
+                </div>
                 <div class="deck-head">文件（deck）</div>
                 <ul class="deck-list" id="deck-list"></ul>
               </div>
-              <!-- center: current deck's grid -->
-              <div>
+
+              <!-- center: preview grid -->
+              <div class="grid-panel">
+                <div id="grid-head" class="grid-head" hidden></div>
                 <div id="grid-empty" class="state-empty">
                   <div class="circle"><svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
                   <div class="h">页库为空 / 未加载</div>
                   <div class="hint">先在第 1 步导入 PPTX，或点“加载本地页库”从本地重新加载。</div>
                   <button id="load-catalog" class="btn primary">加载本地页库</button>
                 </div>
-                <div id="grid-head" class="grid-head" hidden></div>
                 <div class="grid" id="grid" hidden></div>
               </div>
+
               <!-- right: selected list -->
               <div class="sel-panel">
                 <div class="ph">

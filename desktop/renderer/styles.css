@@ -260,26 +260,27 @@ svg { display: block; }
 textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monospace, monospace; font-size: 12.5px; line-height: 1.7; }
 
 /* ---- Local catalog grid selection (step 3) ------------------------------ */
-.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.toolbar .spacer { flex: 1; }
 .search { position: relative; }
 .search .ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-4); pointer-events: none; }
-.search input { padding-left: 32px; width: 220px; }
+.search input { padding-left: 32px; width: 100%; }
 
-.sel-layout { display: grid; grid-template-columns: 208px minmax(0, 1fr) 288px; gap: 16px; align-items: start; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; max-height: calc(100vh - 320px); overflow: auto; padding: 2px 4px 2px 2px; }
+/* three columns, all top-aligned to the same line */
+.sel-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr) 296px; gap: 16px; align-items: start; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 12px; overflow: auto; max-height: calc(100vh - 244px); padding: 14px; }
 .grid[hidden] { display: none; }
 
-/* left: deck (file) list */
+/* left: search + filter + file list (one panel) */
 .deck-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); overflow: hidden; position: sticky; top: 0; }
-.deck-head { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-2); }
-.deck-list { list-style: none; margin: 0; padding: 6px; max-height: calc(100vh - 356px); overflow: auto; }
+.deck-tools { padding: 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.deck-tools .select { width: 100%; }
+.deck-head { padding: 10px 14px 4px; font-size: 11px; font-weight: 600; color: var(--text-4); letter-spacing: .4px; }
+.deck-list { list-style: none; margin: 0; padding: 4px 6px 8px; max-height: calc(100vh - 360px); overflow: auto; }
 .deck-list li {
   display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: var(--r-md);
   cursor: pointer; margin-bottom: 2px; border: 1px solid transparent; transition: background .14s var(--ease), border-color .14s var(--ease);
 }
 .deck-list li:hover { background: var(--surface-2); }
-.deck-list li.on { background: var(--brand-light); border-color: transparent; }
+.deck-list li.on { background: var(--brand-light); }
 .deck-list li.on .dname { color: var(--brand); font-weight: 600; }
 .deck-list .dico { width: 30px; height: 30px; border-radius: 7px; background: var(--brand-lighter); color: var(--brand); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .deck-list .dinfo { flex: 1; min-width: 0; }
@@ -288,13 +289,13 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 .deck-list .dpick { font-size: 11px; font-weight: 600; color: var(--brand); background: var(--brand-light); border-radius: 10px; padding: 1px 7px; flex: 0 0 auto; }
 .deck-list .dpick[hidden] { display: none; }
 
-/* grid header (current deck + select-all) */
-.grid-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+/* center: preview grid panel */
+.grid-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); overflow: hidden; }
+.grid-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .grid-head[hidden] { display: none; }
-.grid-head .gt { font-size: 14px; font-weight: 600; }
-.grid-head .gc { font-size: 12px; color: var(--text-3); }
+.grid-head .gt { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid-head .gc { font-size: 12px; color: var(--text-3); white-space: nowrap; }
 .grid-head .spacer { flex: 1; }
-
 
 .thumb {
   border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden;
@@ -308,10 +309,10 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 .thumb .meta { padding: 9px 11px; }
 .thumb .meta .t { font-size: 12.5px; font-weight: 600; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thumb .meta .s { font-size: 11px; color: var(--text-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.thumb .tick { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,.4); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; color: #fff; transition: background .16s var(--ease); }
-.thumb.sel .tick { background: var(--brand); }
-.thumb .tick .ico { opacity: 0; }
-.thumb.sel .tick .ico { opacity: 1; }
+/* selection tick: hidden by default, shown on hover or when selected */
+.thumb .tick { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.85); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-4); opacity: 0; transition: opacity .16s var(--ease), background .16s var(--ease); }
+.thumb:hover .tick { opacity: 1; }
+.thumb.sel .tick { opacity: 1; background: var(--brand); border-color: var(--brand); color: #fff; }
 .thumb .tag { position: absolute; top: 8px; left: 8px; font-size: 10px; background: rgba(0,0,0,.42); color: #fff; padding: 2px 7px; border-radius: 10px; backdrop-filter: blur(2px); font-weight: 500; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* selected list (draggable) */

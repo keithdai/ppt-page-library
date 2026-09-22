@@ -282,6 +282,7 @@ ipcMain.handle('load-catalog', async (event) => {
     const hasThumb = s.thumbnail_file && fs.existsSync(thumbAbs);
     return {
       slide_id: s.slide_id,
+      deck_id: s.deck_id,
       deck_name: s.deck_name,
       slide_number: s.slide_number,
       title: s.title,
