@@ -24,9 +24,28 @@ function busy(button, on) {
 
 window.pptlib.onLog(({ channel, text }) => log(text, channel));
 
-window.pptlib.paths().then((paths) => {
-  document.getElementById('paths').textContent = `HOME: ${paths.home}  ·  CLI: ${paths.pptlib}`;
-});
+async function refreshPaths() {
+  const paths = await window.pptlib.paths();
+  const el = document.getElementById('paths');
+  el.textContent = `仓库: ${paths.repoRoot}  ·  HOME: ${paths.home}`;
+  const warn = document.getElementById('repo-warning');
+  if (warn) warn.style.display = paths.repoRootValid ? 'none' : 'block';
+  return paths;
+}
+refreshPaths();
+
+const pickRepoBtn = document.getElementById('pick-repo');
+if (pickRepoBtn) {
+  pickRepoBtn.addEventListener('click', async () => {
+    const res = await window.pptlib.pickRepoRoot();
+    if (res.ok) {
+      log(`已设置仓库目录：${res.repoRoot}`, 'ok');
+      await refreshPaths();
+    } else if (res.error) {
+      log(res.error, 'stderr');
+    }
+  });
+}
 
 // Step 1: import + render
 const pickImportBtn = document.getElementById('pick-import');

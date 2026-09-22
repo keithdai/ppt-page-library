@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // directly; every capability is a named, awaitable call.
 contextBridge.exposeInMainWorld('pptlib', {
   paths: () => ipcRenderer.invoke('paths'),
+  pickRepoRoot: () => ipcRenderer.invoke('pick-repo-root'),
   pickPptx: () => ipcRenderer.invoke('pick-pptx'),
   pickManifest: () => ipcRenderer.invoke('pick-manifest'),
   pickOutputPptx: () => ipcRenderer.invoke('pick-output-pptx'),

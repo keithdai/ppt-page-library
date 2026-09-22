@@ -44,6 +44,20 @@ h1 {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.repo-warning {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #7a4b16;
+  background: #2a1c0d;
+  color: #f0b45f;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.repo-warning button {
+  margin-left: 8px;
+}
+
 main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

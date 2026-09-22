@@ -13,9 +13,48 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 
-// Repo root is the parent of desktop/. Everything local is resolved from here.
-const REPO_ROOT = path.resolve(__dirname, '..');
-const DEFAULT_HOME = path.join(REPO_ROOT, 'var', 'dev');
+// Where the pptlib repo lives. In dev the desktop/ folder sits inside the repo,
+// so its parent is the root. Once packaged into a .app that assumption breaks
+// (__dirname points inside Resources/app.asar), so resolution is layered:
+//   1. PPTLIB_REPO_ROOT env override (highest priority)
+//   2. a persisted choice from a previous run (userData/repo-root.txt)
+//   3. dev fallback: the parent of desktop/
+// A root is only accepted if it actually contains src/pptlib.
+function repoRootConfigPath() {
+  return path.join(app.getPath('userData'), 'repo-root.txt');
+}
+
+function isRepoRoot(dir) {
+  return !!dir && fs.existsSync(path.join(dir, 'src', 'pptlib'));
+}
+
+function resolveRepoRoot() {
+  const candidates = [];
+  if (process.env.PPTLIB_REPO_ROOT) candidates.push(process.env.PPTLIB_REPO_ROOT);
+  try {
+    const saved = fs.readFileSync(repoRootConfigPath(), 'utf8').trim();
+    if (saved) candidates.push(saved);
+  } catch {
+    /* no persisted choice yet */
+  }
+  candidates.push(path.resolve(__dirname, '..'));
+  return candidates.find(isRepoRoot) || path.resolve(__dirname, '..');
+}
+
+let REPO_ROOT = resolveRepoRoot();
+
+function persistRepoRoot(dir) {
+  REPO_ROOT = dir;
+  try {
+    fs.writeFileSync(repoRootConfigPath(), dir, 'utf8');
+  } catch {
+    /* best effort */
+  }
+}
+
+function defaultHome() {
+  return path.join(REPO_ROOT, 'var', 'dev');
+}
 
 function pptlibBinary() {
   const venv = path.join(REPO_ROOT, '.venv', 'bin', 'pptlib');
@@ -25,7 +64,7 @@ function pptlibBinary() {
 function childEnv() {
   return {
     ...process.env,
-    PPTLIB_HOME: process.env.PPTLIB_HOME || DEFAULT_HOME,
+    PPTLIB_HOME: process.env.PPTLIB_HOME || defaultHome(),
   };
 }
 
@@ -35,6 +74,14 @@ function childEnv() {
  */
 function runPptlib(args, webContents, { onLine } = {}) {
   return new Promise((resolve, reject) => {
+    if (!isRepoRoot(REPO_ROOT)) {
+      reject(
+        new Error(
+          '未找到 pptlib 仓库（缺少 src/pptlib）。请在设置里选择仓库目录，或用 PPTLIB_REPO_ROOT 环境变量指定。',
+        ),
+      );
+      return;
+    }
     const child = spawn(pptlibBinary(), args, { cwd: REPO_ROOT, env: childEnv() });
     let stdout = '';
     let stderr = '';
@@ -110,9 +157,26 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('paths', () => ({
   repoRoot: REPO_ROOT,
+  repoRootValid: isRepoRoot(REPO_ROOT),
   home: childEnv().PPTLIB_HOME,
   pptlib: pptlibBinary(),
 }));
+
+// Let the user point the app at their pptlib checkout (needed after packaging,
+// where the .app no longer sits inside the repo).
+ipcMain.handle('pick-repo-root', async () => {
+  const result = await dialog.showOpenDialog({
+    title: '选择 pptlib 仓库目录（包含 src/pptlib）',
+    properties: ['openDirectory'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, repoRoot: REPO_ROOT };
+  const chosen = result.filePaths[0];
+  if (!isRepoRoot(chosen)) {
+    return { ok: false, repoRoot: REPO_ROOT, error: '该目录下没有 src/pptlib，不是有效的 pptlib 仓库' };
+  }
+  persistRepoRoot(chosen);
+  return { ok: true, repoRoot: REPO_ROOT, home: childEnv().PPTLIB_HOME, pptlib: pptlibBinary() };
+});
 
 ipcMain.handle('pick-pptx', async () => {
   const result = await dialog.showOpenDialog({

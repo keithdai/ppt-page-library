@@ -10,9 +10,13 @@
     <header>
       <h1>PPT 页库控制台</h1>
       <p class="subtitle">
-        源 PPTX 只留在本地 · 缩略图与描述同步到妙搭 · 在妙搭��片后回本地组合导出
+        源 PPTX 只留在本地 · 缩略图与描述同步到妙搭 · 在妙搭选片后回本地组合导出
       </p>
       <p class="paths" id="paths"></p>
+      <div id="repo-warning" class="repo-warning" style="display: none">
+        未找到 pptlib 仓库（缺少 src/pptlib）。请选择你本地的 pptlib 仓库目录后再操作。
+        <button id="pick-repo">选择仓库目录…</button>
+      </div>
     </header>
 
     <main>
