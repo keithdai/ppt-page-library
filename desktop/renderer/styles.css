@@ -74,6 +74,7 @@ svg { display: block; }
   box-shadow: 0 2px 6px rgba(51, 112, 255, 0.35);
 }
 .brand .title { font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+.brand .title .brand-sub { margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--border); font-size: 12px; font-weight: 400; color: var(--text-3); letter-spacing: 0; }
 .topbar .spacer { flex: 1; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -341,6 +342,36 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 }
 .thumb:hover .tdel { opacity: 1; }
 .thumb .tdel:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+/* per-page zoom: sits just left of delete, hidden until thumb hover */
+.thumb .tzoom {
+  position: absolute; bottom: 44px; right: 42px; width: 26px; height: 26px; border-radius: 7px;
+  background: rgba(255,255,255,.9); border: 1px solid var(--border); color: var(--text-3);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+  opacity: 0; transition: opacity .16s var(--ease), background .14s var(--ease), color .14s var(--ease), border-color .14s var(--ease);
+}
+.thumb:hover .tzoom { opacity: 1; }
+.thumb .tzoom:hover { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* fullscreen preview (lightbox) */
+.lightbox { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
+.lightbox[hidden] { display: none; }
+.lb-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .72); backdrop-filter: blur(3px); }
+.lb-stage { position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; width: 100%; height: 100%; padding: 40px 72px; box-sizing: border-box; }
+.lb-figure { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; max-height: 100%; }
+.lb-img { max-width: 100%; max-height: calc(100vh - 130px); object-fit: contain; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.45); background: #fff; }
+.lb-bar { display: flex; align-items: center; gap: 12px; max-width: 100%; padding: 8px 14px; border-radius: var(--r-md); background: rgba(255,255,255,.94); box-shadow: var(--sh-1); }
+.lb-bar .lb-title { font-size: 13.5px; font-weight: 600; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.lb-bar .lb-meta { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+.lb-bar .spacer { flex: 1; }
+.lb-nav { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(255,255,255,.16); color: #fff; display: flex; align-items: center; justify-content: center;
+  transition: background .16s var(--ease); }
+.lb-nav:hover { background: rgba(255,255,255,.30); }
+.lb-nav .ico { width: 26px; height: 26px; }
+.lb-close { position: absolute; top: 20px; right: 24px; z-index: 2; width: 40px; height: 40px; border-radius: 50%;
+  border: none; cursor: pointer; background: rgba(255,255,255,.16); color: #fff; display: flex; align-items: center; justify-content: center;
+  transition: background .16s var(--ease); }
+.lb-close:hover { background: rgba(255,255,255,.30); }
 
 /* selected list (draggable) */
 .sel-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); position: sticky; top: 0; overflow: hidden; }

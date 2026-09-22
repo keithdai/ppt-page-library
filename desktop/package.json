@@ -1,6 +1,6 @@
 {
   "name": "ppt-page-library-desktop",
-  "productName": "PPT 页库控制台",
+  "productName": "幻页",
   "version": "0.1.0",
   "description": "本地控制台：导入 PPTX、渲染缩略图、同步到妙搭、拉取选片清单本地组合导出",
   "main": "main.js",
@@ -14,7 +14,7 @@
   },
   "build": {
     "appId": "com.pptlib.desktop",
-    "productName": "PPT 页库控制台",
+    "productName": "幻页",
     "files": [
       "main.js",
       "preload.js",

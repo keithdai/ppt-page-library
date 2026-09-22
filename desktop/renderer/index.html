@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PPT 页库控制台</title>
+    <title>幻页 · 本地 PPT 页库</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -14,7 +14,7 @@
           <span class="logo">
             <svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 18v2m8-2v2M6 21h12"/></svg>
           </span>
-          <span class="title">PPT 页库控制台</span>
+          <span class="title">幻页<span class="brand-sub">本地 PPT 页库</span></span>
         </div>
         <span class="chip">全程本地 · 源 PPTX 不外传</span>
         <span class="spacer"></span>
@@ -234,6 +234,31 @@
           <pre id="log"></pre>
         </div>
       </div>
+    </div>
+
+    <!-- Fullscreen preview (lightbox) -->
+    <div class="lightbox" id="lightbox" hidden>
+      <div class="lb-backdrop" id="lb-backdrop"></div>
+      <div class="lb-stage">
+        <button class="lb-nav prev" id="lb-prev" title="上一页（←）">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="lb-figure">
+          <img class="lb-img" id="lb-img" alt="" />
+          <div class="lb-bar">
+            <span class="lb-title" id="lb-title"></span>
+            <span class="lb-meta" id="lb-meta"></span>
+            <span class="spacer"></span>
+            <button class="btn sm" id="lb-toggle-sel">加入选片</button>
+          </div>
+        </div>
+        <button class="lb-nav next" id="lb-next" title="下一页（→）">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+      <button class="lb-close" id="lb-close" title="关闭（Esc）">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
     </div>
 
     <script src="app.js"></script>

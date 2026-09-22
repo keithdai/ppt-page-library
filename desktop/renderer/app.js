@@ -267,6 +267,7 @@ const GRIP = '<svg class="ico sm" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1
 const RM = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 const TRASH = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>';
 const DECK_ICON = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const ZOOM = '<svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/></svg>';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
@@ -390,6 +391,7 @@ function renderGrid() {
       return (
         `<div class="thumb${on ? ' sel' : ''}" data-id="${esc(s.slide_id)}">` +
         (tag ? `<span class="tag">${esc(tag)}</span>` : '') +
+        `<button class="tzoom" data-id="${esc(s.slide_id)}" title="放大预览">${ZOOM}</button>` +
         `<button class="tdel" data-id="${esc(s.slide_id)}" title="从页库移除该页（不删源文件）">${TRASH}</button>` +
         TICK +
         pic(s) +
@@ -400,7 +402,7 @@ function renderGrid() {
     .join('');
   gridEl.querySelectorAll('.thumb').forEach((el) => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.tdel')) return; // delete button handles itself
+      if (e.target.closest('.tdel') || e.target.closest('.tzoom')) return; // buttons handle themselves
       toggleSelect(el.dataset.id);
     });
   });
@@ -408,6 +410,12 @@ function renderGrid() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       removeSlide(btn.dataset.id);
+    });
+  });
+  gridEl.querySelectorAll('.tzoom').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openLightbox(btn.dataset.id);
     });
   });
 }
@@ -451,6 +459,68 @@ function toggleSelect(id) {
   renderSelected();
   renderDeckList();
 }
+
+// --- Fullscreen preview (lightbox) --------------------------------------- //
+// Uses the high-resolution preview image; navigates within the currently
+// visible grid order so ← / → walk the same pages you see.
+const lightboxEl = document.getElementById('lightbox');
+const lbImg = document.getElementById('lb-img');
+const lbTitle = document.getElementById('lb-title');
+const lbMeta = document.getElementById('lb-meta');
+const lbToggleSelBtn = document.getElementById('lb-toggle-sel');
+let lbList = []; // slide_ids in the order shown when the lightbox opened
+let lbIndex = -1;
+
+function openLightbox(id) {
+  lbList = visibleSlides().map((s) => s.slide_id);
+  lbIndex = lbList.indexOf(id);
+  if (lbIndex < 0) {
+    lbList = [id];
+    lbIndex = 0;
+  }
+  showLightboxSlide();
+  lightboxEl.hidden = false;
+}
+
+function showLightboxSlide() {
+  const s = catalog.byId[lbList[lbIndex]];
+  if (!s) return;
+  lbImg.src = s.preview_url || s.thumbnail_url || '';
+  lbTitle.textContent = s.title || '(无标题)';
+  lbMeta.textContent = `${s.deck_name} · 第 ${s.slide_number} 页 · ${lbIndex + 1}/${lbList.length}`;
+  const picked = selectedIds.includes(s.slide_id);
+  lbToggleSelBtn.textContent = picked ? '移出选片' : '加入选片';
+  lbToggleSelBtn.classList.toggle('primary', !picked);
+}
+
+function closeLightbox() {
+  lightboxEl.hidden = true;
+  lbImg.src = '';
+}
+
+function lbStep(delta) {
+  if (lbList.length === 0) return;
+  lbIndex = (lbIndex + delta + lbList.length) % lbList.length;
+  showLightboxSlide();
+}
+
+document.getElementById('lb-prev').addEventListener('click', () => lbStep(-1));
+document.getElementById('lb-next').addEventListener('click', () => lbStep(1));
+document.getElementById('lb-close').addEventListener('click', closeLightbox);
+document.getElementById('lb-backdrop').addEventListener('click', closeLightbox);
+lbToggleSelBtn.addEventListener('click', () => {
+  const id = lbList[lbIndex];
+  if (id) {
+    toggleSelect(id);
+    showLightboxSlide(); // refresh the button label + keep viewing
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (lightboxEl.hidden) return;
+  if (e.key === 'Escape') closeLightbox();
+  else if (e.key === 'ArrowLeft') lbStep(-1);
+  else if (e.key === 'ArrowRight') lbStep(1);
+});
 
 // Drop a slide from every in-memory view after it's removed from the index.
 function forgetSlide(id) {

@@ -162,7 +162,7 @@ function createWindow() {
     height: 840,
     minWidth: 1120,
     minHeight: 680,
-    title: 'PPT 页库控制台',
+    title: '幻页 · 本地 PPT 页库',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -315,6 +315,11 @@ ipcMain.handle('load-catalog', async (event) => {
   const slides = (catalog.slides || []).map((s) => {
     const thumbAbs = path.join(assetsDir, s.thumbnail_file || '');
     const hasThumb = s.thumbnail_file && fs.existsSync(thumbAbs);
+    // The renderer also produces a high-resolution preview per page under
+    // assets/previews/{slide_id}.jpg — used for zoom/lightbox. Fall back to the
+    // thumbnail when a preview is missing (e.g. an older partial render).
+    const previewAbs = path.join(assetsDir, 'previews', `${s.slide_id}.jpg`);
+    const hasPreview = fs.existsSync(previewAbs);
     return {
       slide_id: s.slide_id,
       deck_id: s.deck_id,
@@ -325,6 +330,7 @@ ipcMain.handle('load-catalog', async (event) => {
       subtopic: s.subtopic,
       page_type: s.page_type,
       thumbnail_url: hasThumb ? assetUrl(thumbAbs) : '',
+      preview_url: hasPreview ? assetUrl(previewAbs) : hasThumb ? assetUrl(thumbAbs) : '',
     };
   });
   return { slide_count: slides.length, slides };
