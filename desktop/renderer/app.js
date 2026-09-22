@@ -414,6 +414,28 @@ async function loadCatalog() {
 
 document.getElementById('load-catalog').addEventListener('click', loadCatalog);
 document.getElementById('reload-catalog').addEventListener('click', loadCatalog);
+// Auto-load the local library on startup so the grid is ready without a click.
+// Silent: failures just leave the empty-state + "加载本地页库" button in place.
+window.pptlib
+  .loadCatalog()
+  .then((res) => {
+    if (!res || !res.slides || res.slides.length === 0) return;
+    catalog.slides = res.slides;
+    catalog.byId = {};
+    catalog.slides.forEach((s) => (catalog.byId[s.slide_id] = s));
+    buildDecks();
+    fillFilters();
+    renderDeckList();
+    renderGrid();
+    renderSelected();
+    gridEmptyEl.hidden = true;
+    gridEl.hidden = false;
+    navState(2, 'green');
+    log(`页库已就绪：${catalog.slides.length} 页，${catalog.decks.length} 个文件`, 'ok');
+  })
+  .catch(() => {
+    /* no library yet — leave the empty state's load button for the user */
+  });
 document.getElementById('sel-clear').addEventListener('click', () => {
   selectedIds.length = 0;
   renderGrid();
