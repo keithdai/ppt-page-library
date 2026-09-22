@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pptlib.config import Settings
-from pptlib.discovery.scanner import scan_source_root
+from pptlib.discovery.scanner import scan_paths
 from pptlib.infrastructure.db.repositories import DeckRepository, ImportedDeck
 from pptlib.ingestion.parser import parse_pptx
 from pptlib.rendering.thumbnails import ThumbnailError, render_deck_thumbnails
@@ -33,11 +33,9 @@ def scan_and_import(
         settings.max_uncompressed_package_bytes if settings else 2 * 1024 * 1024 * 1024
     )
     max_parts = settings.max_parts_per_package if settings else 20_000
-    scanned = [
-        item
-        for root in roots
-        for item in scan_source_root(root, max_file_bytes=max_file_bytes)
-    ]
+    # ``roots`` may mix explicit PPTX files and directories. Files are indexed in
+    # place (no copy) — their real path is recorded as the canonical source.
+    scanned = scan_paths(list(roots), max_file_bytes=max_file_bytes)
     imported: list[ImportedDeck] = []
     failed: list[tuple[Path, str]] = []
     repository = DeckRepository(connection)

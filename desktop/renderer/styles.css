@@ -266,14 +266,14 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 .search .ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-4); pointer-events: none; }
 .search input { padding-left: 32px; width: 220px; }
 
-.sel-layout { display: grid; grid-template-columns: 236px 1fr 300px; gap: 16px; align-items: start; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; max-height: 620px; overflow: auto; padding: 2px; }
+.sel-layout { display: grid; grid-template-columns: 208px minmax(0, 1fr) 288px; gap: 16px; align-items: start; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; max-height: calc(100vh - 320px); overflow: auto; padding: 2px 4px 2px 2px; }
 .grid[hidden] { display: none; }
 
 /* left: deck (file) list */
 .deck-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); overflow: hidden; position: sticky; top: 0; }
 .deck-head { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-2); }
-.deck-list { list-style: none; margin: 0; padding: 6px; max-height: 600px; overflow: auto; }
+.deck-list { list-style: none; margin: 0; padding: 6px; max-height: calc(100vh - 356px); overflow: auto; }
 .deck-list li {
   display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: var(--r-md);
   cursor: pointer; margin-bottom: 2px; border: 1px solid transparent; transition: background .14s var(--ease), border-color .14s var(--ease);
@@ -320,7 +320,7 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 .sel-panel .ph .cnt { font-weight: 600; }
 .sel-panel .ph .cnt b { color: var(--brand); }
 .sel-panel .ph .clr { margin-left: auto; }
-.sel-list { list-style: none; margin: 0; padding: 8px; max-height: 460px; overflow: auto; }
+.sel-list { list-style: none; margin: 0; padding: 8px; max-height: calc(100vh - 430px); overflow: auto; }
 .sel-list:empty { display: none; }
 .sel-list li {
   display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-md);

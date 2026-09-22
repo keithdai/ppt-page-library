@@ -31,8 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("doctor")
     subparsers.add_parser("init")
-    import_command = subparsers.add_parser("import", help="scan and index a PPTX source directory")
-    import_command.add_argument("root", type=Path)
+    import_command = subparsers.add_parser(
+        "import", help="scan and index PPTX files or source directories (indexed in place)"
+    )
+    import_command.add_argument(
+        "root", type=Path, nargs="+", help="one or more PPTX files or directories"
+    )
     compose = subparsers.add_parser(
         "compose", help="compose a PPTX from a Miaoda selection manifest.json"
     )
@@ -87,12 +91,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "import":
         initialize(settings)
-        root = args.root.expanduser().resolve()
-        if not root.is_dir():
-            raise SystemExit(f"source directory not found: {root}")
+        roots = [p.expanduser().resolve() for p in args.root]
+        missing = [str(p) for p in roots if not p.exists()]
+        if missing:
+            raise SystemExit("source path not found: " + ", ".join(missing))
         connection = connect(settings.database_path)
         try:
-            report = scan_and_import(connection, [root], settings=settings)
+            report = scan_and_import(connection, roots, settings=settings)
         finally:
             connection.close()
         print(

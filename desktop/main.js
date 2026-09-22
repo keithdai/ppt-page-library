@@ -132,8 +132,10 @@ function runPptlib(args, webContents, { onLine } = {}) {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1080,
-    height: 760,
+    width: 1280,
+    height: 840,
+    minWidth: 1120,
+    minHeight: 680,
     title: 'PPT 页库控制台',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -243,19 +245,16 @@ ipcMain.handle('pick-output-pptx', async () => {
   return result.canceled ? null : result.filePath;
 });
 
-// Import copies each chosen PPTX into a per-file staging dir, then imports that
-// directory so the existing scanner + renderer run unchanged.
+// Import indexes each chosen PPTX *in place* — the original file's path is
+// recorded as the canonical source, so nothing is copied and no local space is
+// consumed. Compose later reads directly from the original locations.
 ipcMain.handle('import', async (event, filePaths) => {
   if (!Array.isArray(filePaths) || filePaths.length === 0) {
     throw new Error('未选择任何文件');
   }
-  const stagingRoot = path.join(childEnv().PPTLIB_HOME, 'uploaded_sources');
   const results = [];
   for (const source of filePaths) {
-    const staging = path.join(stagingRoot, `desktop-${Date.now()}-${path.basename(source)}`);
-    fs.mkdirSync(staging, { recursive: true });
-    fs.copyFileSync(source, path.join(staging, path.basename(source)));
-    const res = await runPptlib(['import', staging], event.sender);
+    const res = await runPptlib(['import', source], event.sender);
     results.push(res.parsed || {});
   }
   return results;
