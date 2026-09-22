@@ -7,77 +7,271 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header>
-      <h1>PPT 页库控制台</h1>
-      <p class="subtitle">
-        源 PPTX 只留在本地 · 缩略图与描述同步到妙搭 · 在妙搭选片后回本地组合导出
-      </p>
-      <p class="paths" id="paths"></p>
-      <div id="repo-warning" class="repo-warning" style="display: none">
-        未找到 pptlib 仓库（缺少 src/pptlib）。请选择你本地的 pptlib 仓库目录后再操作。
-        <button id="pick-repo">选择仓库目录…</button>
+    <div class="app">
+      <!-- Top bar -->
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo">
+            <svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 18v2m8-2v2M6 21h12"/></svg>
+          </span>
+          <span class="title">PPT 页库控制台</span>
+        </div>
+        <span class="chip">源 PPTX 仅留本地</span>
+        <span class="spacer"></span>
+        <span class="chip mono" id="paths">仓库: …</span>
+      </header>
+
+      <!-- Left nav -->
+      <nav class="nav">
+        <div class="glabel">工作流程</div>
+        <div class="nav-item active" data-step="1">
+          <span class="idx">1</span>
+          <span class="label">导入并渲染<span class="desc">抽取 · 分类 · 渲染</span></span>
+          <span class="sd gray" data-dot></span>
+        </div>
+        <div class="nav-item" data-step="2">
+          <span class="idx">2</span>
+          <span class="label">同步到妙搭<span class="desc">缩略图 + 元数据</span></span>
+          <span class="sd gray" data-dot></span>
+        </div>
+        <div class="nav-item" data-step="3">
+          <span class="idx">3</span>
+          <span class="label">选片<span class="desc">在应用内浏览挑选</span></span>
+          <span class="sd gray" data-dot></span>
+        </div>
+        <div class="nav-item" data-step="4">
+          <span class="idx">4</span>
+          <span class="label">组合导出<span class="desc">按序拼出 PPTX</span></span>
+          <span class="sd gray" data-dot></span>
+        </div>
+        <div class="fill"></div>
+        <div class="nav-card">
+          <div class="h">
+            <svg class="ico sm" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            运行环境
+          </div>
+          <div class="row"><span>仓库</span><b id="nav-repo">—</b></div>
+          <div class="row"><span>HOME</span><b id="nav-home">—</b></div>
+        </div>
+      </nav>
+
+      <!-- Main workspace -->
+      <main class="main">
+        <div class="main-inner">
+          <div id="repo-warning" class="repo-warning" style="display: none">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4m0 4h.01"/></svg>
+            <span>未找到 pptlib 仓库（缺少 src/pptlib）。请选择你本地的 pptlib 仓库目录后再操作。</span>
+            <button id="pick-repo" class="btn sm">选择仓库目录…</button>
+          </div>
+
+          <!-- STEP 1 -->
+          <section class="step active" data-step="1">
+            <div class="page-head">
+              <div class="t">
+                <h2>导入并渲染</h2>
+                <p>选择本地 PPTX，系统会抽取文本、自动分类，并按页渲染缩略图与预览。源文件只留在本地。</p>
+              </div>
+            </div>
+            <div class="cols">
+              <div>
+                <div class="card">
+                  <h3>
+                    <svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                    选择文件
+                  </h3>
+                  <p class="card-sub">支持多选。导入会在本地暂存副本，源文件不移动、不上传。</p>
+                  <div class="btn-row">
+                    <button id="pick-import" class="btn">
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                      选择 PPTX…
+                    </button>
+                    <button id="run-import" class="btn primary" disabled>
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                      导入并渲染
+                    </button>
+                  </div>
+                  <ul id="import-files" class="filelist"></ul>
+                  <div class="prog-wrap" id="import-prog" hidden><div class="prog indeterminate"><i></i></div><span class="prog-num">处理中…</span></div>
+                  <div class="toast ok" id="import-ok" hidden></div>
+                  <div class="toast err" id="import-err" hidden></div>
+                </div>
+              </div>
+              <div class="side">
+                <div class="card">
+                  <h3>说明</h3>
+                  <div class="kv"><span class="k">解析</span><span class="v">文本 + 备注</span></div>
+                  <div class="kv"><span class="k">分类</span><span class="v">主题 / 类型</span></div>
+                  <div class="kv"><span class="k">渲染</span><span class="v">officecli 按页</span></div>
+                  <div class="kv"><span class="k">源文件</span><span class="v">仅本地留存</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- STEP 2 -->
+          <section class="step" data-step="2">
+            <div class="page-head">
+              <div class="t">
+                <h2>同步到妙搭</h2>
+                <p>用本机 lark-cli 把缩略图和元数据推到妙搭应用，供在线浏览与选片。源文件不上传。</p>
+              </div>
+            </div>
+            <div class="cols">
+              <div>
+                <div class="card">
+                  <h3>
+                    <svg class="ico" viewBox="0 0 24 24"><path d="M17 8l4 4-4 4M3 12h18"/></svg>
+                    同步设置
+                  </h3>
+                  <p class="card-sub">目标妙搭应用与环境。首次可勾选“预演”，先看将执行的动作再真正上传。</p>
+                  <div class="form-grid">
+                    <div class="field">
+                      <label>妙搭 App ID</label>
+                      <input id="app-id" class="input" placeholder="app_xxxxxxxx" />
+                    </div>
+                    <div class="field">
+                      <label>环境</label>
+                      <select id="environment" class="select">
+                        <option value="online">online</option>
+                        <option value="dev">dev</option>
+                      </select>
+                    </div>
+                  </div>
+                  <label class="check"><input type="checkbox" id="dry-run" checked /> 预演（不真正上传，只打印将执行的动作）</label>
+                  <div class="divider"></div>
+                  <div class="btn-row">
+                    <button id="run-catalog" class="btn">仅导出目录</button>
+                    <button id="run-sync" class="btn primary">
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 3v6h-6"/></svg>
+                      同步到妙搭
+                    </button>
+                  </div>
+                  <div class="prog-wrap" id="sync-prog" hidden><div class="prog indeterminate"><i></i></div><span class="prog-num">同步中…</span></div>
+                  <div class="toast ok" id="sync-ok" hidden></div>
+                  <div class="toast err" id="sync-err" hidden></div>
+                </div>
+              </div>
+              <div class="side">
+                <div class="card">
+                  <h3>妙搭应用</h3>
+                  <div class="kv"><span class="k">选片在</span><span class="v">妙搭 Web</span></div>
+                  <div class="kv"><span class="k">承载</span><span class="v">缩略图 + 元数据</span></div>
+                  <div class="kv"><span class="k">表</span><span class="v">slides_catalog</span></div>
+                  <div class="divider" style="margin:12px 0;"></div>
+                  <button id="open-miaoda-edit" class="btn sm" style="width:100%;justify-content:center;">
+                    <svg class="ico sm" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
+                    打开妙搭编辑态
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- STEP 3 -->
+          <section class="step" data-step="3">
+            <div class="page-head">
+              <div class="t">
+                <h2>选片</h2>
+                <p>在下方妙搭页库里浏览、搜索、挑选。选好后在妙搭导出选片清单，客户端会自动接住并进入组合导出。</p>
+              </div>
+              <span class="spacer"></span>
+            </div>
+            <div class="selbar">
+              <button id="miaoda-back" class="btn sm">
+                <svg class="ico sm" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                后退
+              </button>
+              <button id="miaoda-reload" class="btn sm">
+                <svg class="ico sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                刷新
+              </button>
+              <button id="miaoda-open-browser" class="btn sm">
+                <svg class="ico sm" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
+                在浏览器打开
+              </button>
+              <span class="url" id="miaoda-url"></span>
+              <span class="spacer"></span>
+            </div>
+            <div class="webview-frame" id="miaoda-wrap"></div>
+            <p class="note webview-hint">首次使用请在页面内登录飞书（登录态会保留）。选片清单一旦从妙搭导出，客户端会自动接住并跳到第 4 步。</p>
+
+            <div class="card" style="margin-top:16px;">
+              <h3>
+                <svg class="ico" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+                兜底：粘贴 slide_id 清单
+              </h3>
+              <p class="card-sub">妙搭暂时没有导出按钮时用这个：每行一个 slide_id，按你想要的顺序。</p>
+              <textarea id="slide-ids" class="input" rows="3" placeholder="slide_id_1&#10;slide_id_2&#10;slide_id_3"></textarea>
+              <div class="btn-row" style="margin-top:10px;">
+                <button id="use-slide-ids" class="btn">用清单组合</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- STEP 4 -->
+          <section class="step" data-step="4">
+            <div class="page-head">
+              <div class="t">
+                <h2>组合导出</h2>
+                <p>选片清单就绪后，选好输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。</p>
+              </div>
+            </div>
+            <div class="cols">
+              <div>
+                <div class="card">
+                  <div class="toast ok" id="manifest-ok" hidden></div>
+                  <div class="toast err" id="manifest-err" hidden></div>
+                  <h3>
+                    <svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                    输出设置
+                  </h3>
+                  <p class="card-sub">清单可来自妙搭自动接住 / 兜底粘贴 / 手动选择。选好输出位置即可组合。</p>
+                  <div class="btn-row">
+                    <button id="pick-manifest" class="btn">手动选择 manifest…</button>
+                    <button id="pick-output" class="btn">选择输出位置…</button>
+                  </div>
+                  <label class="check" style="margin-top:14px;"><input type="checkbox" id="verify-hash" checked /> 校验源文件哈希（确保源页面未变动）</label>
+                  <p class="chosen note" id="compose-chosen" style="margin-top:10px;"></p>
+                  <div class="divider"></div>
+                  <div class="btn-row">
+                    <button id="run-compose" class="btn primary" disabled>
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.6 2.4A2 2 0 0 0 4.5 21h15a2 2 0 0 0 1.9-1.6L22 17"/></svg>
+                      组合导出
+                    </button>
+                  </div>
+                  <div class="prog-wrap" id="compose-prog" hidden><div class="prog indeterminate"><i></i></div><span class="prog-num">组合中…</span></div>
+                  <div class="toast ok" id="compose-ok" hidden></div>
+                  <div class="toast err" id="compose-err" hidden></div>
+                </div>
+              </div>
+              <div class="side">
+                <div class="card">
+                  <h3>组合方式</h3>
+                  <div class="kv"><span class="k">保真</span><span class="v">OOXML 复制</span></div>
+                  <div class="kv"><span class="k">页序</span><span class="v">按清单顺序</span></div>
+                  <div class="kv"><span class="k">哈希校验</span><span class="v" id="side-verify">开启</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- Log drawer -->
+      <div class="logbar" id="logbar">
+        <div class="lh" id="log-toggle">
+          <svg class="ico sm chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          运行日志
+          <span class="pill">演示时保持收起，需要时展开看细节</span>
+          <span class="spacer"></span>
+          <span class="last" id="log-last"></span>
+          <button id="clear-log" class="btn ghost sm clear">清空</button>
+        </div>
+        <div class="body">
+          <pre id="log"></pre>
+        </div>
       </div>
-    </header>
-
-    <main>
-      <section class="card">
-        <div class="card-head">
-          <span class="step">1</span>
-          <h2>导入并渲染</h2>
-        </div>
-        <p>选择本地 PPTX。导入会抽取文本、分类，并用 officecli 按页渲染缩略图/预览。</p>
-        <div class="actions">
-          <button id="pick-import">选择 PPTX…</button>
-          <button id="run-import" class="primary" disabled>导入并渲染</button>
-        </div>
-        <ul id="import-files" class="filelist"></ul>
-      </section>
-
-      <section class="card">
-        <div class="card-head">
-          <span class="step">2</span>
-          <h2>同步到妙搭</h2>
-        </div>
-        <p>导出本地 catalog，并用本机 lark-cli 把缩略图和元数据推到妙搭应用。</p>
-        <div class="form-row">
-          <label>妙搭 App ID<input id="app-id" placeholder="app_xxxxxxxx" /></label>
-          <label>环境
-            <select id="environment">
-              <option value="online">online</option>
-              <option value="dev">dev</option>
-            </select>
-          </label>
-          <label class="checkbox"><input type="checkbox" id="dry-run" checked /> 干跑（只打印命令）</label>
-        </div>
-        <div class="actions">
-          <button id="run-catalog">仅导出 catalog</button>
-          <button id="run-sync" class="primary">同步到妙搭</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-head">
-          <span class="step">3</span>
-          <h2>本地组合导出</h2>
-        </div>
-        <p>在妙搭选好页后下载 manifest.json，这里读回它、按序拼出 PPTX。</p>
-        <div class="actions">
-          <button id="pick-manifest">选择 manifest.json…</button>
-          <button id="pick-output">选择输出位置…</button>
-          <label class="checkbox"><input type="checkbox" id="verify-hash" checked /> 校验源文件哈希</label>
-          <button id="run-compose" class="primary" disabled>组合导出</button>
-        </div>
-        <p class="chosen" id="compose-chosen"></p>
-      </section>
-    </main>
-
-    <section class="console">
-      <div class="console-head">
-        <h2>运行日志</h2>
-        <button id="clear-log">清空</button>
-      </div>
-      <pre id="log"></pre>
-    </section>
+    </div>
 
     <script src="app.js"></script>
   </body>
