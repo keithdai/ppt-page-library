@@ -288,6 +288,15 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 .deck-list .dmeta { font-size: 11px; color: var(--text-3); }
 .deck-list .dpick { font-size: 11px; font-weight: 600; color: var(--brand); background: var(--brand-light); border-radius: 10px; padding: 1px 7px; flex: 0 0 auto; }
 .deck-list .dpick[hidden] { display: none; }
+/* per-file delete: hidden until row hover, danger on hover (never touches source) */
+.deck-list .ddel {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; border: 1px solid transparent;
+  background: transparent; color: var(--text-4); cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; opacity: 0; padding: 0;
+  transition: opacity .14s var(--ease), background .14s var(--ease), color .14s var(--ease);
+}
+.deck-list li:hover .ddel { opacity: 1; }
+.deck-list .ddel:hover { background: var(--danger-light); color: var(--danger); border-color: var(--danger-light); }
 
 /* center: preview grid panel */
 .grid-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); overflow: hidden; }
@@ -314,6 +323,15 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 .thumb:hover .tick { opacity: 1; }
 .thumb.sel .tick { opacity: 1; background: var(--brand); border-color: var(--brand); color: #fff; }
 .thumb .tag { position: absolute; top: 8px; left: 8px; font-size: 10px; background: rgba(0,0,0,.42); color: #fff; padding: 2px 7px; border-radius: 10px; backdrop-filter: blur(2px); font-weight: 500; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* per-page delete: bottom-right, hidden until thumb hover (never touches source) */
+.thumb .tdel {
+  position: absolute; bottom: 44px; right: 8px; width: 26px; height: 26px; border-radius: 7px;
+  background: rgba(255,255,255,.9); border: 1px solid var(--border); color: var(--text-3);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+  opacity: 0; transition: opacity .16s var(--ease), background .14s var(--ease), color .14s var(--ease), border-color .14s var(--ease);
+}
+.thumb:hover .tdel { opacity: 1; }
+.thumb .tdel:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
 
 /* selected list (draggable) */
 .sel-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); position: sticky; top: 0; overflow: hidden; }

@@ -16,6 +16,7 @@ from pptlib.application.catalog import (
     write_catalog_bundle,
 )
 from pptlib.application.compose import compose_from_manifest
+from pptlib.application.delete import delete_decks, delete_slides
 from pptlib.application.doctor import run_doctor
 from pptlib.application.import_decks import scan_and_import
 from pptlib.bootstrap import initialize
@@ -36,6 +37,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     import_command.add_argument(
         "root", type=Path, nargs="+", help="one or more PPTX files or directories"
+    )
+    remove = subparsers.add_parser(
+        "remove",
+        help="remove decks or slides from the local index (source PPTX files are never touched)",
+    )
+    remove.add_argument("--deck", action="append", default=[], help="deck_id to remove (repeatable)")
+    remove.add_argument(
+        "--slide", action="append", default=[], help="slide_id to remove (repeatable)"
     )
     compose = subparsers.add_parser(
         "compose", help="compose a PPTX from a Miaoda selection manifest.json"
@@ -121,6 +130,53 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 ensure_ascii=False,
                 default=str,
+            )
+        )
+        return 0
+    if args.command == "remove":
+        initialize(settings)
+        if not args.deck and not args.slide:
+            raise SystemExit("remove requires at least one --deck or --slide")
+        try:
+            if args.deck:
+                deck_result = delete_decks(settings, args.deck)
+            else:
+                deck_result = None
+            if args.slide:
+                slide_result = delete_slides(settings, args.slide)
+            else:
+                slide_result = None
+        except AppError as error:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": error.code.value,
+                        "message": error.message,
+                        "details": dict(error.details),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 1
+        decks_removed = deck_result.decks_removed if deck_result else 0
+        slides_removed = (deck_result.slides_removed if deck_result else 0) + (
+            slide_result.slides_removed if slide_result else 0
+        )
+        thumbnails_removed = (deck_result.thumbnails_removed if deck_result else 0) + (
+            slide_result.thumbnails_removed if slide_result else 0
+        )
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "decks_removed": decks_removed,
+                    "slides_removed": slides_removed,
+                    "thumbnails_removed": thumbnails_removed,
+                },
+                ensure_ascii=False,
+                indent=2,
             )
         )
         return 0

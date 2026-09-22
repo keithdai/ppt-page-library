@@ -295,6 +295,26 @@ ipcMain.handle('load-catalog', async (event) => {
   return { slide_count: slides.length, slides };
 });
 
+// Remove decks or individual slides from the local index. This only clears the
+// local index + cached thumbnails; the original PPTX files are never touched.
+ipcMain.handle('remove-deck', async (event, deckIds) => {
+  const ids = (Array.isArray(deckIds) ? deckIds : [deckIds]).filter(Boolean);
+  if (ids.length === 0) throw new Error('未提供要删除的文件');
+  const args = ['remove'];
+  ids.forEach((id) => args.push('--deck', String(id)));
+  const res = await runPptlib(args, event.sender);
+  return res.parsed;
+});
+
+ipcMain.handle('remove-slide', async (event, slideIds) => {
+  const ids = (Array.isArray(slideIds) ? slideIds : [slideIds]).filter(Boolean);
+  if (ids.length === 0) throw new Error('未提供要删除的页面');
+  const args = ['remove'];
+  ids.forEach((id) => args.push('--slide', String(id)));
+  const res = await runPptlib(args, event.sender);
+  return res.parsed;
+});
+
 ipcMain.handle('compose', async (event, { manifest, output, verifyHash }) => {
   const args = ['compose', manifest, output];
   if (verifyHash === false) args.push('--no-verify-hash');

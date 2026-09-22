@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('pptlib', {
   pickOutputPptx: () => ipcRenderer.invoke('pick-output-pptx'),
   import: (filePaths) => ipcRenderer.invoke('import', filePaths),
   loadCatalog: () => ipcRenderer.invoke('load-catalog'),
+  removeDeck: (deckIds) => ipcRenderer.invoke('remove-deck', deckIds),
+  removeSlide: (slideIds) => ipcRenderer.invoke('remove-slide', slideIds),
   compose: (options) => ipcRenderer.invoke('compose', options),
   reveal: (targetPath) => ipcRenderer.invoke('reveal', targetPath),
   onLog: (handler) => {
