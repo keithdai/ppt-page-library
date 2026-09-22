@@ -2,27 +2,25 @@
 
 // Electron control console for the local PPT page library.
 //
-// The desktop app drives the local `pptlib` CLI to do the local jobs — import +
-// render, export a catalog, sync to Miaoda, and compose a selection manifest
-// back into a PPTX — and additionally *embeds the Miaoda web app* so page
-// selection happens in-app (no browser hop). All heavy work and the source
-// PPTX files stay local; Miaoda holds only thumbnails + metadata.
+// A fully local, three-step flow: import + render, browse/select from the local
+// page library (real thumbnails), and compose the selection back into a PPTX.
+// The desktop app drives the local `pptlib` CLI; all heavy work and the source
+// PPTX files stay on disk — nothing is uploaded.
 
-const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 
-// The published Miaoda (妙搭) app that holds the online thumbnails + metadata and
-// hosts page selection. Embedding its runtime URL in a <webview> keeps selection
-// inside the desktop client — no browser hop — and needs no owner access: the
-// user simply logs into Feishu once inside the view (the session persists).
-const MIAODA_APP_ID = 'app_17eem29n0zk';
-const MIAODA_BASE = 'https://bytedance.feishuapp.cn/app';
-const MIAODA_PARTITION = 'persist:miaoda';
+// Custom scheme to serve local thumbnail/preview images to the renderer. A
+// file://-loaded page can't reliably read images from other directories, so
+// catalog thumbnails are served through `pptlib-asset://local/<encoded-abs>`.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'pptlib-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
-function miaodaAppUrl(appId) {
-  return `${MIAODA_BASE}/${appId || MIAODA_APP_ID}`;
+function assetUrl(absPath) {
+  return `pptlib-asset://local/${encodeURIComponent(absPath)}`;
 }
 
 // Where the pptlib repo lives. In dev the desktop/ folder sits inside the repo,
@@ -141,8 +139,6 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      // Needed for the embedded Miaoda selection view (<webview> tag).
-      webviewTag: true,
     },
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -150,7 +146,20 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  registerMiaodaDownloadCapture();
+  // Serve local catalog thumbnails to the renderer via pptlib-asset://.
+  protocol.handle('pptlib-asset', (request) => {
+    try {
+      const encoded = request.url.replace(/^pptlib-asset:\/\/local\//, '');
+      const abs = decodeURIComponent(encoded);
+      if (!fs.existsSync(abs)) return new Response('not found', { status: 404 });
+      const data = fs.readFileSync(abs);
+      const ext = path.extname(abs).toLowerCase();
+      const type = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+      return new Response(data, { headers: { 'content-type': type } });
+    } catch (error) {
+      return new Response(String(error), { status: 500 });
+    }
+  });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -161,36 +170,6 @@ app.whenReady().then(() => {
     setTimeout(() => app.quit(), 1500);
   }
 });
-
-// When the user exports a selection manifest from inside the embedded Miaoda
-// view, that arrives as a browser download on the webview's session. Instead of
-// dropping a file the user must re-pick, we intercept JSON downloads, stash them
-// under PPTLIB_HOME, and tell the renderer to arm compose automatically. Any
-// non-JSON download is left to the normal save flow.
-function registerMiaodaDownloadCapture() {
-  const ses = session.fromPartition(MIAODA_PARTITION);
-  ses.on('will-download', (event, item) => {
-    const name = item.getFilename() || 'download';
-    const isJson =
-      name.toLowerCase().endsWith('.json') ||
-      (item.getMimeType() || '').includes('json');
-    if (!isJson) return; // let other downloads save normally
-
-    const dir = path.join(childEnv().PPTLIB_HOME, 'selections');
-    fs.mkdirSync(dir, { recursive: true });
-    const savePath = path.join(dir, `manifest-${Date.now()}.json`);
-    item.setSavePath(savePath);
-    item.once('done', (_evt, state) => {
-      const win = BrowserWindow.getAllWindows()[0];
-      if (!win || win.webContents.isDestroyed()) return;
-      if (state === 'completed') {
-        win.webContents.send('miaoda-manifest', { ok: true, path: savePath, filename: name });
-      } else {
-        win.webContents.send('miaoda-manifest', { ok: false, error: `下载未完成（${state}）` });
-      }
-    });
-  });
-}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -207,16 +186,8 @@ ipcMain.handle('paths', () => ({
   pptlib: pptlibBinary(),
 }));
 
-// Config for the embedded Miaoda selection view.
-ipcMain.handle('miaoda-config', () => ({
-  appId: MIAODA_APP_ID,
-  url: miaodaAppUrl(MIAODA_APP_ID),
-  partition: MIAODA_PARTITION,
-}));
-
-// Fallback path when Miaoda can't (yet) hand back a downloadable manifest: the
-// user pastes an ordered slide_id list, we persist it as a manifest.json under
-// PPTLIB_HOME so the existing compose flow consumes it unchanged.
+// Persist an ordered slide_id selection as a manifest.json under PPTLIB_HOME so
+// the existing compose flow consumes it unchanged.
 ipcMain.handle('write-manifest', async (event, slideIds) => {
   const ids = Array.isArray(slideIds)
     ? slideIds.map((v) => String(v).trim()).filter(Boolean)
@@ -256,7 +227,7 @@ ipcMain.handle('pick-pptx', async () => {
 
 ipcMain.handle('pick-manifest', async () => {
   const result = await dialog.showOpenDialog({
-    title: '选择从妙搭下载的选片 manifest.json',
+    title: '选择选片清单 manifest.json',
     properties: ['openFile'],
     filters: [{ name: 'Manifest', extensions: ['json'] }],
   });
@@ -296,11 +267,32 @@ ipcMain.handle('catalog', async (event, outputDir) => {
   return res.parsed;
 });
 
-ipcMain.handle('sync', async (event, { appId, environment, dryRun }) => {
-  const args = ['sync', '--app-id', appId, '--environment', environment || 'online'];
-  if (dryRun) args.push('--dry-run');
-  const res = await runPptlib(args, event.sender);
-  return res.parsed;
+// Load the local catalog for in-app grid selection. This regenerates
+// catalog.json from the local index, then attaches a resolvable asset URL for
+// each slide's thumbnail (assets live under PPTLIB_HOME/assets). Selection then
+// happens entirely locally.
+ipcMain.handle('load-catalog', async (event) => {
+  const home = childEnv().PPTLIB_HOME;
+  const target = path.join(home, 'catalog');
+  await runPptlib(['catalog', target], event.sender);
+  const catalogPath = path.join(target, 'catalog.json');
+  const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+  const assetsDir = path.join(home, 'assets');
+  const slides = (catalog.slides || []).map((s) => {
+    const thumbAbs = path.join(assetsDir, s.thumbnail_file || '');
+    const hasThumb = s.thumbnail_file && fs.existsSync(thumbAbs);
+    return {
+      slide_id: s.slide_id,
+      deck_name: s.deck_name,
+      slide_number: s.slide_number,
+      title: s.title,
+      topic: s.topic,
+      subtopic: s.subtopic,
+      page_type: s.page_type,
+      thumbnail_url: hasThumb ? assetUrl(thumbAbs) : '',
+    };
+  });
+  return { slide_count: slides.length, slides };
 });
 
 ipcMain.handle('compose', async (event, { manifest, output, verifyHash }) => {
@@ -312,8 +304,4 @@ ipcMain.handle('compose', async (event, { manifest, output, verifyHash }) => {
 
 ipcMain.handle('reveal', (event, targetPath) => {
   if (targetPath && fs.existsSync(targetPath)) shell.showItemInFolder(targetPath);
-});
-
-ipcMain.handle('open-external', (event, url) => {
-  if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url);
 });

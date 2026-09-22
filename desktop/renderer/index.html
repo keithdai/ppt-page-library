@@ -16,7 +16,7 @@
           </span>
           <span class="title">PPT 页库控制台</span>
         </div>
-        <span class="chip">源 PPTX 仅留本地</span>
+        <span class="chip">全程本地 · 源 PPTX 不外传</span>
         <span class="spacer"></span>
         <span class="chip mono" id="paths">仓库: …</span>
       </header>
@@ -31,16 +31,11 @@
         </div>
         <div class="nav-item" data-step="2">
           <span class="idx">2</span>
-          <span class="label">同步到妙搭<span class="desc">缩略图 + 元数据</span></span>
+          <span class="label">选片<span class="desc">本地页库浏览挑选</span></span>
           <span class="sd gray" data-dot></span>
         </div>
         <div class="nav-item" data-step="3">
           <span class="idx">3</span>
-          <span class="label">选片<span class="desc">在应用内浏览挑选</span></span>
-          <span class="sd gray" data-dot></span>
-        </div>
-        <div class="nav-item" data-step="4">
-          <span class="idx">4</span>
           <span class="label">组合导出<span class="desc">按序拼出 PPTX</span></span>
           <span class="sd gray" data-dot></span>
         </div>
@@ -108,112 +103,64 @@
             </div>
           </section>
 
-          <!-- STEP 2 -->
+          <!-- STEP 2: local catalog grid selection -->
           <section class="step" data-step="2">
             <div class="page-head">
               <div class="t">
-                <h2>同步到妙搭</h2>
-                <p>用本机 lark-cli 把缩略图和元数据推到妙搭应用，供在线浏览与选片。源文件不上传。</p>
+                <h2>选片</h2>
+                <p>在本地页库里浏览、筛选、多选并排序。选好后直接进入组合导出——全程本地，无需上传。</p>
               </div>
+              <span class="spacer"></span>
             </div>
-            <div class="cols">
-              <div>
-                <div class="card">
-                  <h3>
-                    <svg class="ico" viewBox="0 0 24 24"><path d="M17 8l4 4-4 4M3 12h18"/></svg>
-                    同步设置
-                  </h3>
-                  <p class="card-sub">目标妙搭应用与环境。首次可勾选“预演”，先看将执行的动作再真正上传。</p>
-                  <div class="form-grid">
-                    <div class="field">
-                      <label>妙搭 App ID</label>
-                      <input id="app-id" class="input" placeholder="app_xxxxxxxx" />
-                    </div>
-                    <div class="field">
-                      <label>环境</label>
-                      <select id="environment" class="select">
-                        <option value="online">online</option>
-                        <option value="dev">dev</option>
-                      </select>
-                    </div>
-                  </div>
-                  <label class="check"><input type="checkbox" id="dry-run" checked /> 预演（不真正上传，只打印将执行的动作）</label>
-                  <div class="divider"></div>
-                  <div class="btn-row">
-                    <button id="run-catalog" class="btn">仅导出目录</button>
-                    <button id="run-sync" class="btn primary">
-                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 3v6h-6"/></svg>
-                      同步到妙搭
-                    </button>
-                  </div>
-                  <div class="prog-wrap" id="sync-prog" hidden><div class="prog indeterminate"><i></i></div><span class="prog-num">同步中…</span></div>
-                  <div class="toast ok" id="sync-ok" hidden></div>
-                  <div class="toast err" id="sync-err" hidden></div>
-                </div>
+
+            <div class="toolbar">
+              <select id="filter-topic" class="select sm"><option value="">全部主题</option></select>
+              <select id="filter-type" class="select sm"><option value="">全部类型</option></select>
+              <span class="spacer"></span>
+              <div class="search">
+                <svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input id="grid-search" class="input sm" placeholder="搜索标题 / 关键词" />
               </div>
-              <div class="side">
-                <div class="card">
-                  <h3>妙搭应用</h3>
-                  <div class="kv"><span class="k">选片在</span><span class="v">妙搭 Web</span></div>
-                  <div class="kv"><span class="k">承载</span><span class="v">缩略图 + 元数据</span></div>
-                  <div class="kv"><span class="k">表</span><span class="v">slides_catalog</span></div>
-                  <div class="divider" style="margin:12px 0;"></div>
-                  <button id="open-miaoda-edit" class="btn sm" style="width:100%;justify-content:center;">
-                    <svg class="ico sm" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
-                    打开妙搭编辑态
+              <button id="reload-catalog" class="btn sm">
+                <svg class="ico sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                刷新页库
+              </button>
+            </div>
+            <div class="sel-layout">
+              <div>
+                <div id="grid-empty" class="state-empty">
+                  <div class="circle"><svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+                  <div class="h">页库为空 / 未加载</div>
+                  <div class="hint">先在第 1 步导入 PPTX，或点“加载本地页库”从本地重新加载。</div>
+                  <button id="load-catalog" class="btn primary">加载本地页库</button>
+                </div>
+                <div class="grid" id="grid" hidden></div>
+              </div>
+              <div class="sel-panel">
+                <div class="ph">
+                  <svg class="ico sm" viewBox="0 0 24 24" style="color:var(--brand)"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  <span class="cnt">已选 <b id="sel-count">0</b> 页</span>
+                  <button class="btn ghost sm clr" id="sel-clear">清空</button>
+                </div>
+                <ul class="sel-list" id="sel-list"></ul>
+                <div class="sel-empty" id="sel-empty">从左侧点选页面加入</div>
+                <div class="sel-hint">拖动行可调整页序 · 决定最终 deck 顺序</div>
+                <div class="pf">
+                  <button class="btn primary" id="sel-export" disabled>
+                    <svg class="ico sm" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    用选片进入组合
                   </button>
                 </div>
               </div>
             </div>
           </section>
 
-          <!-- STEP 3 -->
+          <!-- STEP 3: compose -->
           <section class="step" data-step="3">
             <div class="page-head">
               <div class="t">
-                <h2>选片</h2>
-                <p>在下方妙搭页库里浏览、搜索、挑选。选好后在妙搭导出选片清单，客户端会自动接住并进入组合导出。</p>
-              </div>
-              <span class="spacer"></span>
-            </div>
-            <div class="selbar">
-              <button id="miaoda-back" class="btn sm">
-                <svg class="ico sm" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                后退
-              </button>
-              <button id="miaoda-reload" class="btn sm">
-                <svg class="ico sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                刷新
-              </button>
-              <button id="miaoda-open-browser" class="btn sm">
-                <svg class="ico sm" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
-                在浏览器打开
-              </button>
-              <span class="url" id="miaoda-url"></span>
-              <span class="spacer"></span>
-            </div>
-            <div class="webview-frame" id="miaoda-wrap"></div>
-            <p class="note webview-hint">首次使用请在页面内登录飞书（登录态会保留）。选片清单一旦从妙搭导出，客户端会自动接住并跳到第 4 步。</p>
-
-            <div class="card" style="margin-top:16px;">
-              <h3>
-                <svg class="ico" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
-                兜底：粘贴 slide_id 清单
-              </h3>
-              <p class="card-sub">妙搭暂时没有导出按钮时用这个：每行一个 slide_id，按你想要的顺序。</p>
-              <textarea id="slide-ids" class="input" rows="3" placeholder="slide_id_1&#10;slide_id_2&#10;slide_id_3"></textarea>
-              <div class="btn-row" style="margin-top:10px;">
-                <button id="use-slide-ids" class="btn">用清单组合</button>
-              </div>
-            </div>
-          </section>
-
-          <!-- STEP 4 -->
-          <section class="step" data-step="4">
-            <div class="page-head">
-              <div class="t">
                 <h2>组合导出</h2>
-                <p>选片清单就绪后，选好输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。</p>
+                <p>选好页后，选一个输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。</p>
               </div>
             </div>
             <div class="cols">
@@ -225,7 +172,7 @@
                     <svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
                     输出设置
                   </h3>
-                  <p class="card-sub">清单可来自妙搭自动接住 / 兜底粘贴 / 手动选择。选好输出位置即可组合。</p>
+                  <p class="card-sub">在第 2 步“用选片进入组合”会带上清单；也可手动选择一个 manifest。选好输出位置即可组合。</p>
                   <div class="btn-row">
                     <button id="pick-manifest" class="btn">手动选择 manifest…</button>
                     <button id="pick-output" class="btn">选择输出位置…</button>

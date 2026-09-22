@@ -161,183 +161,218 @@ runImportBtn.addEventListener('click', async () => {
   }
 });
 
-// --- Step 2: catalog + sync ---------------------------------------------- //
+// --- Step 2: local catalog grid selection -------------------------------- //
+// Browse the local page library (real thumbnails), multi-select, reorder by
+// dragging, then compose — entirely local, no upload/round-trip.
 
-const runCatalogBtn = document.getElementById('run-catalog');
-const runSyncBtn = document.getElementById('run-sync');
+const catalog = { slides: [], byId: {} };
+const selectedIds = [];
+const gridEl = document.getElementById('grid');
+const gridEmptyEl = document.getElementById('grid-empty');
+const selListEl = document.getElementById('sel-list');
+const selEmptyEl = document.getElementById('sel-empty');
+const selCountEl = document.getElementById('sel-count');
+const selExportBtn = document.getElementById('sel-export');
+const filterTopicEl = document.getElementById('filter-topic');
+const filterTypeEl = document.getElementById('filter-type');
+const gridSearchEl = document.getElementById('grid-search');
 
-runCatalogBtn.addEventListener('click', async () => {
-  busy(runCatalogBtn, true);
-  try {
-    const res = await window.pptlib.catalog(null);
-    log(`已导出 catalog：${res.slide_count} 页 → ${res.catalog_path}`, 'ok');
-    toast(
-      document.getElementById('sync-ok'),
-      document.getElementById('sync-err'),
-      'ok',
-      `已导出目录：${res.slide_count} 页 → ${res.catalog_path}`
-    );
-  } catch (error) {
-    log(`导出 catalog 失败：${error.message}`, 'stderr');
-    toast(
-      document.getElementById('sync-ok'),
-      document.getElementById('sync-err'),
-      'err',
-      `导出目录失败：${error.message}`
-    );
-  } finally {
-    busy(runCatalogBtn, false);
-  }
-});
+const TICK = '<span class="tick"><svg class="ico sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>';
+const GRIP = '<svg class="ico sm" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>';
+const RM = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
-runSyncBtn.addEventListener('click', async () => {
-  const appId = document.getElementById('app-id').value.trim();
-  if (!appId) {
-    toast(
-      document.getElementById('sync-ok'),
-      document.getElementById('sync-err'),
-      'err',
-      '请先填写妙搭 App ID'
-    );
-    log('请先填写妙搭 App ID', 'stderr');
-    return;
-  }
-  const environment = document.getElementById('environment').value;
-  const dryRun = document.getElementById('dry-run').checked;
-  busy(runSyncBtn, true);
-  show(document.getElementById('sync-ok'), false);
-  show(document.getElementById('sync-err'), false);
-  show(document.getElementById('sync-prog'), true);
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+  );
+}
+
+function fillFilters() {
+  const topics = [...new Set(catalog.slides.map((s) => s.topic).filter(Boolean))].sort();
+  const types = [...new Set(catalog.slides.map((s) => s.page_type).filter(Boolean))].sort();
+  filterTopicEl.innerHTML =
+    '<option value="">全部主题</option>' + topics.map((t) => `<option>${esc(t)}</option>`).join('');
+  filterTypeEl.innerHTML =
+    '<option value="">全部类型</option>' + types.map((t) => `<option>${esc(t)}</option>`).join('');
+}
+
+function visibleSlides() {
+  const topic = filterTopicEl.value;
+  const type = filterTypeEl.value;
+  const q = gridSearchEl.value.trim().toLowerCase();
+  return catalog.slides.filter((s) => {
+    if (topic && s.topic !== topic) return false;
+    if (type && s.page_type !== type) return false;
+    if (q) {
+      const hay = `${s.title} ${s.deck_name} ${s.topic} ${s.subtopic}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function pic(s) {
+  return s.thumbnail_url
+    ? `<img class="pic" src="${esc(s.thumbnail_url)}" loading="lazy" alt="" />`
+    : '<div class="pic ph">无缩略图</div>';
+}
+
+function renderGrid() {
+  const slides = visibleSlides();
+  gridEl.innerHTML = slides
+    .map((s) => {
+      const on = selectedIds.includes(s.slide_id);
+      const tag = s.page_type || s.topic || '';
+      return (
+        `<div class="thumb${on ? ' sel' : ''}" data-id="${esc(s.slide_id)}">` +
+        (tag ? `<span class="tag">${esc(tag)}</span>` : '') +
+        TICK +
+        pic(s) +
+        `<div class="meta"><div class="t">${esc(s.title || '(无标题)')}</div>` +
+        `<div class="s">${esc(s.deck_name)} · p${s.slide_number}</div></div></div>`
+      );
+    })
+    .join('');
+  gridEl.querySelectorAll('.thumb').forEach((el) => {
+    el.addEventListener('click', () => toggleSelect(el.dataset.id));
+  });
+}
+
+function renderSelected() {
+  selCountEl.textContent = selectedIds.length;
+  selExportBtn.disabled = selectedIds.length === 0;
+  selEmptyEl.hidden = selectedIds.length > 0;
+  selListEl.innerHTML = selectedIds
+    .map((id, i) => {
+      const s = catalog.byId[id];
+      if (!s) return '';
+      const mini = s.thumbnail_url
+        ? `<img class="mini" src="${esc(s.thumbnail_url)}" alt="" />`
+        : '<span class="mini"></span>';
+      return (
+        `<li draggable="true" data-id="${esc(id)}">` +
+        `<span class="grip">${GRIP}</span>` +
+        `<span class="ord">${i + 1}</span>` +
+        mini +
+        `<span class="txt"><div class="t">${esc(s.title || '(无标题)')}</div>` +
+        `<div class="s">${esc(s.deck_name)} · p${s.slide_number}</div></span>` +
+        `<button class="rm" data-id="${esc(id)}">${RM}</button></li>`
+      );
+    })
+    .join('');
+  selListEl.querySelectorAll('.rm').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSelect(btn.dataset.id);
+    });
+  });
+  bindDrag();
+}
+
+function toggleSelect(id) {
+  const i = selectedIds.indexOf(id);
+  if (i >= 0) selectedIds.splice(i, 1);
+  else selectedIds.push(id);
+  renderGrid();
+  renderSelected();
+}
+
+// native drag-to-reorder for the selected list
+let dragId = null;
+function bindDrag() {
+  selListEl.querySelectorAll('li').forEach((li) => {
+    li.addEventListener('dragstart', () => {
+      dragId = li.dataset.id;
+      li.classList.add('dragging');
+    });
+    li.addEventListener('dragend', () => {
+      li.classList.remove('dragging');
+      selListEl.querySelectorAll('li').forEach((x) => x.classList.remove('over'));
+    });
+    li.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      li.classList.add('over');
+    });
+    li.addEventListener('dragleave', () => li.classList.remove('over'));
+    li.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const from = selectedIds.indexOf(dragId);
+      const to = selectedIds.indexOf(li.dataset.id);
+      if (from < 0 || to < 0 || from === to) return;
+      selectedIds.splice(to, 0, selectedIds.splice(from, 1)[0]);
+      renderSelected();
+    });
+  });
+}
+
+async function loadCatalog() {
+  const btn = document.getElementById('load-catalog');
+  const reloadBtn = document.getElementById('reload-catalog');
+  if (btn) busy(btn, true);
+  if (reloadBtn) busy(reloadBtn, true);
   navState(2, 'blue');
   try {
-    log(`${dryRun ? '[预演] ' : ''}同步到 ${appId} (${environment})…`);
-    const res = await window.pptlib.sync({ appId, environment, dryRun });
-    log(
-      `同步完成：${res.slide_count} 页，缩略图 ${res.thumbnails_uploaded}，元数据 ${res.rows_upserted}`,
-      'ok'
-    );
-    toast(
-      document.getElementById('sync-ok'),
-      document.getElementById('sync-err'),
-      'ok',
-      `${dryRun ? '[预演] ' : ''}同步完成：${res.slide_count} 页，缩略图 ${res.thumbnails_uploaded}，元数据 ${res.rows_upserted}`
-    );
-    navState(2, 'green');
+    log('加载本地页库…');
+    const res = await window.pptlib.loadCatalog();
+    catalog.slides = res.slides || [];
+    catalog.byId = {};
+    catalog.slides.forEach((s) => (catalog.byId[s.slide_id] = s));
+    // drop any previously-selected ids no longer present
+    for (let i = selectedIds.length - 1; i >= 0; i--) {
+      if (!catalog.byId[selectedIds[i]]) selectedIds.splice(i, 1);
+    }
+    fillFilters();
+    renderGrid();
+    renderSelected();
+    gridEmptyEl.hidden = catalog.slides.length > 0;
+    gridEl.hidden = catalog.slides.length === 0;
+    log(`页库已加载：${catalog.slides.length} 页`, 'ok');
+    navState(2, catalog.slides.length ? 'green' : 'gray');
   } catch (error) {
-    log(`同步失败：${error.message}`, 'stderr');
-    toast(
-      document.getElementById('sync-ok'),
-      document.getElementById('sync-err'),
-      'err',
-      `同步失败：${error.message}`
-    );
+    log(`加载页库失败：${error.message}`, 'stderr');
     navState(2, 'gray');
   } finally {
-    show(document.getElementById('sync-prog'), false);
-    busy(runSyncBtn, false);
+    if (btn) busy(btn, false);
+    if (reloadBtn) busy(reloadBtn, false);
   }
-});
-
-const openEditBtn = document.getElementById('open-miaoda-edit');
-if (openEditBtn) {
-  openEditBtn.addEventListener('click', () => {
-    const appId = document.getElementById('app-id').value.trim();
-    if (appId) window.pptlib.openExternal(`https://miaoda.feishu.cn/app/${appId}`);
-  });
 }
 
-// --- Step 3: in-app selection via embedded Miaoda webview ---------------- //
-
-const miaodaWrap = document.getElementById('miaoda-wrap');
-let miaodaView = null;
-
-async function setupMiaoda() {
-  const cfg = await window.pptlib.miaodaConfig();
-  // Keep step 2's sync target aligned with the embedded app by default.
-  const appIdInput = document.getElementById('app-id');
-  if (appIdInput && !appIdInput.value) appIdInput.value = cfg.appId;
-
-  const view = document.createElement('webview');
-  view.setAttribute('src', cfg.url);
-  view.setAttribute('partition', cfg.partition);
-  view.setAttribute('allowpopups', '');
-  miaodaWrap.appendChild(view);
-  miaodaView = view;
-
-  const urlEl = document.getElementById('miaoda-url');
-  urlEl.textContent = cfg.url;
-  view.addEventListener('did-navigate', (e) => (urlEl.textContent = e.url));
-  view.addEventListener('did-navigate-in-page', (e) => (urlEl.textContent = e.url));
-
-  document.getElementById('miaoda-back').addEventListener('click', () => {
-    if (miaodaView && miaodaView.canGoBack()) miaodaView.goBack();
-  });
-  document.getElementById('miaoda-reload').addEventListener('click', () => {
-    if (miaodaView) miaodaView.reload();
-  });
-  document.getElementById('miaoda-open-browser').addEventListener('click', () => {
-    if (miaodaView) window.pptlib.openExternal(miaodaView.getURL());
-  });
-}
-setupMiaoda();
-
-// A manifest downloaded inside the Miaoda view is captured in main and pushed
-// here — arm compose without making the user re-pick a file.
-window.pptlib.onMiaodaManifest((payload) => {
-  if (payload.ok) {
-    state.manifest = payload.path;
-    const label = payload.filename || payload.path;
-    log(`已接住妙搭选片清单：${label}`, 'ok');
-    toast(
-      document.getElementById('manifest-ok'),
-      document.getElementById('manifest-err'),
-      'ok',
-      `已接住妙搭选片清单：${label}`
-    );
-    navState(3, 'green');
-    refreshComposeReady();
-    goStep(4);
-  } else {
-    log(payload.error || '接收妙搭清单失败', 'stderr');
-    toast(
-      document.getElementById('manifest-ok'),
-      document.getElementById('manifest-err'),
-      'err',
-      payload.error || '接收妙搭清单失败'
-    );
-  }
+document.getElementById('load-catalog').addEventListener('click', loadCatalog);
+document.getElementById('reload-catalog').addEventListener('click', loadCatalog);
+document.getElementById('sel-clear').addEventListener('click', () => {
+  selectedIds.length = 0;
+  renderGrid();
+  renderSelected();
 });
+filterTopicEl.addEventListener('change', renderGrid);
+filterTypeEl.addEventListener('change', renderGrid);
+gridSearchEl.addEventListener('input', renderGrid);
 
-// Fallback: paste an ordered slide_id list → write a manifest locally.
-document.getElementById('use-slide-ids').addEventListener('click', async () => {
-  const text = document.getElementById('slide-ids').value;
-  const ids = text
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (ids.length === 0) {
-    log('请先粘贴至少一个 slide_id', 'stderr');
-    return;
-  }
+// "用选片进入组合": persist the ordered ids as a manifest, arm compose, jump.
+selExportBtn.addEventListener('click', async () => {
+  if (selectedIds.length === 0) return;
+  busy(selExportBtn, true);
   try {
-    const res = await window.pptlib.writeManifest(ids);
+    const res = await window.pptlib.writeManifest(selectedIds.slice());
     state.manifest = res.path;
-    log(`已按 ${res.count} 个 slide_id 写出清单 → ${res.path}`, 'ok');
+    log(`已按 ${res.count} 页写出选片清单 → ${res.path}`, 'ok');
     toast(
       document.getElementById('manifest-ok'),
       document.getElementById('manifest-err'),
       'ok',
-      `已按 ${res.count} 个 slide_id 写出清单，进入组合导出`
+      `已选 ${res.count} 页，进入组合导出`
     );
-    navState(3, 'green');
+    navState(2, 'green');
     refreshComposeReady();
-    goStep(4);
+    goStep(3);
   } catch (error) {
-    log(`写出清单失败：${error.message}`, 'stderr');
+    log(`写出选片清单失败：${error.message}`, 'stderr');
+  } finally {
+    busy(selExportBtn, false);
   }
 });
 
-// --- Step 4: compose ----------------------------------------------------- //
+// --- Step 3: compose ----------------------------------------------------- //
 
 const pickManifestBtn = document.getElementById('pick-manifest');
 const pickOutputBtn = document.getElementById('pick-output');
@@ -384,7 +419,7 @@ runComposeBtn.addEventListener('click', async () => {
   show(document.getElementById('compose-ok'), false);
   show(document.getElementById('compose-err'), false);
   show(document.getElementById('compose-prog'), true);
-  navState(4, 'blue');
+  navState(3, 'blue');
   try {
     log('开始组合…');
     const res = await window.pptlib.compose({
@@ -399,7 +434,7 @@ runComposeBtn.addEventListener('click', async () => {
       'ok',
       `组合完成：${res.page_count} 页（保真 ${res.fidelity_level}） → ${res.output_path}`
     );
-    navState(4, 'green');
+    navState(3, 'green');
     window.pptlib.reveal(res.output_path);
   } catch (error) {
     log(`组合失败：${error.message}`, 'stderr');
@@ -409,7 +444,7 @@ runComposeBtn.addEventListener('click', async () => {
       'err',
       `组合失败：${error.message}`
     );
-    navState(4, 'gray');
+    navState(3, 'gray');
   } finally {
     show(document.getElementById('compose-prog'), false);
     busy(runComposeBtn, false);
