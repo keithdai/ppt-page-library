@@ -1,7 +1,7 @@
 /* ==========================================================================
-   PPT 页库控制台 — 飞书 / Lark 浅色设计系统
+   拼页 PinPage — 好页拼成好稿 · 飞书 / Lark 浅色设计系统
    布局：顶栏 + 左侧步骤导航 + 主工作区 + 底部可折叠日志抽屉。
-   选片在妙搭 Web（嵌入承载）；这里承载四个本地任务并给出清晰的状态反馈。
+   全程本地：导入渲染 → 本地选片 → 组合导出，源 PPTX 不外传。
    ========================================================================== */
 :root {
   --bg: #f4f5f7;
@@ -411,8 +411,14 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
   background: var(--brand-lighter); color: var(--brand);
   display: inline-flex; align-items: center; justify-content: center;
 }
+.state-empty .brand-orb {
+  width: 76px; height: 76px; border-radius: 24px; margin: 0 auto 16px;
+  background: radial-gradient(circle at 30% 28%, #eef4ff 0%, var(--brand-lighter) 70%);
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(51,112,255,.10), 0 6px 18px rgba(51,112,255,.10);
+}
+.state-empty .hint { color: var(--text-3); margin: 4px auto 18px; font-size: 13px; max-width: 340px; line-height: 1.6; }
 .state-empty .h { font-weight: 600; font-size: 15px; }
-.state-empty .hint { color: var(--text-3); margin: 4px 0 18px; font-size: 13px; }
 
 /* ---- Log drawer --------------------------------------------------------- */
 .logbar { grid-area: logbar; background: var(--surface); border-top: 1px solid var(--border); }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>幻页 · 本地 PPT 页库</title>
+    <title>拼页 PinPage · 好页拼成好稿</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -11,10 +11,15 @@
       <!-- Top bar -->
       <header class="topbar">
         <div class="brand">
-          <span class="logo">
-            <svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 18v2m8-2v2M6 21h12"/></svg>
+          <span class="logo brand-mark">
+            <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden="true">
+              <rect x="14.5" y="5" width="13" height="17" rx="2.4" transform="rotate(9 21 13.5)" fill="#ffffff" opacity="0.55"/>
+              <rect x="5" y="8" width="13" height="18" rx="2.4" transform="rotate(-8 11.5 17)" fill="#ffffff"/>
+              <circle cx="19" cy="16" r="4.4" fill="#ff7a45"/>
+              <circle cx="19" cy="16" r="1.7" fill="#ffffff"/>
+            </svg>
           </span>
-          <span class="title">幻页<span class="brand-sub">本地 PPT 页库</span></span>
+          <span class="title">拼页<span class="brand-sub">好页拼成好稿</span></span>
         </div>
         <span class="chip">全程本地 · 源 PPTX 不外传</span>
         <span class="spacer"></span>
@@ -143,9 +148,16 @@
               <div class="grid-panel">
                 <div id="grid-head" class="grid-head" hidden></div>
                 <div id="grid-empty" class="state-empty">
-                  <div class="circle"><svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
-                  <div class="h">页库为空 / 未加载</div>
-                  <div class="hint">先在第 1 步导入 PPTX，或点“加载本地页库”从本地重新加载。</div>
+                  <div class="brand-orb">
+                    <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true">
+                      <rect x="14.5" y="5" width="13" height="17" rx="2.4" transform="rotate(9 21 13.5)" fill="#3370ff" opacity="0.30"/>
+                      <rect x="5" y="8" width="13" height="18" rx="2.4" transform="rotate(-8 11.5 17)" fill="#3370ff"/>
+                      <circle cx="19" cy="16" r="4.4" fill="#ff7a45"/>
+                      <circle cx="19" cy="16" r="1.7" fill="#ffffff"/>
+                    </svg>
+                  </div>
+                  <div class="h">还没有页可以拼</div>
+                  <div class="hint">先在第 1 步导入 PPTX，拼页会把每一页拆好、建成你的本地页库；已导入的话点下面重新加载。</div>
                   <button id="load-catalog" class="btn primary">加载本地页库</button>
                 </div>
                 <div class="grid" id="grid" hidden></div>

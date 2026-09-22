@@ -162,7 +162,7 @@ function createWindow() {
     height: 840,
     minWidth: 1120,
     minHeight: 680,
-    title: '幻页 · 本地 PPT 页库',
+    title: '拼页 PinPage',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

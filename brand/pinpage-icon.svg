@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="sq"><rect x="112" y="112" width="800" height="800" rx="188"/></clipPath>
+  </defs>
+
+  <!-- base: solid Feishu blue -->
+  <rect x="112" y="112" width="800" height="800" rx="188" fill="#3370ff"/>
+
+  <g clip-path="url(#sq)">
+    <!-- back page (source), tilted right, light tint -->
+    <polygon points="512,262 792,352 690,672 410,582" fill="#ffffff" opacity="0.38"/>
+
+    <!-- front page (new deck), tilted left, solid white -->
+    <polygon points="250,392 548,330 636,672 338,742" fill="#ffffff"/>
+    <!-- content lines following the front page tilt -->
+    <polygon points="298,452 486,414 494,458 306,496" fill="#3370ff"/>
+    <polygon points="308,522 556,472 562,510 314,560" fill="#cddcff"/>
+    <polygon points="316,586 566,536 572,574 322,624" fill="#cddcff"/>
+    <polygon points="324,650 476,620 482,658 330,688" fill="#cddcff"/>
+  </g>
+
+  <!-- the pin joining the two pages -->
+  <circle cx="548" cy="512" r="64" fill="#ff7a45"/>
+  <circle cx="548" cy="512" r="26" fill="#ffffff"/>
+</svg>
