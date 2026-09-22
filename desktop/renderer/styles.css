@@ -211,7 +211,16 @@ svg { display: block; }
 .prog > i { display: block; height: 100%; width: 30%; background: linear-gradient(90deg, var(--brand), #6a9bff); border-radius: 6px; transition: width .4s var(--ease); }
 .prog.indeterminate > i { width: 40%; animation: slide 1.2s var(--ease) infinite; }
 @keyframes slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
-.prog-num { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.prog-num { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* post-import summary: new / duplicate(skipped) / failed */
+.import-summary { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.import-summary[hidden] { display: none; }
+.import-summary li { font-size: 12.5px; line-height: 1.5; padding: 8px 12px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); word-break: break-all; }
+.import-summary li b { color: var(--text-1); }
+.import-summary li.ok { background: var(--success-light); border-color: transparent; color: #1f7a4d; }
+.import-summary li.dup { background: var(--brand-lighter); border-color: transparent; color: var(--brand); }
+.import-summary li.err { background: var(--danger-light); border-color: transparent; color: #cb2634; }
 
 /* file list */
 .filelist { list-style: none; margin: 6px 0 0; padding: 0; }

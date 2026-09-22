@@ -3,7 +3,7 @@
 const logEl = document.getElementById('log');
 const logLastEl = document.getElementById('log-last');
 const state = {
-  importFiles: [],
+  importSources: [],
   manifest: null,
   output: null,
 };
@@ -109,41 +109,124 @@ if (pickRepoBtn) {
 // --- Step 1: import + render --------------------------------------------- //
 
 const pickImportBtn = document.getElementById('pick-import');
+const pickFolderBtn = document.getElementById('pick-folder');
 const runImportBtn = document.getElementById('run-import');
 const importList = document.getElementById('import-files');
+const importProgEl = document.getElementById('import-prog');
+const importBarEl = document.getElementById('import-bar');
+const importProgTextEl = document.getElementById('import-prog-text');
+const importSummaryEl = document.getElementById('import-summary');
 const FILE_ICON =
   '<span class="fico"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>';
+const FOLDER_ICON =
+  '<span class="fico"><svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>';
+
+// Picked import sources: each is { path, isDir }. The backend accepts both
+// files and directories (directories are scanned recursively for PPTX).
+function renderImportSources() {
+  importList.innerHTML = '';
+  state.importSources.forEach((src) => {
+    const li = document.createElement('li');
+    const icon = src.isDir ? FOLDER_ICON : FILE_ICON;
+    const label = src.path.split('/').pop() || src.path;
+    li.innerHTML = `${icon}<div class="fname">${esc(label)}</div>` +
+      (src.isDir ? '<span class="ftag">文件夹</span>' : '');
+    importList.appendChild(li);
+  });
+  runImportBtn.disabled = state.importSources.length === 0;
+}
 
 pickImportBtn.addEventListener('click', async () => {
   const files = await window.pptlib.pickPptx();
   if (files.length) {
-    state.importFiles = files;
-    importList.innerHTML = '';
-    files.forEach((file) => {
-      const li = document.createElement('li');
-      li.innerHTML = `${FILE_ICON}<div class="fname">${file.split('/').pop()}</div>`;
-      importList.appendChild(li);
-    });
-    runImportBtn.disabled = false;
+    state.importSources = files.map((path) => ({ path, isDir: false }));
+    renderImportSources();
   }
 });
+
+pickFolderBtn.addEventListener('click', async () => {
+  const folders = await window.pptlib.pickFolder();
+  if (folders.length) {
+    state.importSources = folders.map((path) => ({ path, isDir: true }));
+    renderImportSources();
+  }
+});
+
+// Live import progress, driven by the backend's per-page/per-file events.
+function setImportProgress(event) {
+  if (!event || !importProgEl) return;
+  const { stage, index, total, name, page, pages } = event;
+  let ratio = 0;
+  let text = '准备中…';
+  if (stage === 'scan') {
+    text = total > 0 ? `发现 ${total} 个文件，开始导入…` : '未发现可导入的 PPTX';
+  } else if (stage === 'file') {
+    ratio = total ? (index - 1) / total : 0;
+    text = `(${index}/${total}) 正在读取：${name}`;
+  } else if (stage === 'parse') {
+    ratio = total ? (index - 1 + 0.15) / total : 0;
+    text = `(${index}/${total}) 已解析文本，开始渲染：${name}`;
+  } else if (stage === 'render') {
+    // page progress within a file contributes to that file's slice of the bar
+    const within = pages ? page / pages : 0;
+    ratio = total ? (index - 1 + 0.15 + 0.85 * within) / total : 0;
+    text = `(${index}/${total}) ${name}：渲染第 ${page}/${pages} 页`;
+  } else if (stage === 'file_done') {
+    ratio = total ? index / total : 0;
+    text = `(${index}/${total}) 完成：${name}${event.created ? '' : '（已存在，跳过）'}`;
+  } else if (stage === 'error') {
+    ratio = total ? index / total : 0;
+    text = `(${index}/${total}) 失败：${name}`;
+  }
+  importBarEl.style.width = `${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%`;
+  importProgTextEl.textContent = text;
+}
+window.pptlib.onProgress(setImportProgress);
+
+// Render the post-import summary: new / duplicate(skipped) / failed.
+function renderImportSummary(results) {
+  const imported = results.flatMap((r) => r.imported || []);
+  const failed = results.flatMap((r) => r.failed || []);
+  const created = imported.filter((d) => d.created);
+  const existing = imported.filter((d) => !d.created);
+  const rows = [];
+  rows.push(`<li class="ok">新增导入 <b>${created.length}</b> 个文件</li>`);
+  if (existing.length) {
+    const names = existing.map((d) => esc(d.name || (d.path || '').split('/').pop())).join('、');
+    rows.push(`<li class="dup">已存在、自动跳过 <b>${existing.length}</b> 个：${names}</li>`);
+  }
+  if (failed.length) {
+    const names = failed.map((f) => esc((f.path || '').split('/').pop())).join('、');
+    rows.push(`<li class="err">失败 <b>${failed.length}</b> 个：${names}</li>`);
+  }
+  importSummaryEl.innerHTML = rows.join('');
+  importSummaryEl.hidden = false;
+}
 
 runImportBtn.addEventListener('click', async () => {
   busy(runImportBtn, true);
   show(document.getElementById('import-ok'), false);
   show(document.getElementById('import-err'), false);
-  show(document.getElementById('import-prog'), true);
+  importSummaryEl.hidden = true;
+  importBarEl.style.width = '0%';
+  importProgTextEl.textContent = '准备中…';
+  show(importProgEl, true);
   navState(1, 'blue');
   try {
-    log(`开始导入 ${state.importFiles.length} 个文件…`);
-    const results = await window.pptlib.import(state.importFiles);
-    const imported = results.reduce((sum, r) => sum + ((r.imported || []).length), 0);
-    log(`导入完成：新增/更新 ${imported} 个 deck`, 'ok');
+    const paths = state.importSources.map((s) => s.path);
+    log(`开始导入 ${paths.length} 个来源…`);
+    const results = await window.pptlib.import(paths);
+    const imported = results.flatMap((r) => r.imported || []);
+    const created = imported.filter((d) => d.created).length;
+    const existing = imported.length - created;
+    const failed = results.flatMap((r) => r.failed || []).length;
+    log(`导入完成：新增 ${created}，已存在跳过 ${existing}，失败 ${failed}`, 'ok');
+    renderImportSummary(results);
     toast(
       document.getElementById('import-ok'),
       document.getElementById('import-err'),
       'ok',
-      `导入完成：新增 / 更新 ${imported} 个 deck，缩略图与预览已渲染`
+      `导入完成：新增 ${created} 个${existing ? `，已存在跳过 ${existing} 个` : ''}${failed ? `，失败 ${failed} 个` : ''}`
     );
     navState(1, 'green');
   } catch (error) {
@@ -156,7 +239,7 @@ runImportBtn.addEventListener('click', async () => {
     );
     navState(1, 'gray');
   } finally {
-    show(document.getElementById('import-prog'), false);
+    show(importProgEl, false);
     busy(runImportBtn, false);
   }
 });

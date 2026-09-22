@@ -93,17 +93,42 @@ function runPptlib(args, webContents, { onLine } = {}) {
       return;
     }
     const child = spawn(pptlibBinary(), args, { cwd: REPO_ROOT, env: childEnv() });
-    let stdout = '';
+    let stdout = ''; // accumulates only non-progress stdout (for final JSON parse)
     let stderr = '';
+    let outBuf = ''; // line buffer so progress markers survive chunk splits
+    const PROGRESS_PREFIX = '@@PPTLIB_PROGRESS ';
     const emit = (channel, text) => {
       if (webContents && !webContents.isDestroyed()) {
         webContents.send('log', { channel, text });
       }
       if (onLine) onLine(channel, text);
     };
+    const emitProgress = (event) => {
+      if (webContents && !webContents.isDestroyed()) {
+        webContents.send('progress', event);
+      }
+    };
+    const handleStdoutLine = (line) => {
+      if (line.startsWith(PROGRESS_PREFIX)) {
+        // Progress markers drive the UI directly and are kept out of both the
+        // log stream and the buffer the final-result JSON is parsed from.
+        try {
+          emitProgress(JSON.parse(line.slice(PROGRESS_PREFIX.length)));
+        } catch (_) {
+          /* ignore a malformed progress line */
+        }
+        return;
+      }
+      stdout += line + '\n';
+      if (line) emit('stdout', line);
+    };
     child.stdout.on('data', (buf) => {
-      stdout += buf.toString();
-      buf.toString().split(/\r?\n/).forEach((line) => line && emit('stdout', line));
+      outBuf += buf.toString();
+      let nl;
+      while ((nl = outBuf.indexOf('\n')) >= 0) {
+        handleStdoutLine(outBuf.slice(0, nl));
+        outBuf = outBuf.slice(nl + 1);
+      }
     });
     child.stderr.on('data', (buf) => {
       stderr += buf.toString();
@@ -111,6 +136,7 @@ function runPptlib(args, webContents, { onLine } = {}) {
     });
     child.on('error', (error) => reject(error));
     child.on('close', (code) => {
+      if (outBuf) handleStdoutLine(outBuf); // flush any trailing partial line
       let parsed = null;
       const match = stdout.match(/\{[\s\S]*\}\s*$/);
       if (match) {
@@ -223,6 +249,15 @@ ipcMain.handle('pick-pptx', async () => {
     title: '选择要导入的 PPTX（源文件仅留在本地）',
     properties: ['openFile', 'multiSelections'],
     filters: [{ name: 'PowerPoint', extensions: ['pptx'] }],
+  });
+  return result.canceled ? [] : result.filePaths;
+});
+
+// Pick one or more folders; the backend scans them recursively for PPTX files.
+ipcMain.handle('pick-folder', async () => {
+  const result = await dialog.showOpenDialog({
+    title: '选择要扫描导入的文件夹（递归查找 PPTX，源文件仅留在本地）',
+    properties: ['openDirectory', 'multiSelections'],
   });
   return result.canceled ? [] : result.filePaths;
 });

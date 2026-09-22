@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('pptlib', {
   writeManifest: (slideIds) => ipcRenderer.invoke('write-manifest', slideIds),
   pickRepoRoot: () => ipcRenderer.invoke('pick-repo-root'),
   pickPptx: () => ipcRenderer.invoke('pick-pptx'),
+  pickFolder: () => ipcRenderer.invoke('pick-folder'),
   pickManifest: () => ipcRenderer.invoke('pick-manifest'),
   pickOutputPptx: () => ipcRenderer.invoke('pick-output-pptx'),
   import: (filePaths) => ipcRenderer.invoke('import', filePaths),
@@ -21,5 +22,10 @@ contextBridge.exposeInMainWorld('pptlib', {
     const listener = (_event, payload) => handler(payload);
     ipcRenderer.on('log', listener);
     return () => ipcRenderer.removeListener('log', listener);
+  },
+  onProgress: (handler) => {
+    const listener = (_event, payload) => handler(payload);
+    ipcRenderer.on('progress', listener);
+    return () => ipcRenderer.removeListener('progress', listener);
   },
 });

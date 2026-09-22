@@ -74,11 +74,15 @@
                     <svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
                     选择文件
                   </h3>
-                  <p class="card-sub">支持多选。导入只记录源文件的本地路径并就地索引，源文件不复制、不移动、不上传。</p>
+                  <p class="card-sub">支持多选文件或整个文件夹（递归查找 PPTX）。导入只记录源文件的本地路径并就地索引，源文件不复制、不移动、不上传；重复的文件会自动识别并跳过。</p>
                   <div class="btn-row">
                     <button id="pick-import" class="btn">
                       <svg class="ico sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                       选择 PPTX…
+                    </button>
+                    <button id="pick-folder" class="btn">
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8"/></svg>
+                      选择文件夹…
                     </button>
                     <button id="run-import" class="btn primary" disabled>
                       <svg class="ico sm" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -86,9 +90,13 @@
                     </button>
                   </div>
                   <ul id="import-files" class="filelist"></ul>
-                  <div class="prog-wrap" id="import-prog" hidden><div class="prog indeterminate"><i></i></div><span class="prog-num">处理中…</span></div>
+                  <div class="prog-wrap" id="import-prog" hidden>
+                    <div class="prog"><i id="import-bar" style="width:0%"></i></div>
+                    <span class="prog-num" id="import-prog-text">准备中…</span>
+                  </div>
                   <div class="toast ok" id="import-ok" hidden></div>
                   <div class="toast err" id="import-err" hidden></div>
+                  <ul id="import-summary" class="import-summary" hidden></ul>
                 </div>
               </div>
               <div class="side">

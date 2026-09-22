@@ -104,9 +104,21 @@ def main(argv: list[str] | None = None) -> int:
         missing = [str(p) for p in roots if not p.exists()]
         if missing:
             raise SystemExit("source path not found: " + ", ".join(missing))
+
+        def _emit_progress(event: dict[str, object]) -> None:
+            # A single-line, prefixed marker on stdout. The desktop client peels
+            # these off the stream to drive the progress UI; the final result
+            # JSON below is unaffected because it is multi-line (indent=2).
+            import sys
+
+            sys.stdout.write("@@PPTLIB_PROGRESS " + json.dumps(event, ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+
         connection = connect(settings.database_path)
         try:
-            report = scan_and_import(connection, roots, settings=settings)
+            report = scan_and_import(
+                connection, roots, settings=settings, on_progress=_emit_progress
+            )
         finally:
             connection.close()
         print(
@@ -118,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
                             "deck_id": item.deck_id,
                             "version_id": item.version_id,
                             "path": str(item.path),
+                            "name": item.path.name,
                             "slide_count": item.slide_count,
                             "created": item.created,
                         }

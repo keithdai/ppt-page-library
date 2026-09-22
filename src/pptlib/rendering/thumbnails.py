@@ -27,6 +27,7 @@ def render_deck_thumbnails(
     preview_long_edge: int = 1440,
     generate_previews: bool = True,
     executable_finder: Callable[[str], str | None] = shutil.which,
+    on_page: Callable[[int, int], None] | None = None,
 ) -> int:
     """Render a deck to cached JPEG thumbnails and preview images.
 
@@ -42,6 +43,11 @@ def render_deck_thumbnails(
     ``renderer="auto"`` prefers officecli and falls back to LibreOffice.
     When ``generate_previews`` is False only thumbnails are produced (used by
     startup backfill to avoid re-rendering large existing files).
+
+    ``on_page(done, total)`` is called after each thumbnail page is rendered so
+    callers can surface fine-grained progress ("到第 3/20 页"). It only fires
+    for the officecli backend, which renders page by page; the LibreOffice
+    fallback converts the whole deck at once and cannot report per page.
     """
     if slide_count < 1:
         return 0
@@ -81,6 +87,7 @@ def render_deck_thumbnails(
                     ),
                     thumbnail_long_edge=thumbnail_long_edge,
                     preview_long_edge=preview_long_edge,
+                    on_page=on_page,
                 )
             else:
                 _render_with_libreoffice(
@@ -120,6 +127,7 @@ def _render_with_officecli(
     expected_previews: list[Path],
     thumbnail_long_edge: int,
     preview_long_edge: int,
+    on_page: Callable[[int, int], None] | None = None,
 ) -> None:
     """Render per page via officecli, keeping the deck resident."""
     if not expected_thumbs and not expected_previews:
@@ -133,7 +141,8 @@ def _render_with_officecli(
         _run([officecli, "open", str(source_path)], timeout=open_timeout)
         opened = True
         _officecli_pages(
-            officecli, source_path, expected_thumbs, thumbnail_long_edge, page_timeout
+            officecli, source_path, expected_thumbs, thumbnail_long_edge, page_timeout,
+            on_page=on_page,
         )
         _officecli_pages(
             officecli, source_path, expected_previews, preview_long_edge, page_timeout
@@ -150,9 +159,14 @@ def _officecli_pages(
     expected: list[Path],
     long_edge: int,
     timeout: int,
+    *,
+    on_page: Callable[[int, int], None] | None = None,
 ) -> None:
+    total = len(expected)
     for index, target in enumerate(expected, start=1):
         if target.is_file():
+            if on_page is not None:
+                on_page(index, total)
             continue
         # officecli infers the image format from the output extension, so the
         # staging file must keep a .jpg suffix (a bare .tmp is rejected).
@@ -175,6 +189,8 @@ def _officecli_pages(
         if not tmp.is_file():
             raise ThumbnailError(f"officecli produced no image for page {index}")
         tmp.replace(target)
+        if on_page is not None:
+            on_page(index, total)
 
 
 def _render_with_libreoffice(
