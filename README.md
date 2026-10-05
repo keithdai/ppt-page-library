@@ -44,10 +44,11 @@ HTML 第一阶段只接受带 `fs-deck-generator=render-deck`、`.slide-frame` �
 ### 渲染引擎选择
 
 导入时按页渲染缩略图（`thumbnail_long_edge`，默认 640）和高清预览
-（`preview_long_edge`，默认 1440）。引擎由 `PPTLIB_RENDERER` 控制：
+（`preview_long_edge`，默认 1920；16:9 页面为 1920×1080）。引擎由
+`PPTLIB_RENDERER` 控制：
 
-- `auto`（默认）：优先 LibreOffice，失败时自动回退 officecli。
-- `libreoffice`：使用分段 PPTX→PDF→内置 PDFium 管线（每段最多 16 页）。
+- `libreoffice`（默认）：使用分段 PPTX→PDF→内置 PDFium 管线（每段最多 16 页）。
+- `auto`：优先 LibreOffice，失败时自动回退 officecli。
 - `officecli`：只用 officecli 按页渲染（常驻 + 单页截图）。
 
 <!-- prettier-ignore -->

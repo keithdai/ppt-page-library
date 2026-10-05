@@ -468,7 +468,7 @@ def test_renderer_atomic_jpegs_cache_marker_and_progress(
     }
     engine.chromium.launch.return_value.close.assert_called_once()
     engine.stop.assert_called_once()
-    for kind, size in (("thumbnails", (640, 360)), ("previews", (1440, 810))):
+    for kind, size in (("thumbnails", (640, 360)), ("previews", (1920, 1080))):
         for index in (1, 2):
             with Image.open(tmp_path / "assets" / kind / f"ver_html_s{index:05d}.jpg") as image:
                 assert image.format == "JPEG" and image.size == size
@@ -600,7 +600,7 @@ def test_installed_chrome_renders_sanitized_slide(tmp_path: Path) -> None:
         assert _render(source, tmp_path) == 1
     target = tmp_path / "assets/previews/ver_html_s00001.jpg"
     with Image.open(target) as image:
-        assert image.size == (1440, 810)
-        red, green, blue = image.getpixel((720, 405))
+        assert image.size == (1920, 1080)
+        red, green, blue = image.getpixel((960, 540))
         assert red > 180 and green < 60 and blue < 40
     assert hashlib.sha256(source.path.read_bytes()).hexdigest() == source.fingerprint

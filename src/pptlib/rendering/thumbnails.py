@@ -24,7 +24,7 @@ class ThumbnailError(RuntimeError):
 
 
 _LO_APP_BINARY = Path("/Applications/LibreOffice.app/Contents/MacOS/soffice")
-_RENDER_CACHE_VERSION = 4
+_RENDER_CACHE_VERSION = 5
 _P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 _R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
@@ -157,7 +157,7 @@ def render_deck_thumbnails(
     temp_dir: Path,
     renderer: str = "auto",
     thumbnail_long_edge: int = 640,
-    preview_long_edge: int = 1440,
+    preview_long_edge: int = 1920,
     generate_previews: bool = True,
     force: bool = False,
     executable_finder: Callable[[str], str | None] = shutil.which,

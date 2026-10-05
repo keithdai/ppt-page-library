@@ -227,7 +227,7 @@ def render_html_thumbnails(
     expected_sha256: str,
     page_keys: list[str],
     thumbnail_long_edge: int = 640,
-    preview_long_edge: int = 1440,
+    preview_long_edge: int = 1920,
     on_page: Callable[[int, int], None] | None = None,
     force: bool = False,
 ) -> int:
