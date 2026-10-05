@@ -927,7 +927,19 @@ def _pdfium_images(
                             staging = expected[page_number - 1].with_name(
                                 f".{expected[page_number - 1].stem}.tmp.jpg"
                             )
-                            image.save(staging, format="JPEG", quality=quality)
+                            if max(image.size) == long_edge:
+                                image.save(staging, format="JPEG", quality=quality)
+                            else:
+                                ratio = long_edge / max(image.size)
+                                dimensions = (
+                                    max(1, round(image.width * ratio)),
+                                    max(1, round(image.height * ratio)),
+                                )
+                                with image.resize(
+                                    dimensions,
+                                    Image.Resampling.LANCZOS,
+                                ) as resized:
+                                    resized.save(staging, format="JPEG", quality=quality)
                             staging.replace(expected[page_number - 1])
                         finally:
                             image.close()
