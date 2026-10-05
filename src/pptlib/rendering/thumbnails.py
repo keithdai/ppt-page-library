@@ -867,6 +867,9 @@ def _render_hidden_slides(
         )
     except ExportError as error:
         raise ThumbnailError(str(error)) from error
+    _, still_hidden = _presentation_visibility(hidden_pptx, len(hidden_pages))
+    if still_hidden:
+        raise ThumbnailError("temporary hidden-slide export remained hidden")
     render_deck_thumbnails(
         hidden_pptx,
         "hidden",

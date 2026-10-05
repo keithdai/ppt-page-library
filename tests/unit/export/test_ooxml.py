@@ -36,6 +36,7 @@ def _make_fixture(
     external: bool = False,
     theme_name: str = "fixture",
     hidden_slides: tuple[int, ...] = (),
+    notes_slides: tuple[int, ...] = (),
 ) -> None:
     parts: dict[str, bytes] = {}
     types = ET.Element(f"{{{CT}}}Types")
@@ -97,6 +98,18 @@ def _make_fixture(
                 ),
             },
         )
+        if n in notes_slides:
+            ET.SubElement(
+                types,
+                f"{{{CT}}}Override",
+                {
+                    "PartName": f"/ppt/notesSlides/notesSlide{n}.xml",
+                    "ContentType": (
+                        "application/vnd.openxmlformats-officedocument."
+                        "presentationml.notesSlide+xml"
+                    ),
+                },
+            )
     parts["[Content_Types].xml"] = _xml(types)
     root_rels = ET.Element(f"{{{REL}}}Relationships")
     ET.SubElement(
@@ -161,7 +174,7 @@ def _make_fixture(
             {"val": "window", "lastClr": "FFFFFF"},
         )
         parts[f"ppt/slides/slide{n}.xml"] = _xml(slide)
-        if external or n == 1:
+        if external or n == 1 or n in notes_slides:
             rels = ET.Element(f"{{{REL}}}Relationships")
             ET.SubElement(
                 rels,
@@ -183,6 +196,37 @@ def _make_fixture(
                         "TargetMode": "External",
                     },
                 )
+            if n in notes_slides:
+                ET.SubElement(
+                    rels,
+                    f"{{{REL}}}Relationship",
+                    {
+                        "Id": "rId3",
+                        "Type": (
+                            "http://schemas.openxmlformats.org/officeDocument/2006/"
+                            "relationships/notesSlide"
+                        ),
+                        "Target": f"../notesSlides/notesSlide{n}.xml",
+                    },
+                )
+                parts[f"ppt/notesSlides/notesSlide{n}.xml"] = (
+                    b'<p:notes xmlns:p="http://schemas.openxmlformats.org/'
+                    b'presentationml/2006/main"/>'
+                )
+                notes_rels = ET.Element(f"{{{REL}}}Relationships")
+                ET.SubElement(
+                    notes_rels,
+                    f"{{{REL}}}Relationship",
+                    {
+                        "Id": "rId1",
+                        "Type": (
+                            "http://schemas.openxmlformats.org/officeDocument/2006/"
+                            "relationships/slide"
+                        ),
+                        "Target": f"../slides/slide{n}.xml",
+                    },
+                )
+                parts[f"ppt/notesSlides/_rels/notesSlide{n}.xml.rels"] = _xml(notes_rels)
             parts[f"ppt/slides/_rels/slide{n}.xml.rels"] = _xml(rels)
     parts["ppt/slideLayouts/slideLayout1.xml"] = (
         b'<p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>'
@@ -283,6 +327,20 @@ def test_export_makes_selected_hidden_slide_visible(tmp_path: Path) -> None:
     output = tmp_path / "out.pptx"
 
     export_slides([SlideRef("hidden", source, 1)], output)
+
+    with zipfile.ZipFile(output) as archive:
+        slide = ET.fromstring(archive.read("ppt/slides/slide1.xml"))
+    assert slide.get("show") is None
+
+
+def test_export_keeps_hidden_slide_visible_when_notes_link_back_to_slide(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source-with-notes.pptx"
+    _make_fixture(source, hidden_slides=(1,), notes_slides=(1,))
+    output = tmp_path / "out.pptx"
+
+    export_slides([SlideRef("hidden-with-notes", source, 1)], output)
 
     with zipfile.ZipFile(output) as archive:
         slide = ET.fromstring(archive.read("ppt/slides/slide1.xml"))

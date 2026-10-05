@@ -408,7 +408,10 @@ def _clone_relationships(
             )
             mapping[target_source] = mapped_target
         if recursive:
-            output_parts[mapped_target] = package.parts[target_source]
+            # A notes slide can point back to its owning slide. Preserve the
+            # transformed primary slide already written at the mapped target.
+            if mapped_target not in output_parts:
+                output_parts[mapped_target] = package.parts[target_source]
             _clone_relationships(
                 package,
                 target_source,
