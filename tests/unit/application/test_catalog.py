@@ -9,6 +9,7 @@ from pptlib.application.catalog import (
     CatalogSlide,
     MiaodaSync,
     _sql_str,
+    build_catalog,
 )
 from pptlib.config import load_settings
 
@@ -18,9 +19,11 @@ def _slide(slide_id: str = "ver_x_s00001") -> CatalogSlide:
         slide_id=slide_id,
         deck_id="deck_x",
         deck_name="Deck O'Brien",
+        source_path="/tmp/Deck O'Brien.pptx",
         slide_number=1,
         title="标题",
         summary="正文摘要",
+        search_text="正文摘要和完整备注",
         topic="战略与增长",
         subtopic="业务规划与增长",
         page_type="观点与结论",
@@ -42,11 +45,47 @@ def test_catalog_to_dict_round_trips() -> None:
         slide_count=1,
         slides=[_slide()],
     )
-    payload = catalog.to_dict()
+    payload = catalog.to_dict(include_local_fields=True)
     assert payload["slide_count"] == 1
     assert payload["slides"][0]["slide_id"] == "ver_x_s00001"
+    assert payload["slides"][0]["source_path"] == "/tmp/Deck O'Brien.pptx"
+    assert payload["slides"][0]["search_text"] == "正文摘要和完整备注"
     # portable: survives a JSON round trip
     assert json.loads(json.dumps(payload, ensure_ascii=False))["slides"][0]["title"] == "标题"
+
+
+def test_catalog_excludes_local_fields_by_default() -> None:
+    slide = Catalog(
+        schema_version="catalog-v1",
+        generated_at="2026-09-19T00:00:00+00:00",
+        slide_count=1,
+        slides=[_slide()],
+    ).to_dict()["slides"][0]
+
+    assert "source_path" not in slide
+    assert "search_text" not in slide
+
+
+def test_build_catalog_keeps_full_text_for_local_search(tmp_path: Path) -> None:
+    from pptlib.infrastructure.db.connection import connect
+
+    home = tmp_path / "home"
+    settings = load_settings({"PPTLIB_HOME": str(home)})
+    _seed_minimal_db(settings)
+    full_text = "前段" * 220 + "后半段唯一关键词"
+    connection = connect(settings.database_path)
+    try:
+        connection.execute(
+            "UPDATE slides SET body_text = ?, content_text = ? WHERE id = 'ver_x_s00001'",
+            (full_text, full_text),
+        )
+    finally:
+        connection.close()
+
+    slide = build_catalog(settings).slides[0]
+    assert len(slide.summary) == 400
+    assert slide.search_text == full_text
+    assert "后半段唯一关键词" in slide.search_text
 
 
 def test_dry_run_sync_records_commands_without_executing(tmp_path: Path) -> None:

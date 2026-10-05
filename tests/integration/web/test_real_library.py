@@ -3,9 +3,11 @@ from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
+from pptlib.application import import_decks
 from pptlib.bootstrap import initialize
 from pptlib.config import load_settings
 from pptlib.infrastructure.db.connection import connect
+from pptlib.rendering import thumbnails
 from pptlib.web.app import create_app
 
 
@@ -45,7 +47,21 @@ def _write_fixture(path: Path, *, title: str = "年度复盘", body: str = "收�
         package.writestr("ppt/slides/slide1.xml", slide)
 
 
-def test_real_import_search_and_persistent_selection(tmp_path: Path) -> None:
+def _stub_render(monkeypatch) -> None:
+    def fake_render(_source_path, version_id, slide_count, **kwargs):
+        assets_dir = Path(kwargs["assets_dir"])
+        for page in range(1, slide_count + 1):
+            for kind in ("thumbnails", "previews"):
+                target = assets_dir / kind / f"{version_id}_s{page:05d}.jpg"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"jpeg")
+        thumbnails._write_render_marker(assets_dir, version_id, "test")
+        return slide_count
+
+    monkeypatch.setattr(import_decks, "render_deck_thumbnails", fake_render)
+
+
+def test_real_import_search_and_persistent_selection(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "sources"
     source.mkdir()
     _write_fixture(source / "annual.pptx")
@@ -58,6 +74,7 @@ def test_real_import_search_and_persistent_selection(tmp_path: Path) -> None:
         }
     )
     initialize(settings)
+    _stub_render(monkeypatch)
     client = TestClient(create_app(settings))
 
     imported = client.post("/api/v1/imports", json={"root": str(source)})
@@ -88,7 +105,7 @@ def test_real_import_search_and_persistent_selection(tmp_path: Path) -> None:
     assert persisted.json()["data"]["count"] == 1
 
 
-def test_upload_import_accepts_selected_pptx_files(tmp_path: Path) -> None:
+def test_upload_import_accepts_selected_pptx_files(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "sources"
     source.mkdir()
     fixture = source / "annual.pptx"
@@ -102,6 +119,8 @@ def test_upload_import_accepts_selected_pptx_files(tmp_path: Path) -> None:
         }
     )
     initialize(settings)
+
+    _stub_render(monkeypatch)
     client = TestClient(create_app(settings))
 
     uploaded = client.post(
@@ -162,7 +181,7 @@ def test_upload_import_rejects_file_over_configured_limit(tmp_path: Path) -> Non
     assert uploaded.json()["error"]["message"] == "文件超过大小限制：annual.pptx"
 
 
-def test_export_rejects_source_changed_after_selection(tmp_path: Path) -> None:
+def test_export_rejects_source_changed_after_selection(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "sources"
     source.mkdir()
     deck = source / "annual.pptx"
@@ -176,6 +195,7 @@ def test_export_rejects_source_changed_after_selection(tmp_path: Path) -> None:
         }
     )
     initialize(settings)
+    _stub_render(monkeypatch)
     client = TestClient(create_app(settings))
 
     assert client.post("/api/v1/imports", json={"root": str(source)}).status_code == 200
@@ -188,7 +208,7 @@ def test_export_rejects_source_changed_after_selection(tmp_path: Path) -> None:
     assert exported.json()["error"]["code"] == "SOURCE_CHANGED"
 
 
-def test_real_library_supports_taxonomy_and_source_filters(tmp_path: Path) -> None:
+def test_real_library_supports_taxonomy_and_source_filters(monkeypatch, tmp_path: Path) -> None:
     source = tmp_path / "sources"
     source.mkdir()
     _write_fixture(source / "org.pptx", title="组织与人才", body="团队招聘")
@@ -202,6 +222,7 @@ def test_real_library_supports_taxonomy_and_source_filters(tmp_path: Path) -> No
         }
     )
     initialize(settings)
+    _stub_render(monkeypatch)
     client = TestClient(create_app(settings))
     imported = client.post("/api/v1/imports", json={"root": str(source)})
     assert imported.status_code == 200
@@ -223,7 +244,9 @@ def test_real_library_supports_taxonomy_and_source_filters(tmp_path: Path) -> No
     assert all(item["count"] == 1 for item in deck_facets)
 
 
-def test_real_library_source_view_lists_decks_then_scopes_pages(tmp_path: Path) -> None:
+def test_real_library_source_view_lists_decks_then_scopes_pages(
+    monkeypatch, tmp_path: Path
+) -> None:
     source = tmp_path / "sources"
     source.mkdir()
     _write_fixture(source / "org.pptx", title="组织与人才", body="团队招聘")
@@ -237,6 +260,7 @@ def test_real_library_source_view_lists_decks_then_scopes_pages(tmp_path: Path) 
         }
     )
     initialize(settings)
+    _stub_render(monkeypatch)
     client = TestClient(create_app(settings))
     assert client.post("/api/v1/imports", json={"root": str(source)}).status_code == 200
 
@@ -258,7 +282,9 @@ def test_real_library_source_view_lists_decks_then_scopes_pages(tmp_path: Path) 
     assert "收入增长" not in detail.text
 
 
-def test_initialize_backfills_hierarchical_taxonomy_idempotently(tmp_path: Path) -> None:
+def test_initialize_backfills_hierarchical_taxonomy_idempotently(
+    monkeypatch, tmp_path: Path
+) -> None:
     source = tmp_path / "sources"
     source.mkdir()
     _write_fixture(source / "metrics.pptx", title="收入增长", body="数据指标")
@@ -271,6 +297,7 @@ def test_initialize_backfills_hierarchical_taxonomy_idempotently(tmp_path: Path)
         }
     )
     initialize(settings)
+    _stub_render(monkeypatch)
     client = TestClient(create_app(settings))
     assert client.post("/api/v1/imports", json={"root": str(source)}).status_code == 200
 

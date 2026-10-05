@@ -26,6 +26,7 @@ class Settings:
     max_uncompressed_package_bytes: int
     max_parts_per_package: int
     analyzer_version: str
+    html_enabled: bool = False
 
     def __post_init__(self) -> None:
         checks = (
@@ -124,4 +125,5 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
             "max_parts_per_package",
         ),
         analyzer_version=str(defaults["analyzer_version"]),
+        html_enabled=values.get("PPTLIB_ENABLE_HTML", "0") == "1",
     )

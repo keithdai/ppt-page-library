@@ -1,8 +1,8 @@
 # PPT 页库控制台（本地轻量版）
 
-本地 macOS PPT 页级素材库：把多份 PPTX 拆到「页」级别做索引、分类、按页渲染缩略图/预览，
-再挑选组合导出成新的 PPTX。**源 PPTX 只留在本地**，缩略图和页面描述同步到妙搭，选片在
-妙搭 Web 完成，选完回本地组合导出。
+本地 macOS 演示页级素材库：把 PPTX 和标准 render-deck HTML 拆到「页」级别做索引、
+分类和预览，再统一搜索与选片。**源文件只留在本地且不复制**。当前 PPTX 页面可原生组合
+导出；HTML 已完成第一阶段的入库、静态/动态预览和选片，组合输出将在后续阶段开放。
 
 不需要 Docker，也不需要 Node/Redis/外部数据库/CDN。整套跑在本地 Python + 一个可选的
 Electron 控制台里，内存占用接近裸 Python。
@@ -11,17 +11,17 @@ Electron 控制台里，内存占用接近裸 Python。
 
 | 层 | 作用 |
 | --- | --- |
-| `pptlib`（Python/FastAPI CLI） | 导入、分类、渲染、catalog 导出、妙搭同步、本地组合导出 |
-| officecli | 按页渲染缩略图/高清预览（默认引擎，比整包转 PDF 快且不产生大中间文件） |
-| 妙搭应用（full_stack） | 只存缩略图 + 元数据，负责在线浏览/搜索/选片 |
-| Electron 控制台（可选） | 图形化驱动上面的本地任务：导入、渲染进度、同步、组合导出 |
+| `pptlib`（Python/FastAPI CLI） | 统一导入、分类、检索、预览、catalog 和 PPTX 组合导出 |
+| PPTX 渲染器 | LibreOffice 高保真分段渲染，officecli 作为失败回退 |
+| HTML 适配器 | exact backfill、轻量依赖清单、安全浏览器截图和隔离动态预览 |
+| Electron 控制台 | 本地导入、搜索、选片、动态预览和组合导出 |
 
 ## 环境要求
 
 - macOS 13+，Python 3.11。
-- [officecli](https://d.officecli.ai/install.sh) —— 按页渲染引擎，且需要一个 headless
-  浏览器（本机 Chrome / Playwright Chromium 即可）。
-- LibreOffice（可选）—— 作为无浏览器环境下的渲染回退。
+- LibreOffice —— PPTX 默认高保真渲染引擎。
+- 本机 Chrome（HTML 静态/动态预览和 officecli 回退渲染需要）。
+- [officecli](https://d.officecli.ai/install.sh)（可选）—— LibreOffice 失败时的回退引擎。
 - lark-cli（已登录到目标妙搭租户）—— 同步 catalog 到妙搭时需要。
 - Node 18+（仅当要用 Electron 控制台时）。
 
@@ -32,19 +32,36 @@ Electron 控制台里，内存占用接近裸 Python。
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib doctor
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib import ./sources
 
+桌面端默认启用 HTML。CLI 需要显式开启：
+
+    PPTLIB_ENABLE_HTML=1 PPTLIB_HOME="$PWD/var/dev" \
+      .venv/bin/pptlib import --html ./sources
+
+HTML 第一阶段只接受带 `fs-deck-generator=render-deck`、`.slide-frame` 和稳定
+`data-slide-key` 的本地 `.html` / `.htm`，以及包含唯一 `index.html` 的安全 ZIP bundle。
+来源脚本、事件、iframe、表单和外部网络不会进入隔离预览。
+
 ### 渲染引擎选择
 
 导入时按页渲染缩略图（`thumbnail_long_edge`，默认 640）和高清预览
 （`preview_long_edge`，默认 1440）。引擎由 `PPTLIB_RENDERER` 控制：
 
-- `auto`（默认）：优先 officecli，缺浏览器时自动回退 LibreOffice。
-- `officecli`：只用 officecli 按页渲染（常驻 + 单页截图，适合大文件）。
-- `libreoffice`：只用 PPTX→PDF→pdftoppm 整包管线（无浏览器环境）。
+- `auto`（默认）：优先 LibreOffice，失败时自动回退 officecli。
+- `libreoffice`：使用分段 PPTX→PDF→内置 PDFium 管线（每段最多 16 页）。
+- `officecli`：只用 officecli 按页渲染（常驻 + 单页截图）。
 
 <!-- prettier-ignore -->
     PPTLIB_RENDERER=officecli PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib import ./sources
 
-## 同步到妙搭
+已解析文件缺少缩略图或高清预览时，可原地补图，不会重新解析 PPTX：
+
+    PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib render-missing
+
+为避免渲染器读取内网或本地文件，PPTX 中的外链图片、音视频和外部对象会被拒绝；
+普通网页超链接，以及内嵌视频生成的 `video → NULL` 安全占位关系不受影响。请先把
+真实外链媒体嵌入 PPTX，再重新渲染。
+
+## 同步到妙搭（兼容能力）
 
 先导出本地 catalog（`catalog.json`，记录每页元数据 + 缩略图相对路径），再用本机
 lark-cli 把缩略图上传到妙搭应用文件存储、把元数据 upsert 进应用数据库表
@@ -75,8 +92,15 @@ SHA-256（源已变更会拒绝），需要跳过时加 `--no-verify-hash`。
     npm install
     npm start
 
-控制台把上面四步做成按钮：选择 PPTX → 导入并渲染（实时日志）→ 同步到妙搭 → 选择下载的
-manifest.json → 组合导出。它只是本地任务的图形外壳，所有重活和源文件都在本地。
+控制台提供本地闭环：选择 PPTX / HTML → 导入并渲染 → 搜索与选片 → PPTX 组合导出。
+HTML 页面会显示格式、视频和兼容性状态，并可按需打开独立 sandbox 动态预览窗口。
+「自动更新」模块支持多文件夹、格式/大小规则、预检、立即更新、应用内定时执行、
+安全停止和运行历史；不安装系统级后台任务。
+
+产品化与工程化路线图见
+[`docs/PinPage-productization-engineering-roadmap.md`](docs/PinPage-productization-engineering-roadmap.md)，
+组合导出实测见
+[`docs/compose-export-verification.md`](docs/compose-export-verification.md)。
 
 ## 本地 Web（可选）
 

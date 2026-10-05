@@ -15,6 +15,19 @@ def _ensure_migration_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def pending_migrations(connection: sqlite3.Connection, migrations_dir: Path) -> list[Path]:
+    table_exists = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'"
+    ).fetchone()
+    applied: set[str] = set()
+    if table_exists is not None:
+        applied = {
+            str(row[0])
+            for row in connection.execute("SELECT name FROM schema_migrations").fetchall()
+        }
+    return [path for path in sorted(migrations_dir.glob("*.sql")) if path.name not in applied]
+
+
 def migrate(connection: sqlite3.Connection, migrations_dir: Path) -> list[str]:
     completed: list[str] = []
     connection.execute("BEGIN IMMEDIATE")

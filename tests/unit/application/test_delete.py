@@ -52,6 +52,13 @@ def _seed(settings, *, with_selection: bool = False) -> None:
                 " VALUES (?, '战略与增长', '业务规划与增长', '观点与结论', 'high', 'auto', 'v', ?)",
                 (sid, now),
             )
+            connection.execute(
+                "INSERT INTO slide_fingerprints("
+                " slide_id, text_hash, structure_hash, content_hash,"
+                " fingerprint_version, computed_at)"
+                " VALUES (?, ?, 'structure', ?, 'test', ?)",
+                (sid, f"text-{n}", f"content-{n}", now),
+            )
             (thumbs / f"{sid}.jpg").write_bytes(b"jpeg")
             (previews / f"{sid}.jpg").write_bytes(b"jpeg")
         if with_selection:
@@ -75,7 +82,14 @@ def _counts(settings) -> dict[str, int]:
     try:
         return {
             table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-            for table in ("decks", "deck_versions", "slides", "slide_taxonomy", "slide_fts")
+        for table in (
+            "decks",
+            "deck_versions",
+            "slides",
+            "slide_taxonomy",
+            "slide_fingerprints",
+            "slide_fts",
+        )
         }
     finally:
         connection.close()
@@ -95,6 +109,7 @@ def test_delete_deck_cascades_and_clears_assets(tmp_path: Path) -> None:
         "deck_versions": 0,
         "slides": 0,
         "slide_taxonomy": 0,
+        "slide_fingerprints": 0,
         "slide_fts": 0,
     }
     # cached image files are gone
@@ -114,6 +129,7 @@ def test_delete_single_slide_keeps_the_rest(tmp_path: Path) -> None:
     assert counts["slides"] == 1
     assert counts["slide_fts"] == 1
     assert counts["slide_taxonomy"] == 1
+    assert counts["slide_fingerprints"] == 1
     assert counts["decks"] == 1
     assert counts["deck_versions"] == 1
     assert (settings.assets_dir / "thumbnails" / "ver_a_s00002.jpg").is_file()
@@ -132,6 +148,7 @@ def test_deleting_last_slide_prunes_empty_deck(tmp_path: Path) -> None:
         "deck_versions": 0,
         "slides": 0,
         "slide_taxonomy": 0,
+        "slide_fingerprints": 0,
         "slide_fts": 0,
     }
 

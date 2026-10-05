@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
@@ -15,6 +16,7 @@ from pptlib.application.library import (
     SelectionStore,
     SlideCatalog,
     SlideSummary,
+    ensure_pptx_exportable,
     validate_filters,
 )
 from pptlib.domain.ids import new_id
@@ -71,6 +73,11 @@ def _summary(row: sqlite3.Row, assets_dir: Path | None = None) -> SlideSummary:
         confidence=str(row["confidence"] or ""),
         classification_source=str(row["classification_source"] or ""),
         classifier_version=str(row["classifier_version"] or ""),
+        source_format=str(row["source_format"]),
+        page_key=str(row["page_key"]),
+        page_kind=str(row["page_kind"]),
+        capabilities=json.loads(row["capabilities_json"]),
+        warnings=json.loads(row["warnings_json"]),
     )
 
 
@@ -110,6 +117,11 @@ class SqliteSlideCatalog(SlideCatalog):
                 confidence=result.confidence,
                 classification_source=result.classification_source,
                 classifier_version=result.classifier_version,
+                source_format=result.source_format,
+                page_key=result.page_key,
+                page_kind=result.page_kind,
+                capabilities=result.capabilities,
+                warnings=result.warnings,
             )
             for result in results
         )
@@ -126,7 +138,9 @@ class SqliteSlideCatalog(SlideCatalog):
                 SELECT s.id AS slide_id, d.id AS deck_id, d.display_name,
                        s.slide_number, s.title, s.body_text, s.notes_text,
                        t.topic, t.page_type, t.subtopic, t.confidence,
-                       t.classification_source, t.classifier_version
+                       t.classification_source, t.classifier_version,
+                       v.source_format, s.page_key, s.page_kind,
+                       s.capabilities_json, v.warnings_json
                 FROM slides s
                 JOIN deck_versions v ON v.id = s.deck_version_id
                 JOIN decks d ON d.id = v.deck_id
@@ -199,7 +213,9 @@ class SqliteSelectionStore(SelectionStore):
                 SELECT s.id AS slide_id, d.id AS deck_id, d.display_name,
                        s.slide_number, s.title, s.body_text, s.notes_text,
                        t.topic, t.page_type, t.subtopic, t.confidence,
-                       t.classification_source, t.classifier_version
+                       t.classification_source, t.classifier_version,
+                       v.source_format, s.page_key, s.page_kind,
+                       s.capabilities_json, v.warnings_json
                 FROM selection_items i
                 JOIN slides s ON s.id = i.slide_id
                 JOIN deck_versions v ON v.id = s.deck_version_id
@@ -319,7 +335,7 @@ def selection_slide_refs(
     with _open(database_path) as connection:
         rows = connection.execute(
             """
-            SELECT v.id, d.canonical_path, i.source_page_number, v.sha256
+            SELECT v.id, d.canonical_path, i.source_page_number, v.sha256, v.source_format
             FROM selection_items i
             JOIN deck_versions v ON v.id = i.deck_version_id
             JOIN decks d ON d.id = v.deck_id
@@ -328,6 +344,8 @@ def selection_slide_refs(
             """,
             (selection_id,),
         ).fetchall()
+    for row in rows:
+        ensure_pptx_exportable(str(row["source_format"]))
     return tuple(
         SlideRef(str(row[0]), Path(str(row[1])), int(row[2]), str(row[3])) for row in rows
     )

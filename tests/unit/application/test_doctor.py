@@ -19,7 +19,7 @@ def test_doctor_reports_sqlite_fts5_and_missing_libreoffice(tmp_path: Path) -> N
     assert report.sqlite.ok is True
     assert report.fts5.ok is True
     assert report.libreoffice.ok is False
-    assert report.pdftoppm.ok is False
+    assert report.pdftoppm.ok is True
     assert report.ready_for_text_search is True
     assert report.ready_for_rendering is False
 

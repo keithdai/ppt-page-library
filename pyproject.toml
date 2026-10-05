@@ -13,7 +13,12 @@ dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn>=0.30,<1",
   "jinja2>=3.1,<4",
+  "Pillow>=11,<13",
   "python-multipart>=0.0.9,<1",
+  "lxml>=5,<7",
+  "playwright>=1.49,<2",
+  "pypdfium2>=4.30,<5",
+  "tinycss2>=1.4,<2",
 ]
 
 [project.optional-dependencies]
@@ -58,3 +63,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 packages = ["pptlib"]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.11,<7",
+]

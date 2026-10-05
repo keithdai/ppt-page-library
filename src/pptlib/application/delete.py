@@ -103,6 +103,19 @@ def _delete_fts(connection: sqlite3.Connection, slide_ids: list[str]) -> None:
         connection.execute("DELETE FROM slide_fts WHERE slide_id = ?", (slide_id,))
 
 
+def _remove_orphan_html_caches(connection: sqlite3.Connection, assets_dir: Path) -> None:
+    versions = {
+        str(row[0]) for row in connection.execute("SELECT id FROM deck_versions").fetchall()
+    }
+    for kind in ("html-manifests", "html-render-meta"):
+        for target in (assets_dir / kind).glob("ver_*.json"):
+            if target.stem not in versions:
+                try:
+                    target.unlink()
+                except OSError:
+                    continue
+
+
 def delete_decks(settings: Settings, deck_ids: list[str] | tuple[str, ...]) -> DeleteResult:
     """Remove whole files (decks) and every page they contributed.
 
@@ -132,6 +145,7 @@ def delete_decks(settings: Settings, deck_ids: list[str] | tuple[str, ...]) -> D
                 connection.execute("ROLLBACK")
             raise
         thumbs = _remove_assets(settings.assets_dir, slide_ids)
+        _remove_orphan_html_caches(connection, settings.assets_dir)
     finally:
         connection.close()
     return DeleteResult(
@@ -195,6 +209,7 @@ def delete_slides(settings: Settings, slide_ids: list[str] | tuple[str, ...]) ->
                 connection.execute("ROLLBACK")
             raise
         thumbs = _remove_assets(settings.assets_dir, existing)
+        _remove_orphan_html_caches(connection, settings.assets_dir)
     finally:
         connection.close()
     return DeleteResult(

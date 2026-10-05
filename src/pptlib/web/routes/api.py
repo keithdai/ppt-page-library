@@ -57,10 +57,12 @@ def _import_payload(report: ImportReport) -> dict[str, object]:
                 "path": str(item.path),
                 "slide_count": item.slide_count,
                 "created": item.created,
+                "action": item.action,
             }
             for item in report.imported
         ],
         "skipped": report.skipped,
+        "removed": [str(path) for path in report.removed],
         "failed": [{"path": str(path), "error": error} for path, error in report.failed],
     }
 
@@ -215,12 +217,16 @@ def slides(
     subtopic: str = Query(default="", max_length=100),
     page_type: str = Query(default="", max_length=100),
     deck_id: str = Query(default="", max_length=200),
+    source_format: str = Query(default="", max_length=40),
 ) -> dict[str, object]:
     result = request.app.state.library.search(
         q,
         page,
         page_size,
-        LibraryFilters(topic=topic, subtopic=subtopic, page_type=page_type, deck_id=deck_id),
+        LibraryFilters(
+            topic=topic, subtopic=subtopic, page_type=page_type, deck_id=deck_id,
+            source_format=source_format,
+        ),
     )
     return _success(request, result.to_dict())
 

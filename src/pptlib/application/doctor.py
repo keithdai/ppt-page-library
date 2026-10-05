@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import pypdfium2 as pdfium  # type: ignore[import-untyped]
+
 from pptlib.config import Settings
 
 
@@ -70,7 +72,6 @@ def run_doctor(
             connection.close()
 
     soffice = executable_finder("soffice")
-    pdftoppm = executable_finder("pdftoppm")
     # A caller-provided finder is authoritative (and makes the check
     # deterministic in tests); probe the macOS app bundle only for the
     # default PATH-based finder.
@@ -82,7 +83,7 @@ def run_doctor(
         sqlite=sqlite_check,
         fts5=fts_check,
         libreoffice=Check(soffice is not None, soffice or "LibreOffice not found"),
-        pdftoppm=Check(pdftoppm is not None, pdftoppm or "pdftoppm not found"),
+        pdftoppm=Check(True, f"Bundled PDFium {pdfium.V_PYPDFIUM2}"),
         data_directory=_directory_check(settings.home),
         output_directory=_directory_check(settings.output_root),
     )

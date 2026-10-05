@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from pptlib.application.library import ensure_pptx_exportable
 from pptlib.config import Settings
 from pptlib.domain.errors import AppError, ErrorCode
-from pptlib.export.ooxml import ExportError, ExportResult, SlideRef, export_slides
+from pptlib.export.ooxml import (
+    ExportError,
+    ExportResult,
+    SlideRef,
+    export_slides,
+    output_fingerprint,
+    preflight_slides,
+)
 from pptlib.infrastructure.db.connection import connect
 
 
@@ -18,6 +27,37 @@ class ComposePlanItem:
     source_path: Path
     page_number: int
     sha256: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ComposePreflightResult:
+    ok: bool
+    page_count: int
+    source_count: int
+    estimated_output_bytes: int
+    estimated_fidelity: str
+    warnings: tuple[str, ...]
+    blockers: tuple[dict[str, object], ...]
+    output_path: Path
+    will_replace_output: bool
+    preflight_token: str | None
+    manifest_fingerprint: str
+    output_fingerprint: str
+    result_manifest_fingerprint: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "ok": self.ok,
+            "page_count": self.page_count,
+            "source_count": self.source_count,
+            "estimated_output_bytes": self.estimated_output_bytes,
+            "estimated_fidelity": self.estimated_fidelity,
+            "warnings": list(self.warnings),
+            "blockers": list(self.blockers),
+            "output_path": str(self.output_path),
+            "will_replace_output": self.will_replace_output,
+            "preflight_token": self.preflight_token,
+        }
 
 
 def _remap_source_path(canonical: str, home: Path) -> Path:
@@ -44,7 +84,7 @@ def _lookup_slide(
     row = connection.execute(
         """
         SELECT s.id AS slide_id, s.slide_number, v.id AS version_id, v.sha256,
-               d.canonical_path
+               d.canonical_path, v.source_format
         FROM slides s
         JOIN deck_versions v ON v.id = s.deck_version_id
         JOIN decks d ON d.id = v.deck_id
@@ -58,6 +98,7 @@ def _lookup_slide(
             "选片单引用的页面不存在或来源版本已过期",
             details={"slide_id": slide_id},
         )
+    ensure_pptx_exportable(str(row["source_format"]))
     source = _remap_source_path(str(row["canonical_path"]), home)
     return ComposePlanItem(
         slide_id=str(row["slide_id"]),
@@ -140,6 +181,8 @@ def compose_from_slide_ids(
     *,
     manifest_path: Path | None = None,
     verify_source_hash: bool = True,
+    expected_output_fingerprint: str | None = None,
+    expected_manifest_fingerprint: str | None = None,
 ) -> ExportResult:
     """Compose selected pages into a new PPTX using the OOXML native exporter."""
     plan = build_compose_plan(settings, slide_ids)
@@ -163,11 +206,92 @@ def compose_from_slide_ids(
         for item in plan
     ]
     try:
-        return export_slides(refs, output_path, manifest_path)
+        return export_slides(
+            refs,
+            output_path,
+            manifest_path,
+            expected_output_fingerprint=expected_output_fingerprint,
+            expected_manifest_fingerprint=expected_manifest_fingerprint,
+        )
     except ExportError as error:
         raise AppError(
             _export_error_code(error.code), error.message, details=error.to_dict()
         ) from error
+
+
+def preflight_compose_from_manifest(
+    settings: Settings,
+    manifest_path: Path,
+    output_path: Path,
+    *,
+    verify_source_hash: bool = True,
+) -> ComposePreflightResult:
+    output = output_path.expanduser().resolve()
+    result_manifest = output.with_suffix(".manifest.json")
+    manifest_state = output_fingerprint(manifest_path)
+    output_state = output_fingerprint(output)
+    result_manifest_state = output_fingerprint(result_manifest)
+    slide_ids: list[str] = []
+    try:
+        slide_ids = load_manifest_slide_ids(manifest_path)
+        plan = build_compose_plan(settings, slide_ids)
+        refs = [
+            SlideRef(
+                file_version_id=item.version_id,
+                source_path=item.source_path,
+                page_number=item.page_number,
+                expected_sha256=item.sha256 if verify_source_hash else None,
+            )
+            for item in plan
+        ]
+        inspection = preflight_slides(refs, verify_source_hash=verify_source_hash)
+    except (AppError, ExportError) as error:
+        code = error.code.value if isinstance(error, AppError) else error.code
+        details = dict(error.details)
+        return ComposePreflightResult(
+            ok=False,
+            page_count=len(slide_ids),
+            source_count=0,
+            estimated_output_bytes=0,
+            estimated_fidelity="不可导出",
+            warnings=(),
+            blockers=({"code": code, "message": str(error), "details": details},),
+            output_path=output,
+            will_replace_output=output.exists(),
+            preflight_token=None,
+            manifest_fingerprint=manifest_state,
+            output_fingerprint=output_state,
+            result_manifest_fingerprint=result_manifest_state,
+        )
+    token_payload = json.dumps(
+        {
+            "manifest": manifest_state,
+            "output_path": str(output),
+            "output": output_state,
+            "result_manifest": result_manifest_state,
+            "verify_source_hash": verify_source_hash,
+            "slide_ids": slide_ids,
+            "warnings": inspection.warnings,
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode()
+    preflight_token = hashlib.sha256(token_payload).hexdigest()
+    return ComposePreflightResult(
+        ok=True,
+        page_count=inspection.page_count,
+        source_count=inspection.source_count,
+        estimated_output_bytes=inspection.estimated_output_bytes,
+        estimated_fidelity=inspection.fidelity_level,
+        warnings=inspection.warnings,
+        blockers=(),
+        output_path=output,
+        will_replace_output=output.exists(),
+        preflight_token=preflight_token,
+        manifest_fingerprint=manifest_state,
+        output_fingerprint=output_state,
+        result_manifest_fingerprint=result_manifest_state,
+    )
 
 
 # Map the exporter's structured codes onto app-level error codes so callers
@@ -179,6 +303,7 @@ _REQUEST_ERROR_CODES = frozenset(
         "INCOMPATIBLE_SLIDE_SIZE",
         "SLIDE_NOT_FOUND",
         "INVALID_SOURCE_PACKAGE",
+        "OUTPUT_CHANGED",
     }
 )
 
@@ -197,12 +322,41 @@ def compose_from_manifest(
     output_path: Path,
     *,
     verify_source_hash: bool = True,
+    preflight_token: str | None = None,
 ) -> ExportResult:
+    expected_output: str | None = None
+    expected_manifest: str | None = None
+    expected_source_manifest: str | None = None
+    if preflight_token is not None:
+        preflight = preflight_compose_from_manifest(
+            settings,
+            manifest_path,
+            output_path,
+            verify_source_hash=verify_source_hash,
+        )
+        if not preflight.ok or preflight.preflight_token != preflight_token:
+            raise AppError(
+                ErrorCode.REQUEST_INVALID,
+                "导出条件已发生变化，请重新执行导出前检查",
+            )
+        expected_output = preflight.output_fingerprint
+        expected_manifest = preflight.result_manifest_fingerprint
+        expected_source_manifest = preflight.manifest_fingerprint
     slide_ids = load_manifest_slide_ids(manifest_path)
+    if (
+        expected_source_manifest is not None
+        and output_fingerprint(manifest_path) != expected_source_manifest
+    ):
+        raise AppError(
+            ErrorCode.REQUEST_INVALID,
+            "选片清单在检查后发生变化，请重新执行导出前检查",
+        )
     return compose_from_slide_ids(
         settings,
         slide_ids,
         output_path,
         manifest_path=output_path.with_suffix(".manifest.json"),
         verify_source_hash=verify_source_hash,
+        expected_output_fingerprint=expected_output,
+        expected_manifest_fingerprint=expected_manifest,
     )

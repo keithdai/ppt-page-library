@@ -8,7 +8,7 @@ local first slice and can be replaced by repository implementations later.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from pptlib.domain.errors import AppError, ErrorCode
@@ -26,6 +26,7 @@ class LibraryFilters:
     page_type: str = ""
     deck_id: str = ""
     subtopic: str = ""
+    source_format: str = ""
 
     def to_dict(self) -> dict[str, str]:
         payload = {
@@ -35,6 +36,8 @@ class LibraryFilters:
         }
         if self.subtopic:
             payload["subtopic"] = self.subtopic
+        if self.source_format:
+            payload["source_format"] = self.source_format
         return payload
 
 
@@ -59,6 +62,15 @@ def validate_filters(filters: LibraryFilters) -> None:
             ErrorCode.REQUEST_INVALID,
             "unknown page type",
             details={"page_type": filters.page_type, "allowed": list(PAGE_TYPES)},
+        )
+
+
+def ensure_pptx_exportable(source_format: str) -> None:
+    if source_format != "pptx":
+        raise AppError(
+            ErrorCode.REQUEST_INVALID,
+            "HTML 页面当前支持入库和预览，组合导出将在后续阶段开放",
+            details={"source_format": source_format},
         )
 
 
@@ -107,6 +119,11 @@ class SlideSummary:
     confidence: str = ""
     classification_source: str = ""
     classifier_version: str = ""
+    source_format: str = "pptx"
+    page_key: str = ""
+    page_kind: str = "ooxml"
+    capabilities: dict[str, object] = field(default_factory=dict)
+    warnings: list[object] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -125,6 +142,11 @@ class SlideSummary:
             "confidence": self.confidence,
             "classification_source": self.classification_source,
             "classifier_version": self.classifier_version,
+            "source_format": self.source_format,
+            "page_key": self.page_key,
+            "page_kind": self.page_kind,
+            "capabilities": dict(self.capabilities),
+            "warnings": list(self.warnings),
         }
 
 
@@ -239,6 +261,10 @@ class InMemorySlideCatalog:
             matches = tuple(slide for slide in matches if slide.page_type == filters.page_type)
         if filters.deck_id:
             matches = tuple(slide for slide in matches if slide.deck_id == filters.deck_id)
+        if filters.source_format:
+            matches = tuple(
+                slide for slide in matches if slide.source_format == filters.source_format
+            )
         start = (page - 1) * page_size
         return SearchPage(
             tuple(matches[start : start + page_size]),

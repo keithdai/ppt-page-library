@@ -37,9 +37,11 @@ class CatalogSlide:
     slide_id: str
     deck_id: str
     deck_name: str
+    source_path: str
     slide_number: int
     title: str
     summary: str
+    search_text: str
     topic: str
     subtopic: str
     page_type: str
@@ -47,9 +49,18 @@ class CatalogSlide:
     classification_source: str
     thumbnail_file: str  # relative path within the catalog bundle
     source_sha256: str
+    source_format: str = "pptx"
+    page_key: str = ""
+    page_kind: str = "ooxml"
+    capabilities: dict[str, object] = field(default_factory=dict)
+    warnings: list[object] = field(default_factory=list)
 
-    def to_row(self) -> dict[str, object]:
-        return asdict(self)
+    def to_row(self, *, include_local_fields: bool = False) -> dict[str, object]:
+        row = asdict(self)
+        if not include_local_fields:
+            row.pop("source_path")
+            row.pop("search_text")
+        return row
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,12 +70,15 @@ class Catalog:
     slide_count: int
     slides: list[CatalogSlide] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self, *, include_local_fields: bool = False) -> dict[str, object]:
         return {
             "schema_version": self.schema_version,
             "generated_at": self.generated_at,
             "slide_count": self.slide_count,
-            "slides": [slide.to_row() for slide in self.slides],
+            "slides": [
+                slide.to_row(include_local_fields=include_local_fields)
+                for slide in self.slides
+            ],
         }
 
 
@@ -83,14 +97,16 @@ def build_catalog(settings: Settings) -> Catalog:
     try:
         rows = connection.execute(
             """
-            SELECT s.id AS slide_id, d.id AS deck_id, d.display_name,
+            SELECT s.id AS slide_id, d.id AS deck_id, d.display_name, d.canonical_path,
                    s.slide_number, s.title, s.body_text, s.notes_text,
                    v.sha256,
                    COALESCE(t.topic, '') AS topic,
                    COALESCE(t.subtopic, '') AS subtopic,
                    COALESCE(t.page_type, '') AS page_type,
                    COALESCE(t.confidence, '') AS confidence,
-                   COALESCE(t.classification_source, '') AS classification_source
+                   COALESCE(t.classification_source, '') AS classification_source,
+                   v.source_format, s.page_key, s.page_kind,
+                   s.capabilities_json, v.warnings_json
             FROM slides s
             JOIN deck_versions v ON v.id = s.deck_version_id
             JOIN decks d ON d.id = v.deck_id
@@ -105,14 +121,18 @@ def build_catalog(settings: Settings) -> Catalog:
     slides: list[CatalogSlide] = []
     for row in rows:
         slide_id = str(row["slide_id"])
+        body_text = str(row["body_text"] or "")
+        notes_text = str(row["notes_text"] or "")
         slides.append(
             CatalogSlide(
                 slide_id=slide_id,
                 deck_id=str(row["deck_id"]),
                 deck_name=str(row["display_name"]),
+                source_path=str(row["canonical_path"]),
                 slide_number=int(row["slide_number"]),
                 title=str(row["title"] or ""),
-                summary=_summary_text(str(row["body_text"] or ""), str(row["notes_text"] or "")),
+                summary=_summary_text(body_text, notes_text),
+                search_text="\n".join(part for part in (body_text, notes_text) if part),
                 topic=str(row["topic"]),
                 subtopic=str(row["subtopic"]),
                 page_type=str(row["page_type"]),
@@ -120,6 +140,11 @@ def build_catalog(settings: Settings) -> Catalog:
                 classification_source=str(row["classification_source"]),
                 thumbnail_file=f"thumbnails/{slide_id}.jpg",
                 source_sha256=str(row["sha256"] or ""),
+                source_format=str(row["source_format"]),
+                page_key=str(row["page_key"]),
+                page_kind=str(row["page_kind"]),
+                capabilities=json.loads(row["capabilities_json"]),
+                warnings=json.loads(row["warnings_json"]),
             )
         )
     return Catalog(
@@ -130,7 +155,12 @@ def build_catalog(settings: Settings) -> Catalog:
     )
 
 
-def write_catalog_bundle(settings: Settings, output_dir: Path) -> Path:
+def write_catalog_bundle(
+    settings: Settings,
+    output_dir: Path,
+    *,
+    include_local_fields: bool = False,
+) -> Path:
     """Write catalog.json next to the thumbnails it references.
 
     Thumbnails are not copied; ``catalog.json`` records a relative path and the
@@ -141,7 +171,13 @@ def write_catalog_bundle(settings: Settings, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     catalog_path = output_dir / "catalog.json"
     catalog_path.write_text(
-        json.dumps(catalog.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(
+            catalog.to_dict(include_local_fields=include_local_fields),
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
     )
     return catalog_path
 

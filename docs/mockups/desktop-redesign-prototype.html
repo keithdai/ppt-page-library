@@ -290,6 +290,24 @@
   .thumb .tick .ico { opacity: 0; }
   .thumb.sel .tick .ico { opacity: 1; }
   .thumb .tag { position: absolute; top: 8px; left: 8px; font-size: 10px; background: rgba(0,0,0,.4); color: #fff; padding: 2px 7px; border-radius: 10px; backdrop-filter: blur(2px); font-weight: 500; }
+  /* 右下角「加入选片」按钮：默认隐藏，悬停/选中时显示 */
+  .thumb .add { position: absolute; right: 8px; bottom: 46px; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,.45); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transform: scale(.85); transition: opacity .16s var(--ease), transform .16s var(--ease), background .16s var(--ease); backdrop-filter: blur(2px); }
+  .thumb:hover .add, .thumb.sel .add { opacity: 1; transform: scale(1); }
+  .thumb .add:hover { background: rgba(0,0,0,.65); }
+  .thumb.sel .add { background: var(--brand); }
+  .thumb .add .ico { width: 16px; height: 16px; }
+
+  /* 放大预览浮层 */
+  .lightbox { position: fixed; inset: 0; background: rgba(17,20,24,.62); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 200; }
+  .lightbox.open { display: flex; }
+  .lightbox .lb-card { width: min(72vw, 900px); border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.35); background: var(--surface); }
+  .lightbox .lb-card .slide { aspect-ratio: 16 / 9; }
+  .lightbox .lb-bar { display: flex; align-items: center; gap: 12px; padding: 14px 18px; }
+  .lightbox .lb-bar .t { font-weight: 600; color: var(--text-1); }
+  .lightbox .lb-bar .s { font-size: 12px; color: var(--text-3); }
+  .lightbox .lb-bar .sp { flex: 1; }
+  .lightbox .lb-close { position: absolute; top: 20px; right: 24px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .lightbox .lb-close:hover { background: rgba(255,255,255,.28); }
 
   /* selected list (draggable) */
   .sel-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); position: sticky; top: 0; overflow: hidden; }
@@ -577,6 +595,19 @@
   </div>
 </div>
 
+<!-- 放大预览浮层 -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closePreview()">
+  <button class="lb-close" title="关闭 (Esc)" onclick="closePreview()"><svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="lb-card">
+    <div class="slide" id="lbSlide"></div>
+    <div class="lb-bar">
+      <div><div class="t" id="lbTitle"></div><div class="s" id="lbSub"></div></div>
+      <span class="sp"></span>
+      <button class="btn sm primary" id="lbAdd">加入选片</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // 数据（模拟妙搭页库）
   var PAGES = [
@@ -604,6 +635,7 @@
     return 'background:' + (g[type] || g.case) + ';';
   }
   var TICK = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+  var PLUS = '<svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
   var GRIP = '<svg class="ico sm" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>';
   var RM = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
@@ -611,9 +643,12 @@
     var g = document.getElementById('grid');
     g.innerHTML = PAGES.map(function (p) {
       var on = selected.indexOf(p.id) >= 0;
-      return '<div class="thumb' + (on ? ' sel' : '') + '" data-id="' + p.id + '" onclick="toggle(\'' + p.id + '\')">' +
+      var addIco = on ? TICK : PLUS;
+      var addTitle = on ? '已加入选片，点击移除' : '加入选片';
+      return '<div class="thumb' + (on ? ' sel' : '') + '" data-id="' + p.id + '" onclick="openPreview(\'' + p.id + '\')">' +
         '<span class="tag">' + p.tag + '</span><span class="tick">' + TICK + '</span>' +
         slideMock(p.type) +
+        '<button class="add" title="' + addTitle + '" onclick="toggle(event,\'' + p.id + '\')">' + addIco + '</button>' +
         '<div class="meta"><div class="t">' + p.t + '</div><div class="s">' + p.s + '</div></div></div>';
     }).join('');
   }
@@ -631,13 +666,30 @@
     }).join('');
     bindDrag();
   }
-  function toggle(id) {
+  function toggle(e, id) {
+    if (e) e.stopPropagation();
     var i = selected.indexOf(id);
     if (i >= 0) selected.splice(i, 1); else selected.push(id);
     renderGrid(); renderSel();
   }
-  function removeSel(e, id) { e.stopPropagation(); toggle(id); }
+  function removeSel(e, id) { toggle(e, id); }
   function clearSel() { selected = []; renderGrid(); renderSel(); }
+
+  // 单击缩略图 → 放大预览
+  function openPreview(id) {
+    var p = PAGES.find(function (x) { return x.id === id; });
+    if (!p) return;
+    var on = selected.indexOf(id) >= 0;
+    document.getElementById('lbSlide').innerHTML = slideMock(p.type);
+    document.getElementById('lbTitle').textContent = p.t;
+    document.getElementById('lbSub').textContent = p.s + ' · ' + p.tag;
+    var btn = document.getElementById('lbAdd');
+    btn.textContent = on ? '移出选片' : '加入选片';
+    btn.className = 'btn sm ' + (on ? 'ghost' : 'primary');
+    btn.onclick = function () { toggle(null, id); openPreview(id); };
+    document.getElementById('lightbox').classList.add('open');
+  }
+  function closePreview() { document.getElementById('lightbox').classList.remove('open'); }
 
   // 原生拖拽排序
   var dragId = null;
@@ -673,6 +725,8 @@
     btn.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.remove('on'); });
     btn.classList.add('on');
   }
+
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePreview(); });
 
   renderGrid(); renderSel();
 </script>

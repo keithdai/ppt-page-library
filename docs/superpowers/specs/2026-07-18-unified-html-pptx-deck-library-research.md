@@ -1,32 +1,35 @@
-# HTML / PPTX 统一演示资产库调研与架构建议
+# HTML / PPTX 统一演示资产库功能规划与技术设计
 
-- 日期：2026-07-18
-- 状态：调研结论与后续设计输入
-- 目标项目：`feishu-solution-infra`
-- 当前仓库定位：PPTX 能力孵化与回归参考，不再扩展为第二套团队资产系统
+- 初始调研日期：2026-07-18
+- 最近修订日期：2026-10-02
+- 状态：阶段 1 已实施；HTML 组合输出、混排导出和 Hybrid 能力仍按后续阶段推进
+- 当前落地载体：本仓库的本地优先 Electron + Python 页库
+- 长期演进方向：保留向 `feishu-solution-infra` 或团队服务迁移的适配器边界
 - 调研样例：`/Users/bytedance/Downloads/lark-enterprise-doubao-2026-07-13.html`
+- 在线样例：`https://magic.solutionsuite.cn/app/vtyZR0pI`（2026-09-26 访问返回 404，不能作为长期来源）
 
 ## 1. 执行摘要
 
-本次调研的目标，是判断现有 PPT 页库未来如何支持 HTML 演示项目的导入、检索、组合与导出，同时避免在产品、数据和格式处理层形成多套互相重叠的实现。
+本设计的目标，是让当前本地 PPT 页库未来能够统一管理 PPTX 和 HTML 演示页面，并支持导入、检索、预览、选片、组合与输出，同时不破坏正在验证的 PPTX 稳定链路。
 
 结论如下：
 
-1. 团队共享资产库应以 `feishu-solution-infra` 为唯一产品核心。
-2. `feishu-deck-h5` 应作为 HTML / DeckJSON 的格式引擎，负责 HTML 演示的恢复、组合、渲染、校验与打包。
-3. `pptx-to-deck` 应作为 PPTX 到结构化 DeckJSON 的导入适配器。
-4. 当前 `ppt-page-library` 不应继续扩展 HTML、团队权限或第二套资产模型；它应冻结产品扩展，保留为 PPTX 能力孵化仓，并将独有能力逐步迁入主系统。
-5. `ppt-master` 保持独立的 PPTX 生产工具；在线系统只复用已稳定、已 vendored 的 SVG → DrawingML 能力，不把整个工作流作为运行时依赖。
-6. `pptx-to-html-replica-skill` 适合作为图片型、异常型 PPT 的人工高保真兜底，不适合作为常规自动导入路径。
-7. 产品路线应先完成 HTML 主格式闭环，再增加跨格式能力：先 B（HTML 组合与导出），再 C（HTML / PPTX 混合组合与多格式导出）。
+1. **阶段 1 已完成。** 当前支持标准 render-deck HTML 的就地入库、检索、静态预览、隔离动态预览和选片；HTML 组合输出仍属于阶段 2。
+2. 后续 HTML 能力应接入现有本地页库，而不是另建一个 HTML 素材库；PPTX 和 HTML 共用 Deck、Page、分类、检索和 Selection。
+3. `feishu-deck-h5` 作为 HTML / DeckJSON 格式引擎，负责标准 HTML Deck 的恢复、组合、渲染、校验与打包；当前应用只通过适配器调用，不复制其内部实现。
+4. 数据模型必须区分“来源格式”和“输出能力”。动态保留、视觉保真、原生可编辑是三种不同能力，不使用一个笼统的“支持导出”字段。
+5. 第一阶段只支持可精确识别的 render-deck HTML。任意第三方网页、依赖未知脚本的 HTML 和在线 URL 抓取不进入首版承诺。
+6. HTML 是保留动效、视频和交互的主输出；PPTX 是兼容性输出。HTML 页面导入 PPTX 时首版静态化，不承诺原生可编辑或保留动效。
+7. 延续现有“源文件就地索引、不复制”原则。大型图片和视频不进入数据库；入库只记录依赖清单和内容摘要，组合导出时再从 hash 匹配的源文件按需抽取。
+8. 若未来升级为团队共享系统，复用同一 Adapter Contract、`composition_ref` 和 Artifact Manifest，将存储与任务层迁移到 `feishu-solution-infra`，不重写格式引擎。
 
 推荐的总原则是：
 
-> `solution-infra` 管资产、版本、检索、权限、组稿和任务；格式适配器管解析、组合、渲染和导出。
+> 页库管资产、版本、检索、选片和任务；格式适配器管解析、依赖、渲染和导出。当前先落本地，长期可迁团队服务。
 
 ## 2. 背景与目标
 
-当前 `ppt-page-library` 已经实现本地 PPTX 的导入、逐页检索、分类、预览、选片、排序和 PPTX 导出。未来希望加入类似 `lark-enterprise-doubao-2026-07-13.html` 的 HTML 演示文稿，并支持：
+当前 `ppt-page-library` 已经实现本地 PPTX 的就地索引、逐页检索、分类、缩略图与高清预览、页级删除、选片、排序和 PPTX 导出。未来希望加入类似 `lark-enterprise-doubao-2026-07-13.html` 的 HTML 演示文稿，并支持：
 
 - 导入 HTML 演示或自包含 HTML 文件；
 - 将 HTML 演示拆成可检索的页面；
@@ -34,7 +37,7 @@
 - 组合多个来源的页面；
 - 优先导出新的 HTML 演示；
 - 后续提供 HTML / PPTX 混合导出；
-- 在团队环境中共享、授权、追踪版本和复用来源。
+- 保留向团队共享、权限、版本追踪能力演进的接口，但不在本阶段建设团队服务。
 
 最大的风险不是单个解析器难写，而是把以下职责混在一起：
 
@@ -45,11 +48,23 @@
 - 渲染与导出策略；
 - 本地单机和团队服务两套部署模式。
 
-本次调研因此重点回答三个问题：
+本设计重点回答四个问题：
 
 1. 现有四个相关项目已经具备哪些能力？
 2. 哪些能力应成为主系统的一部分，哪些应保持为外部适配器？
-3. 当前 `ppt-page-library` 应继续承担什么角色？
+3. 如何在不影响当前 PPTX 稳定性的前提下，把 HTML 能力接入现有本地页库？
+4. 混合选片分别输出 HTML 和 PPTX 时，产品应承诺什么、不承诺什么？
+
+### 2.1 当前阶段约束
+
+截至 2026-09-26，现阶段约束如下：
+
+- 当前客户端已经收敛为纯本地三步：导入并渲染、浏览与选片、组合导出。
+- 源文件不复制，数据库记录绝对路径和 SHA-256；删除库内记录不触碰源文件。
+- 页面缩略图和高清预览通过 `pptlib-asset://` 在 Electron 中加载。
+- HTML 阶段 1 已通过 feature flag 接入；阶段 2 及以后不得与 PPTX 回归修复混在同一交付中。
+- 任何未来迁移都必须保证现有 PPTX 数据、Selection 和 OOXML 导出行为不回归。
+- 新能力默认通过 feature flag 或独立入口启用，未启用时现有流程和数据库行为保持不变。
 
 ## 3. 调研范围
 
@@ -57,7 +72,7 @@
 
 路径：`/Users/bytedance/bytedance-2026/10-ppt存档组合`
 
-当前定位是本地 macOS PPT 页级资产库，技术栈为 Python、FastAPI、Jinja2、SQLite / FTS5、LibreOffice、OOXML 包级处理。
+当前定位是本地 macOS PPT 页级资产库，技术栈为 Electron、Python、FastAPI、SQLite / FTS5、officecli / LibreOffice 和 OOXML 包级处理。
 
 ### 3.2 HTML 演示引擎
 
@@ -241,7 +256,7 @@ PASS
 
 #### 推荐定位
 
-`solution-infra` 应成为唯一团队产品核心，负责所有格式无关的状态、权限、检索、组稿、任务和导出记录。
+若未来进入多人共享、权限治理和服务化阶段，`solution-infra` 可承接团队产品核心；它不是当前本地版接入 HTML 的前置依赖。
 
 ### 5.3 当前 `ppt-page-library`
 
@@ -253,7 +268,7 @@ PASS
 4. 文件哈希、不可变版本和源文件变化校验。
 5. SQLite / FTS5 中文检索。
 6. 固定业务分类和页面用途分类。
-7. LibreOffice → PDF → 缩略图 / 高清预览。
+7. officecli 优先、LibreOffice 回退的缩略图 / 高清预览。
 8. 搜索、按内容找、按文件找、选片、排序和导出 UI。
 9. OOXML 包级跨文件页面复制与输出 manifest。
 
@@ -270,7 +285,7 @@ PASS
 - Web 产品界面；
 - 本地 Artifact 管理。
 
-#### 独有且值得迁移的能力
+#### 独有且应继续复用的能力
 
 1. `src/pptlib/export/ooxml.py` 的 PPTX 原生页面组合器。
 2. 确定性业务 taxonomy 及其测试。
@@ -281,7 +296,7 @@ PASS
 
 #### 推荐定位
 
-当前项目冻结产品扩展，继续作为 PPTX 能力孵化与回归参考。不要在此增加 HTML 导入、团队权限、统一资产模型或第二套混合组稿系统。
+当前项目继续作为本地页库产品主体。近期冻结 HTML 开发、优先完成 PPTX 稳定性验证；稳定后按本设计增加格式适配器，但不在本地版建设团队权限和第二套云端资产系统。
 
 ### 5.4 `ppt-master`
 
@@ -315,92 +330,67 @@ PASS
 
 它不是批量自动导入器，也不应成为团队库的默认 parser。
 
-## 6. 方案比较
+## 6. 方案比较与当前选择
 
-### 方案 A：`solution-infra` 核心 + 格式适配器
+### 方案 A：在当前本地页库增加格式适配器
 
 架构：
 
 ```text
-solution-infra
-  ├─ 资产 / 版本 / 权限 / 检索 / Workset / Job / Artifact
-  ├─ HTML adapter  → feishu-deck-h5
-  ├─ PPTX importer → pptx-to-deck
-  ├─ PPTX exporter → 当前项目 OOXML exporter
-  └─ PPTX snapshot / hybrid → feishu-deck-h5 exporter
+PinPage 本地应用
+  ├─ 统一资产 / 版本 / 页面 / 检索 / Selection / Job
+  ├─ PPTX import adapter  → 当前 parser + renderer
+  ├─ HTML import adapter  → feishu-deck-h5 backfill
+  ├─ PPTX export adapter  → 当前 OOXML exporter
+  └─ HTML export adapter  → feishu-deck-h5 composer / renderer
 ```
 
 优点：
 
-- 单一产品事实源；
-- 格式能力可以独立升级；
-- 团队权限、检索和组稿不会绑定某种文件格式；
-- 现有项目可复用而不必大规模复制代码；
-- 最适合长期演进。
+- 直接复用已经稳定的本地选片体验；
+- 用户不需要维护两套页库；
+- 没有云端、权限和部署前置成本；
+- 可以按阶段上线，失败时不影响现有 PPTX 主链路；
+- Adapter Contract 可直接复用于未来团队化迁移。
 
 代价：
 
-- 需要正式定义 Adapter Contract；
-- 需要管理 renderer / parser 版本；
-- 需要异步作业和 Artifact 交接。
+- SQLite schema 需要向统一资产模型演进；
+- Electron 需要增加隔离的动态预览容器；
+- 浏览器渲染和媒体解包会增加本地运行时依赖。
 
-结论：推荐。
+结论：**当前推荐。**
 
-### 方案 B：把全部格式代码迁入 `solution-infra`
+### 方案 B：立即迁入 `solution-infra`
 
-优点：
+优点是天然支持团队权限、共享和服务化任务；缺点是会把当前需求扩大为一次平台迁移，并中断现有本地产品的稳定性验证。
 
-- 部署单一；
-- 进程内调用简单；
-- 事务边界直观。
+结论：**保留为长期方向，不作为本轮 HTML 能力的前置条件。**
 
-缺点：
+### 方案 C：PPTX 与 HTML 各自维护独立页库
 
-- `solution-infra` 会膨胀为格式处理大单体；
-- `feishu-deck-h5` 和内置副本容易分叉；
-- 校验器、renderer、PPTX exporter 都需要双处维护；
-- 每次格式引擎升级都变成主系统升级。
+优点是短期代码隔离；缺点是检索、Selection、版本、删除和导出状态全部分裂，混合组稿时还要再做一层跨库映射。
 
-结论：不推荐作为长期架构。
-
-### 方案 C：保留多套产品，做松散联邦
-
-组成：
-
-- 当前项目管理本地 PPTX；
-- deck-library / Base 管 HTML 素材；
-- solution-infra 只聚合搜索。
-
-优点：短期演示最快。
-
-缺点：
-
-- ID、版本和权限分散；
-- Workset 跨系统引用脆弱；
-- 重复检索和重复预览；
-- 组合失败需要跨系统补偿；
-- 用户无法判断哪套系统才是事实源。
-
-结论：不符合团队共享目标。
+结论：**不采用。**
 
 ## 7. 推荐目标架构
 
 ```mermaid
 flowchart TB
-    UI["Next.js 团队工作台"]
-    API["solution-infra REST / MCP"]
-    APP["应用服务"]
-    DB[("PostgreSQL")]
-    STORE[("Content-addressed Artifact Store")]
-    JOBS["Job Worker"]
+    UI["Electron 本地客户端"]
+    IPC["Preload / IPC"]
+    APP["Python 应用服务"]
+    DB[("SQLite / FTS5")]
+    STORE[("本地派生资产缓存")]
+    JOBS["本地 Job Worker"]
 
-    HTMLIN["HTML / DeckJSON Adapter\nfeishu-deck-h5"]
-    PPTXIN["PPTX Import Adapter\npptx-to-deck"]
-    HTMLCOMPOSE["HTML Composer / Validator\nfeishu-deck-h5"]
-    PPTXNATIVE["PPTX Native Composer\nOOXML exporter"]
-    PPTXSNAP["PPTX Snapshot / Hybrid\nfeishu-deck-h5"]
+    HTMLIN["HTML Import Adapter\nfeishu-deck-h5 backfill"]
+    PPTXIN["PPTX Import Adapter\n现有 parser / renderer"]
+    HTMLCOMPOSE["HTML Compose / Validate Adapter\nfeishu-deck-h5"]
+    PPTXNATIVE["PPTX Native Export Adapter\nOOXML exporter"]
+    SNAP["Browser Snapshot Adapter"]
 
-    UI --> API --> APP
+    UI --> IPC --> APP
     APP --> DB
     APP --> STORE
     APP --> JOBS
@@ -408,17 +398,17 @@ flowchart TB
     JOBS --> PPTXIN
     JOBS --> HTMLCOMPOSE
     JOBS --> PPTXNATIVE
-    JOBS --> PPTXSNAP
+    JOBS --> SNAP
     HTMLIN --> STORE
     PPTXIN --> STORE
     HTMLCOMPOSE --> STORE
     PPTXNATIVE --> STORE
-    PPTXSNAP --> STORE
+    SNAP --> STORE
 ```
 
 ### 7.1 核心边界
 
-`solution-infra` 不理解 CSS、OOXML relationship 或 SVG DrawingML 细节。它只理解：
+页库应用层不理解 CSS、OOXML relationship 或 SVG DrawingML 细节。它只理解：
 
 - Source；
 - Asset；
@@ -431,6 +421,29 @@ flowchart TB
 - Provenance。
 
 格式适配器不拥有用户权限、检索索引和 Workset 状态。它们只接收不可变输入 Artifact 和结构化请求，返回 Manifest、Artifact 和诊断信息。
+
+### 7.2 适配器契约
+
+所有格式适配器至少提供四类能力：
+
+```text
+detect(source) -> Detection
+ingest(source_snapshot) -> DeckManifest + PageManifest[]
+render_preview(page_ref, profile) -> PreviewArtifact
+compose(ordered_page_refs, output_profile) -> ExportResult
+```
+
+返回值必须包含：
+
+- adapter 名称和版本；
+- 输入 Source Version；
+- 页面稳定 key 与顺序；
+- 页面文本和检索元数据；
+- 依赖 Artifact 清单；
+- capability / warning；
+- 输出文件、来源 manifest 和校验结果。
+
+当前应用只能依赖此契约，不能直接依赖 `feishu-deck-h5` 的目录结构或私有函数。
 
 ## 8. 统一资产模型建议
 
@@ -458,7 +471,7 @@ Source
 
 - `source_format`：`pptx`、`render_deck_html`、`deckjson_bundle`、`manifest_html`；
 - `canonical_format`：优先 `deckjson_bundle`，无法恢复时为 `opaque_bundle`；
-- `entry_artifact_id`；
+- `source_path` 与 `source_sha256`；
 - `canonical_artifact_id`；
 - `renderer_profile`；
 - `renderer_version`；
@@ -495,31 +508,33 @@ Source
 {
   "adapter": "feishu_deck_h5",
   "adapter_version": "2026.07",
-  "canonical_artifact_id": "art_xxx",
+  "source_version_id": "ver_xxx",
+  "source_sha256": "sha256:...",
   "page_key": "demo-market",
-  "dependency_manifest_id": "art_dep_xxx"
+  "dependency_manifest_id": "dep_xxx"
 }
 ```
 
-组合 worker 根据引用读取不可变 canonical bundle，提取页面和依赖闭包。
+组合 worker 先校验源文件 hash，再根据引用读取源 HTML / bundle，提取页面和依赖闭包。若源文件已变化或丢失，与当前 PPTX 行为一致，阻止导出并提示重新定位或重新入库。
 
-### 8.5 Artifact 去重
+### 8.5 源文件与派生资产策略
 
-所有大对象只保存一次：
+源文件继续就地保存，不复制：
 
 - 原始 PPTX；
 - 原始 HTML / ZIP；
-- canonical DeckJSON bundle；
-- 图片；
-- 视频；
-- 字体；
+
+数据库只保存路径、文件 hash、版本、页面元数据和依赖摘要。以下派生资产允许进入本地缓存：
+
 - 缩略图；
 - 高清预览；
+- 轻量 canonical DeckJSON；
+- 选中页面导出时抽取的图片、视频和字体；
 - 导出 HTML；
 - 导出 PPTX；
 - manifest 和 compatibility report。
 
-Artifact 使用 SHA-256 内容寻址。页面只持有 Artifact ID，不复制内容。
+派生缓存使用 SHA-256 内容寻址并支持垃圾回收。相同媒体只保存一份；未被选中导出的 Base64 视频不在导入阶段提前解包。
 
 ## 9. 导入流水线建议
 
@@ -527,7 +542,7 @@ Artifact 使用 SHA-256 内容寻址。页面只持有 Artifact ID，不复制�
 
 ```text
 register source
-  → immutable snapshot
+  → path + hash version lock
   → detect adapter
   → parse metadata
   → materialize canonical representation
@@ -540,17 +555,19 @@ register source
 ### 9.2 render-deck HTML
 
 1. 识别 generator meta。
-2. 保存原始 HTML Artifact。
+2. 记录原始 HTML 的绝对路径、SHA-256、大小和修改时间，不复制源文件。
 3. 使用 backfill 恢复 DeckJSON。
-4. 将大型 data URI 解包为内容寻址 Artifact，并把 DeckJSON 中的引用改成 bundle 内相对引用。
-5. 保存 canonical DeckJSON bundle。
+4. 扫描 data URI、相对资源和外部 URL，生成 dependency manifest；大型媒体只记录 digest、类型、大小和所属页面。
+5. 保存去除大媒体载荷后的轻量 canonical DeckJSON；媒体引用仍可回到 hash 锁定的源文件。
 6. 按 `page_key` 生成 Page Version。
 7. 浏览器渲染缩略图和高清预览。
 8. 写入 `composition_ref`。
 
+导出时只为选中的页面解析依赖闭包，将所需媒体抽取到临时目录或内容寻址缓存，再生成最终 bundle。这样保持当前“不复制源文件”的产品承诺，也避免整份 HTML 重复占用磁盘。
+
 ### 9.3 PPTX
 
-1. 保存原始 PPTX Artifact。
+1. 记录原始 PPTX 的绝对路径和 SHA-256，不复制源文件。
 2. 运行安全检查和基础文本提取。
 3. 调用 `pptx-to-deck` 生成 Canvas DeckJSON bundle。
 4. 使用 LibreOffice 生成视觉预览，作为视觉真值参考。
@@ -568,7 +585,7 @@ PPTX 原文件仍然是原生 PPTX 导出的最高保真来源；Canvas DeckJSON
 - 无页面结构：作为 `opaque_html` 整体资产；
 - 不在首版承诺任意网站区块级组合。
 
-## 10. 检索与 Workset 建议
+## 10. 检索与 Selection 建议
 
 ### 10.1 检索统一
 
@@ -587,9 +604,9 @@ PPTX 原文件仍然是原生 PPTX 导出的最高保真来源；Canvas DeckJSON
 
 来源格式应是一个过滤器或 badge，而不是独立产品入口。
 
-### 10.2 Workset 保持格式无关
+### 10.2 Selection 保持格式无关
 
-Workset item 只引用稳定的 Page Asset / Page Version，不保存格式私有载荷。
+Selection item 只引用稳定的 Page / Page Version，不保存格式私有载荷。未来迁移到团队服务时可映射为 Workset item。
 
 推荐增加：
 
@@ -683,161 +700,221 @@ assets/sources/<source-version-hash>/...
 - 可编辑输出：仅对明确支持的 schema / canvas / 原始 PPTX 页面承诺；
 - 不承诺任意 raw HTML 转原生可编辑 PPTX。
 
-## 13. 当前项目迁移方案
+## 13. 当前项目集成设计
 
-### 13.1 立即冻结的范围
+### 13.1 当前保持不动的稳定主链路
 
-当前 `ppt-page-library` 不再新增：
-
-- HTML 导入；
-- HTML 表和 HTML 专属领域对象；
-- 混合 Workset；
-- 团队账号和权限；
-- 第二套 PostgreSQL 或云端服务；
-- 新的团队 Web UI。
-
-可以继续进行的工作仅限：
-
-- 完成当前 PPTX M0 的稳定性收尾；
-- 修复影响迁移能力的 PPTX 解析 / 导出缺陷；
-- 补充独立格式适配器测试；
-- 整理真实样本和兼容性矩阵。
-
-### 13.2 第一优先迁移：OOXML 原生导出器
-
-来源：
+HTML 后续阶段继续实施时，以下行为始终视为回归基线：
 
 ```text
-src/pptlib/export/ooxml.py
+PPTX 文件 / 文件夹
+  → 就地扫描与 hash
+  → 文本解析与分类
+  → 缩略图 / 高清预览
+  → 本地检索与选片
+  → OOXML 原生组合
+  → PPTX + manifest
 ```
 
-目标形态：
+HTML 开发不得改变：
+
+- 现有 PPTX ID 的生成规则；
+- 已导入 PPTX 的查询结果和分类；
+- 默认 Selection 的顺序语义；
+- 源文件 hash 校验；
+- OOXML 原生页面复制；
+- 删除索引不删除源文件的安全边界。
+
+### 13.2 代码接入点
+
+未来实施时优先在现有边界上扩展：
+
+| 当前模块 | 规划改动 |
+| --- | --- |
+| `src/pptlib/discovery/scanner.py` | 从 PPTX-only 扩展为按 adapter 探测 `.pptx`、标准 `.html` 和 bundle `.zip` |
+| `src/pptlib/application/import_decks.py` | 改为格式无关的 import coordinator，现有 PPTX 流程作为一个 adapter |
+| `src/pptlib/ingestion/parser.py` | 保留 PPTX parser；新增独立 HTML adapter，不在此文件堆 HTML 分支 |
+| `src/pptlib/rendering/` | 增加浏览器截图 adapter，产出同规格 thumbnail / preview |
+| `src/pptlib/application/library.py` | SlideSummary 增加来源格式和能力字段 |
+| `src/pptlib/application/compose.py` | 从直接调用 OOXML 改为先生成 Export Plan，再分派输出 adapter |
+| `src/pptlib/export/ooxml.py` | 保持 PPTX 原生导出器职责，不加入 HTML 解析逻辑 |
+| `desktop/main.js` | 文件选择支持 HTML / ZIP；动态预览使用独立 sandbox webContents |
+| `desktop/renderer/app.js` | 增加格式 badge、动态预览入口和导出兼容性报告 |
+
+### 13.3 数据模型演进
+
+不新建 `html_decks` / `html_slides`。在现有 Deck / Version / Slide 结构上增加：
+
+**Deck Version**
+
+- `source_format`：`pptx`、`render_deck_html`、`deckjson_bundle`、`generic_html`；
+- `canonical_format`：`pptx_package`、`deckjson_bundle`、`opaque_bundle`；
+- 继续使用 `canonical_path`、`sha256`、`size_bytes` 和 `mtime_ns` 锁定本地源版本；
+- `canonical_artifact_id`；
+- `renderer_profile` 与 `renderer_version`；
+- `capabilities_json` 与 `warnings_json`。
+
+**Slide**
+
+- `page_key`：HTML 稳定 key；PPTX 可继续使用页序派生 key；
+- `page_kind`：`ooxml`、`h5_schema`、`h5_raw`、`h5_iframe`、`snapshot`；
+- `composition_ref_json`；
+- `capabilities_json`；
+- `dynamic_preview_artifact_id`；
+- `thumbnail_artifact_id` 与 `preview_artifact_id`。
+
+Selection 继续只保存稳定 `slide_id` 和锁定的来源版本。格式信息不复制进 Selection Item。
+
+### 13.4 HTML 来源边界
+
+首版允许：
+
+- 本地自包含 `.html`；
+- render-deck 目录或 ZIP bundle；
+- 带 `fs-deck-generator=render-deck`、`.slide-frame` 和稳定 `data-slide-key` 的标准产物。
+
+首版不允许：
+
+- 仅凭在线 URL 作为唯一来源；
+- 任意网站 DOM 区块拆页；
+- 需要登录态才能运行的远程页面；
+- 未声明依赖的远程脚本；
+- 页面内直接访问本机文件系统或 Electron API。
+
+在线 URL 可以作为来源说明，但入库必须落到不可变的本地 HTML / bundle。此次
+`https://magic.solutionsuite.cn/app/vtyZR0pI` 已返回 404，也说明 URL 不能承担长期资产身份。
+
+这里的“不可变”指通过 SHA-256 锁定版本，并不代表复制源文件。源文件变化后产生新版本；旧 Selection 引用旧版本时，若本地已找不到匹配 hash，则禁止导出。
+
+### 13.5 动态预览隔离
+
+库卡片和列表始终显示静态缩略图。用户主动打开动态预览时：
+
+- 使用独立 sandbox iframe 或 sandbox webContents；
+- `nodeIntegration=false`、`contextIsolation=true`；
+- 禁止访问 Electron preload 能力；
+- 默认拦截新窗口、下载、顶层跳转和未知协议；
+- 默认阻断外部网络，仅允许 dependency manifest 声明的本地 Artifact；
+- 退出预览时暂停视频、释放页面和媒体资源。
+
+不要把来源 HTML 直接插入 Electron 主 renderer DOM。
+
+### 13.6 产品交互
+
+页面卡片增加紧凑 badge：
+
+- 来源：`PPTX` / `HTML`；
+- 能力：`动态` / `视频` / `iframe` / `需联网`；
+- 输出：`PPTX 原生` / `PPTX 静态` / `HTML 动态`。
+
+高清预览默认仍是静态图。HTML 页面提供“播放动态版本”操作，只有用户触发时才启动 sandbox。
+
+导出时先选择目标格式，再展示逐页兼容性：
 
 ```text
-PptxNativeExportAdapter.compose(
-  source_artifacts,
-  ordered_page_refs,
-  output_options
-) -> ExportResult
+动态 HTML：10/10 页可用，3 页保留视频，2 个 PPTX 页面将静态嵌入
+PPTX：10/10 页可用，7 页原生复制，3 个 HTML 页面将静态化
 ```
 
-必须保留：
+存在失败项时禁止导出；只有降级项时允许用户确认后继续。
+
+### 13.7 输出产品形态
+
+HTML 输出提供两种包装：
+
+- **HTML Bundle ZIP（默认）**：`index.html + assets/ + manifest.json`，适合视频和大图；
+- **单文件 HTML（可选）**：最终阶段重新内联资源，适合通过 IM 发送，但需显示文件体积。
+
+PPTX 输出提供：
+
+- **兼容模式（首版）**：原始 PPTX 页面走 OOXML；HTML 页面走 1920×1080 高分辨率静态图；
+- **Hybrid（后续）**：H5 schema / canvas 映射原生对象，raw / iframe 继续静态化；
+- **纯快照模式（兜底）**：所有页面静态化，用于跨格式一致性优先的交付。
+
+### 13.8 必须保留的安全与可追溯能力
 
 - 源版本 SHA-256 校验；
-- ZIP 安全检查；
-- relationship 依赖闭包；
-- content type 更新；
-- 外部链接和不支持对象 warnings；
-- manifest；
+- HTML / ZIP 文件大小、成员数量和解压体积限制；
+- ZIP 路径穿越检查；
+- data URI 扫描和按需解包体积限制；
+- 外部 URL、脚本、iframe 和字体清单；
+- 页面依赖闭包校验；
+- renderer / adapter 版本；
+- 输出 manifest；
 - 原子发布；
-- 结构化错误码。
-
-### 13.3 第二优先迁移：taxonomy
-
-迁为 `solution-infra` enrichment job，不与导入事务耦合。
-
-迁移内容：
-
-- 8 × 4 固定业务分类；
-- 页面用途；
-- confidence；
-- classification source；
-- classifier version；
-- 人工覆盖保护；
-- 现有测试语料。
-
-### 13.4 第三优先迁移：安全与预览经验
-
-- ZIP 部件上限；
-- 解压总大小上限；
-- 路径穿越检查；
-- 临时目录隔离；
-- LibreOffice 独立 profile；
-- 缩略图 / 高清预览双分辨率缓存；
-- 超时和可重试错误分类。
-
-### 13.5 不迁移的产品壳
-
-- SQLite repositories；
-- Jinja 页面；
-- 当前 `/library`、`/selection` API；
-- 默认 Selection Store；
-- 独立本地 worker；
-- 独立团队部署配置。
-
-这些能力由 `solution-infra` 对应模块替代。
-
-### 13.6 退役条件
-
-满足以下条件后，当前仓库可转为只读参考：
-
-1. `solution-infra` 完成 PPTX 导入、检索、预览、Workset、HTML 导出和 PPTX 原生导出闭环；
-2. 当前项目的关键真实样本在新系统中通过；
-3. OOXML exporter 的回归测试迁移完成；
-4. taxonomy 结果兼容或完成显式版本升级；
-5. 当前项目没有仍在使用的独立团队数据。
+- 结构化错误码与逐页 warning。
 
 ## 14. 分阶段路线
 
-### 阶段 0：冻结边界与契约
+### 阶段 0：验证 PPTX 基线（已完成）
 
-目标：防止继续产生重复系统。
+该阶段已完成，为 2026-10-02 启动 HTML 阶段 1 提供基线。
 
-交付：
+退出条件：
 
-- 在 `solution-infra` 写 ADR；
-- 定义 Adapter Contract；
-- 定义 `composition_ref`；
-- 定义 Export Job / Result；
-- 定义 Capability / Compatibility Report。
+- 真实 PPTX 批量导入、重复检测和中断恢复稳定；
+- 缩略图与高清预览无持续性失败；
+- 文件级和页级删除不误伤源文件；
+- 典型跨文件组合导出通过结构和视觉抽查；
+- 已知 OOXML 媒体、母版和关系闭包问题形成明确清单；
+- 当前未提交改动完成验证并形成稳定基线。
 
-### 阶段 1：HTML 同格式闭环
-
-目标：先完成 B。
+### 阶段 1：HTML 只读入库（已完成）
 
 范围：
 
-- 上传 render-deck HTML 或 ZIP；
+- 支持选择本地 render-deck HTML / bundle；
 - exact backfill；
-- 大型 data URI 解包；
-- 页面检索和预览；
-- Workset 选择和排序；
-- DeckJSON 组合；
-- HTML 渲染、校验和下载；
-- 来源 manifest。
+- 大型 data URI 依赖扫描、摘要和页级归属；
+- 文本抽取、分类、FTS；
+- 静态缩略图和高清预览；
+- 页面卡片显示来源和能力；
+- sandbox 动态预览；
+- 暂不支持 HTML 组合导出。
 
-验收样例使用本次 36 MB、12 页 HTML。
+验收样例使用本次 36 MB、12 页 HTML。此阶段完成后，HTML 页面可以“看、搜、选”，但不承诺输出。
 
-### 阶段 2：PPTX 混入 HTML
+2026-10-02 实施结果：
 
-目标：开始 C 的主路径。
+- 真实样例恢复并入库 12/12 页，重复导入 12/12 页直接复用版本和预览缓存；
+- 静态预览统一生成 640 和 1440 长边 JPEG，视频页使用 poster，不自动播放；
+- 动态预览通过临时 loopback capability URL 和独立 Electron sandbox 窗口提供；
+- 来源脚本、事件属性、iframe、表单、外部网络和未知协议均被阻断；
+- 内嵌图片、视频和字体按所选页面临时解码，不进入 SQLite 或 canonical JSON；
+- HTML 页面可检索、筛选、预览和加入 Selection，但任何含 HTML 的 Selection 都禁止进入 OOXML 导出。
+
+### 阶段 2：HTML 同格式组合与输出
+
+范围：
+
+- 只允许 HTML 页面组成 Selection；
+- 通过 `composition_ref` 提取页面与依赖闭包；
+- 解决 key、DOM ID、CSS 和资源路径冲突；
+- 目标 deck 只加载一套 renderer runtime；
+- 输出 HTML Bundle ZIP；
+- 可选输出单文件 HTML；
+- validator、动态播放和来源 manifest 全部通过。
+
+### 阶段 3：PPTX / HTML 混合组稿
+
+范围：
+
+- Selection 允许两种来源混排；
+- 导出 HTML 时，PPTX 页面首版以高分辨率静态页面进入；
+- 导出 PPTX 时，PPTX 页面原生复制，HTML 页面静态化；
+- 导出前展示 Compatibility Report；
+- 每页记录 `preserved`、`flattened` 或 `unsupported`。
+
+### 阶段 4：结构化与 Hybrid 增强
 
 范围：
 
 - PPTX → Canvas DeckJSON；
-- PPTX 页面进入统一搜索；
-- HTML / PPTX 页面混合 Workset；
-- 混合 DeckJSON → HTML；
-- LibreOffice 与浏览器预览对比。
-
-### 阶段 3：PPTX snapshot 导出
-
-范围：
-
-- 任意混合 Workset 导出静态 PPTX；
-- 每页一张高分辨率图片；
-- 动效、视频和 iframe 静态化；
-- 明确不可编辑提示。
-
-### 阶段 4：能力感知的 hybrid / native 导出
-
-范围：
-
-- 原始 PPTX 页面优先走 OOXML 原生复制；
-- schema H5 页面走 SVG → DrawingML；
-- raw H5 页面走 snapshot；
+- H5 schema / canvas → SVG → DrawingML；
+- 原始 PPTX 页面继续优先走 OOXML；
+- raw H5 / iframe 继续走 snapshot；
 - 输出逐页 editability report；
-- 不支持对象显式 warning。
+- 在真实收益明确后，再评估任意第三方 HTML。
 
 ## 15. 主要风险与控制措施
 
@@ -845,7 +922,7 @@ PptxNativeExportAdapter.compose(
 
 风险：Base64 内容放进页面 JSON 会导致数据库膨胀、重复存储和查询变慢。
 
-控制：导入时解包为内容寻址 Artifact，页面只保留引用。
+控制：入库时只生成摘要和依赖清单；导出选中页面时按需解包到临时目录或内容寻址缓存，数据库只保存引用。
 
 ### 15.2 页面依赖不完整
 
@@ -881,15 +958,28 @@ PptxNativeExportAdapter.compose(
 
 风险：当前项目、deck-library 和 solution-infra 同时增加团队资产功能。
 
-控制：明确 `solution-infra` 是唯一主库，其他项目只通过适配器契约接入。
+控制：当前只维护一个可见页库产品；`feishu-deck-h5` 只作为格式引擎。未来团队化时整体迁移资产与任务层，不再并行建设第二套用户入口。
 
-## 16. 后续在 `solution-infra` 的建议起点
+### 15.8 本地媒体性能
 
-切换到 `feishu-solution-infra` 后，建议先完成设计而不是立刻搬代码。
+风险：多个视频页同时创建 DOM、解码 poster 或预加载视频，会显著增加 Electron 内存并拖慢选片。
+
+控制：
+
+- 网格只加载缩略图；
+- 动态页面按需挂载；
+- 离开预览立即暂停并销毁 webContents；
+- 视频使用 `preload="metadata"` 或 `none`；
+- 导出任务放 worker，避免阻塞 Electron renderer；
+- 记录单页和整份 deck 的媒体体积预算。
+
+## 16. 实施启动条件与第一批任务
+
+只有阶段 0 的 PPTX 稳定性退出条件满足后，才进入 HTML 实施。
 
 第一份实施前设计应聚焦一个可独立验收的子项目：
 
-> render-deck HTML 导入 → exact backfill → Artifact 解包 → 页面检索 → Workset → HTML 组合导出。
+> render-deck HTML 导入 → exact backfill → 依赖扫描 → 页面检索 → 静态/动态预览。
 
 建议依次确认：
 
@@ -897,69 +987,94 @@ PptxNativeExportAdapter.compose(
 2. Canonical Bundle 格式；
 3. `composition_ref` schema；
 4. Artifact dependency manifest；
-5. Export Job 和状态机；
-6. HTML composer 的 key / CSS / asset rewrite 规则；
-7. 兼容性报告；
-8. 36 MB HTML 样例的验收标准。
+5. HTML 安全分级与 sandbox 策略；
+6. Preview Job 和失败恢复；
+7. capability / warning 字段；
+8. 数据库迁移与旧库回滚策略；
+9. feature flag；
+10. 36 MB HTML 样例的验收脚本。
 
-当前项目的 OOXML exporter 迁移应作为随后独立子项目，不要与第一阶段 HTML 闭环混在同一实施计划中。
+第一批实现不得修改 OOXML exporter。混合导出在 HTML 只读入库稳定后单独立项。
 
-## 17. 阶段 1 建议验收标准
+## 17. HTML 能力验收标准
+
+### 17.1 只读入库验收
 
 使用本次真实 HTML 样例完成：
 
-- 成功上传并生成不可变 Source Snapshot；
+- 成功记录本地源路径并生成 hash 锁定版本；
 - 识别为 render-deck HTML；
 - 恢复 12 个稳定页面；
 - 页面顺序和 key 与来源一致；
 - 搜索能够命中标题、正文和关键页面；
 - 12 页均有缩略图和高清预览；
-- 视频不重复写入数据库；
-- 从中任选 5 页重新排序并导出 HTML；
-- 导出 HTML 通过 validator；
-- 导出 HTML 在浏览器中可正确翻页；
-- 被选中的视频页能够按明确策略保留或静态化；
-- manifest 可追溯到原始 Deck Version 和 Page Version；
-- 重复导入相同文件不产生重复 Artifact；
+- 视频不写入数据库，也不在导入阶段复制整份媒体；
+- 静态预览不启动视频，动态预览按需启动且关闭后释放；
+- 重复导入相同文件不产生重复版本或派生缓存；
 - 修改文件后产生新版本而不覆盖旧版本；
 - 非 render-deck HTML 不会被误判为 exact backfill。
 
+### 17.2 HTML 组合验收
+
+- 从不同 HTML Deck 中任选 5 页并重新排序；
+- 导出 HTML Bundle 和单文件 HTML；
+- 输出通过 validator，并在浏览器中正确翻页；
+- 被选中的视频页能够按策略保留或静态化；
+- 输出不存在 CSS、DOM ID、资源路径和 slide key 冲突；
+- manifest 可追溯到原始 Deck Version 和 Page Version。
+
+### 17.3 混合组稿验收
+
+- PPTX 与 HTML 页面可在同一 Selection 中排序；
+- 输出 HTML 时，HTML 动态页保持动态，PPTX 页视觉可接受；
+- 输出 PPTX 时，PPTX 页保持 OOXML 原生复制，HTML 页按报告静态化；
+- 输出页数、顺序和来源与 Selection 完全一致；
+- Compatibility Report 与实际输出逐页一致；
+- 任一页面不可输出时，系统在写最终文件前阻止发布。
+
 ## 18. 已确认决策
 
-本次讨论已确认：
+截至 2026-09-26 已确认：
 
-1. 产品目标是团队共享资产库，而非单人本机工具。
-2. 总体推荐采用 `solution-infra` 核心 + 格式适配器架构。
-3. 产品路线先 B，再 C：先 HTML 组合导出，再逐步支持混合格式和多输出。
-4. 当前 `ppt-page-library` 冻结产品扩展，保留为 PPTX 能力孵化与回归仓。
-5. 当前项目的独有能力逐项迁入 `solution-infra`，不继续维护第二套团队产品。
+1. 当前先继续测试既有 PPTX 链路稳定性，不立即实施 HTML 功能。
+2. HTML 是后续规划能力，届时接入当前本地页库，不新增独立 HTML 页库。
+3. PPTX 与 HTML 共用检索、分类、选片和来源追溯。
+4. `feishu-deck-h5` 作为 HTML / DeckJSON 格式引擎，以 adapter 方式复用。
+5. 首批只支持可精确恢复的标准 render-deck HTML。
+6. HTML 动态体验以 HTML 输出保留；输出 PPTX 时允许明确静态化。
+7. PPTX 原生页面继续由现有 OOXML exporter 负责，HTML 逻辑不得进入该模块。
+8. 在线 URL 不作为唯一资产来源，必须归档本地不可变 HTML 或 bundle。
+9. 长期团队化方向保留，但不作为当前功能的前置项目。
 
-## 19. 尚需在下一项目中做出的设计决策
+## 19. 实施前尚需确认的设计决策
 
-以下内容不阻塞本次调研结论，但需要在 `solution-infra` 的下一轮设计中明确：
+以下内容不阻塞阶段 1，但在 HTML 组合输出和混排导出启动前必须明确：
 
-1. 格式适配器采用进程内 Python package、子进程 CLI，还是独立 worker image；
-2. canonical bundle 的物理封装采用目录、ZIP，还是 manifest + 分离 Artifact；
+1. 格式适配器采用进程内 Python package，还是隔离的本地子进程 CLI；
+2. canonical bundle 的本地物理封装采用目录、ZIP，还是 manifest + 分离 Artifact；
 3. 大型视频默认保留、静态化，还是按导出目标选择；
 4. renderer 版本是否需要长期并存；
-5. 团队权限落在 Deck、Page 还是 Source 层，并如何继承；
-6. 页面人工分类如何与自动分类版本共存；
-7. HTML 导出是否允许外部网络依赖；
-8. 第三方 HTML 的首版支持边界。
+5. HTML 单文件输出的默认体积阈值；
+6. 动态预览是否完全断网，还是允许显式白名单；
+7. PPTX 页面进入 HTML 时首版采用 PNG、WebP 还是 Canvas 转换；
+8. iframe 页面默认拒绝、保留还是静态化；
+9. renderer 升级后的旧版本兼容周期；
+10. 团队化迁移触发条件。
 
 这些决策应进入下一份正式设计文档，而不应通过实现细节默默决定。
 
 ## 20. 最终建议
 
-不要在当前项目中直接增加 HTML 表、HTML 路由和 HTML exporter。这样做能快速出现界面，但会把格式处理和产品资产模型绑定在 SQLite / Jinja 的本地实现上，随后又必须向团队系统迁移一次。
+当前最合理的路径不是立即开发，而是先把本地 PPTX 主链路跑稳，并把本设计作为后续实施基线。
 
-正确路径是：
+启动 HTML 功能后：
 
-1. 在 `solution-infra` 统一资产、版本、权限、检索和 Workset；
+1. 在当前页库中统一 Deck、Version、Page、Selection 和检索；
 2. 把 `feishu-deck-h5` 接成 HTML / DeckJSON adapter；
-3. 把 `pptx-to-deck` 接成 PPTX → HTML canonical adapter；
-4. 把当前项目的 OOXML exporter 接成 PPTX native export adapter；
-5. 先打通 HTML 闭环，再增加 snapshot 和 hybrid / native PPTX；
-6. 对每页和每次导出明确展示 fidelity、dynamic 和 editability。
+3. 源文件继续就地索引；大媒体不进数据库，导出时按页抽取并进入可回收的内容寻址缓存；
+4. 先完成 HTML 只读入库，再完成 HTML 同格式组合；
+5. 最后增加 PPTX / HTML 混合组稿和双格式输出；
+6. 对每页和每次导出明确展示 dynamic、fidelity 和 editability；
+7. 团队化时迁移资产与任务层，保留格式适配器和 manifest 契约。
 
-这条路线能够最大化复用现有成果，同时避免继续形成重复系统。
+这条路线既能与当前本地产品连续演进，也不会把后续团队化能力锁死在 Electron、SQLite 或某一种演示格式里。

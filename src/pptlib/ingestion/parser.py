@@ -32,6 +32,10 @@ class ParsedSlide:
     title: str
     body_text: str
     notes_text: str
+    page_key: str = ""
+    page_kind: str = "ooxml"
+    composition_ref_json: str = "{}"
+    capabilities_json: str = "{}"
 
     @property
     def content_text(self) -> str:
@@ -42,6 +46,12 @@ class ParsedSlide:
 class ParsedDeck:
     slides: tuple[ParsedSlide, ...]
     parser_version: str = PARSER_VERSION
+    source_format: str = "pptx"
+    canonical_format: str = "pptx_package"
+    dependencies_json: str = "[]"
+    capabilities_json: str = "{}"
+    warnings_json: str = "[]"
+    renderer_version: str = ""
 
 
 def _text_nodes(root: Element) -> list[str]:

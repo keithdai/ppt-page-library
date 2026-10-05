@@ -1,12 +1,15 @@
 {
   "name": "ppt-page-library-desktop",
   "productName": "拼页",
-  "version": "0.1.0",
-  "description": "拼页 PinPage · 好页拼成好稿——本地 PPTX 导入渲染、按页选片、组合导出。",
+  "version": "0.2.2",
+  "description": "拼页 PinPage · 好页拼成好稿——本地 PPTX / HTML 入库、预览、选片与组合。",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder"
+    "runtime": "../packaging/build_runtime.sh",
+    "dist:dir": "npm run runtime && electron-builder --dir",
+    "dist": "npm run runtime && electron-builder --mac zip",
+    "dist:dmg": "npm run runtime && electron-builder --mac dmg"
   },
   "devDependencies": {
     "electron": "^31.7.7",
@@ -15,15 +18,24 @@
   "build": {
     "appId": "com.pptlib.desktop",
     "productName": "拼页",
+    "afterPack": "../packaging/after-pack.js",
     "files": [
       "main.js",
       "preload.js",
+      "assets/**/*",
       "renderer/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../build/runtime/pptlib",
+        "to": "runtime/pptlib"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
       "target": [
-        "dmg"
+        "zip"
       ]
     }
   }
