@@ -504,8 +504,32 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 .lightbox:fullscreen .lb-fullscreen .fs-enter { display: none; }
 .lightbox:fullscreen .lb-fullscreen .fs-exit { display: block; }
 .lightbox:fullscreen .lb-backdrop { background: #050816; backdrop-filter: none; }
-.lightbox:fullscreen .lb-stage { padding: 24px 62px; }
-.lightbox:fullscreen .lb-img { max-height: calc(100vh - 96px); border-radius: 0; }
+.lightbox:fullscreen .lb-stage { padding: 0; gap: 0; }
+.lightbox:fullscreen .lb-figure {
+  width: 100%; height: 100%; max-height: none; gap: 0; justify-content: center;
+}
+.lightbox:fullscreen .lb-img {
+  width: 100%; height: 100%; max-width: 100vw; max-height: 100vh;
+  border-radius: 0; box-shadow: none; background: #050816;
+}
+.lightbox:fullscreen .lb-bar,
+.lightbox:fullscreen .lb-warnings,
+.lightbox:fullscreen .lb-preview-error {
+  display: none;
+}
+.lightbox:fullscreen .lb-nav {
+  position: absolute; top: 50%; z-index: 3; opacity: 0;
+  transform: translateY(-50%); transition: opacity .16s var(--ease), background .16s var(--ease);
+}
+.lightbox:fullscreen .lb-nav.prev { left: 18px; }
+.lightbox:fullscreen .lb-nav.next { right: 18px; }
+.lightbox:fullscreen .lb-nav:hover,
+.lightbox:fullscreen .lb-nav:focus-visible,
+.lightbox:fullscreen .lb-actions:hover,
+.lightbox:fullscreen .lb-actions:focus-within {
+  opacity: 1;
+}
+.lightbox:fullscreen .lb-actions { opacity: 0; transition: opacity .16s var(--ease); }
 
 /* selected list (draggable) */
 .sel-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); position: sticky; top: 0; overflow: hidden; }

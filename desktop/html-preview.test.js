@@ -445,6 +445,18 @@ test('dynamic control requires HTML capability and feature gate; warnings remain
   assert.equal(f.element('lb-warnings').hidden, true);
 });
 
+test('fullscreen presentation mode hides selection chrome and fills the viewport', () => {
+  const styles = readFileSync(path.join(__dirname, 'renderer/styles.css'), 'utf8');
+  assert.match(
+    styles,
+    /\.lightbox:fullscreen \.lb-bar,[\s\S]*?\.lightbox:fullscreen \.lb-preview-error\s*\{\s*display:\s*none;/,
+  );
+  assert.match(
+    styles,
+    /\.lightbox:fullscreen \.lb-img\s*\{[\s\S]*?max-width:\s*100vw;[\s\S]*?max-height:\s*100vh;/,
+  );
+});
+
 test('main process defaults HTML on, respects off, rejects foreign IPC and waits before quit', async () => {
   const app = new EventEmitter();
   let quitCalls = 0;
