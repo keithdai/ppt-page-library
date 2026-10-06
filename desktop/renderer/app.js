@@ -1655,6 +1655,7 @@ const pickManifestBtn = document.getElementById('pick-manifest');
 const pickOutputBtn = document.getElementById('pick-output');
 const runComposeBtn = document.getElementById('run-compose');
 const composeChosen = document.getElementById('compose-chosen');
+const composeSelectionStatus = document.getElementById('compose-selection-status');
 const composeSetupEl = document.getElementById('compose-setup');
 const composeCheckEl = document.getElementById('compose-check');
 const composeResultEl = document.getElementById('compose-result');
@@ -1670,12 +1671,17 @@ function refreshComposeReady() {
   state.composePreflight = null;
   setComposeView('setup');
   runComposeBtn.disabled = !(state.manifest && state.output);
-  composeChosen.textContent = [
-    state.manifest ? `manifest: ${state.manifest}` : '',
-    state.output ? `输出: ${state.output}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  if (state.manifestFromSelection) {
+    composeSelectionStatus.textContent = `已载入当前选片：${selectedIds.length} 页`;
+  } else if (state.manifest) {
+    composeSelectionStatus.textContent = '已导入已有选片清单';
+  } else {
+    composeSelectionStatus.textContent = '尚未载入选片，请返回选片后再进入组合';
+  }
+  composeSelectionStatus.className = `compose-selection-status${state.manifest ? ' is-ready' : ''}`;
+  composeChosen.textContent = state.output
+    ? `保存到：${state.output}`
+    : '尚未选择保存位置';
 }
 
 pickManifestBtn.addEventListener('click', async () => {
@@ -1721,6 +1727,7 @@ if (verifyHashEl && sideVerifyEl) {
     refreshComposeReady();
   });
 }
+refreshComposeReady();
 
 function formatBytes(value) {
   const bytes = Number(value) || 0;

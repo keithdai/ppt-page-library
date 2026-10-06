@@ -864,6 +864,36 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 }
 
 /* compose preflight and result */
+.compose-selection-status {
+  min-height: 38px; margin-bottom: 12px; padding: 8px 11px;
+  display: flex; align-items: center;
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface-2); color: var(--text-2); font-size: 12.5px;
+}
+.compose-selection-status.is-ready {
+  border-left-color: var(--success);
+  background: var(--success-light); color: #067a26;
+}
+.compose-output-path {
+  min-height: 20px; margin: 9px 0 0;
+  color: var(--text-3); font-size: 12px; overflow-wrap: anywhere;
+}
+.compose-advanced { margin-top: 14px; color: var(--text-2); }
+.compose-advanced > summary {
+  width: fit-content; padding: 2px 0;
+  cursor: pointer; color: var(--text-3); font-size: 12px;
+}
+.compose-advanced > summary:hover { color: var(--text-2); }
+.compose-advanced > summary:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 3px;
+}
+.compose-advanced-body {
+  display: grid; justify-items: start; gap: 9px;
+  margin-top: 9px; padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.compose-advanced-body .note { margin: 0; }
 .compose-state-head {
   display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
 }

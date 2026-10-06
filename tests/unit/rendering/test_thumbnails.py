@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 import pytest
@@ -619,3 +620,148 @@ def test_pdfium_render_maps_pages_without_external_binary(tmp_path: Path) -> Non
     assert expected[2].is_file()
     with Image.open(expected[0]) as image:
         assert max(image.size) == 640
+
+
+def test_fontconfig_uses_installed_lanting_pro_for_truncated_office_names(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    regular = tmp_path / "方正兰亭黑Pro_GB18030.otf"
+    semibold = tmp_path / "方正兰亭黑Pro_GB18030 SemiBold.otf"
+    regular.write_bytes(b"regular")
+    semibold.write_bytes(b"semibold")
+    monkeypatch.setattr(
+        thumbnails,
+        "_libreoffice_font_sources",
+        lambda: [regular, semibold],
+    )
+
+    config_path, _, _ = thumbnails._prepare_libreoffice_fonts(tmp_path / "cache")
+    strings = [
+        node.text
+        for node in ET.parse(config_path).findall(".//string")
+        if node.text is not None
+    ]
+
+    assert "FZLanTingHeiPro_GB18030 SemiBol" in strings
+    assert "FZLanTingHeiPro_GB18030 SemiBold" in strings
+    assert "FZLanTingHeiPro_GB18030 ExtraBo" in strings
+    assert "FZLanTingHeiPro_GB18030 ExtraBold" in strings
+    assert "FZLanTingHeiPro" in strings
+    assert "FZLanTingHeiPro_GB18030" in strings
+
+
+def test_fontconfig_detects_lanting_from_internal_family_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    renamed = tmp_path / "brand-font.otf"
+    renamed.write_bytes(b"font")
+    monkeypatch.setattr(thumbnails, "_libreoffice_font_sources", lambda: [renamed])
+
+    class Font:
+        @staticmethod
+        def getname() -> tuple[str, str]:
+            return "FZLanTingHeiPro_GB18030", "Regular"
+
+    monkeypatch.setattr(
+        thumbnails.ImageFont,
+        "truetype",
+        lambda *_args, **_kwargs: Font(),
+    )
+
+    config_path, _, _ = thumbnails._prepare_libreoffice_fonts(tmp_path / "cache")
+    strings = [
+        node.text
+        for node in ET.parse(config_path).findall(".//string")
+        if node.text is not None
+    ]
+
+    assert "FZLanTingHeiPro_GB18030 SemiBol" in strings
+    assert "FZLanTingHeiPro_GB18030 SemiBold" in strings
+
+
+def test_fontconfig_prefers_installed_office_fonts_and_aliases_oppo_sans(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sources = [
+        tmp_path / "Deng.ttf",
+        tmp_path / "msyh.ttc",
+        tmp_path / "SimHei.ttf",
+        tmp_path / "OPPO Sans 4.0.ttf",
+        tmp_path / "NotoSansSC[wght].ttf",
+        tmp_path / "NotoSerifSC[wght].ttf",
+    ]
+    for source in sources:
+        source.write_bytes(source.name.encode())
+    monkeypatch.setattr(thumbnails, "_libreoffice_font_sources", lambda: sources)
+
+    config_path, _, _ = thumbnails._prepare_libreoffice_fonts(tmp_path / "cache")
+    tree = ET.parse(config_path)
+    requested = [
+        node.text
+        for node in tree.findall(".//test/string")
+        if node.text is not None
+    ]
+    strings = [
+        node.text
+        for node in tree.findall(".//string")
+        if node.text is not None
+    ]
+
+    assert "等线" not in requested
+    assert "微软雅黑" not in requested
+    assert "SimHei" not in requested
+    assert "OPPOSans" in requested
+    assert "OPPO Sans 4.0" in strings
+    assert "Source Han Sans CN" in requested
+    assert "Noto Sans SC" in strings
+    assert "Source Han Serif CN" in requested
+    assert "Noto Serif SC" in strings
+
+
+def test_fontconfig_uses_internal_family_names_for_availability(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "renamed-font.bin.ttf"
+    source.write_bytes(b"font")
+    monkeypatch.setattr(thumbnails, "_libreoffice_font_sources", lambda: [source])
+    monkeypatch.setattr(
+        thumbnails,
+        "_font_source_names",
+        lambda _sources: {
+            "dengxian",
+            "microsoft yahei",
+            "simhei",
+            "oppo sans 4.0",
+            "noto sans sc",
+            "noto serif sc",
+        },
+    )
+
+    config_path, _, _ = thumbnails._prepare_libreoffice_fonts(tmp_path / "cache")
+    tree = ET.parse(config_path)
+    requested = [
+        node.text
+        for node in tree.findall(".//test/string")
+        if node.text is not None
+    ]
+
+    assert "等线" not in requested
+    assert "微软雅黑" not in requested
+    assert "SimHei" not in requested
+    assert "OPPOSans" in requested
+    assert "Source Han Sans CN" in requested
+    assert "Source Han Serif CN" in requested
+
+
+def test_font_roots_include_pptlib_home_fonts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PPTLIB_HOME", ".")
+
+    assert tmp_path / "fonts" in thumbnails._libreoffice_font_roots()

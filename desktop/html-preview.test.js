@@ -412,6 +412,55 @@ test('compose preflight distinguishes blockers, warnings and ready state', () =>
   assert.match(f.element('compose-check-issues').innerHTML, /外部链接/);
 });
 
+test('compose setup keeps manifest import inside advanced options', () => {
+  const markup = readFileSync(path.join(__dirname, 'renderer/index.html'), 'utf8');
+  const advancedStart = markup.indexOf('<details class="compose-advanced">');
+  const advancedEnd = markup.indexOf('</details>', advancedStart);
+  const outputPicker = markup.indexOf('id="pick-output"');
+  const manifestPicker = markup.indexOf('id="pick-manifest"');
+
+  assert.ok(outputPicker > 0 && outputPicker < advancedStart);
+  assert.ok(manifestPicker > advancedStart && manifestPicker < advancedEnd);
+  assert.doesNotMatch(markup, /手动选择 manifest/);
+});
+
+test('compose setup shows selection and output without exposing manifest path', () => {
+  const f = rendererFixture();
+  assert.equal(
+    f.element('compose-selection-status').textContent,
+    '尚未载入选片，请返回选片后再进入组合',
+  );
+  assert.equal(f.element('compose-selection-status').className, 'compose-selection-status');
+  f.run(`
+    selectedIds.push('p1', 'p2');
+    state.manifest = '/tmp/generated-manifest.json';
+    state.manifestFromSelection = true;
+    refreshComposeReady();
+  `);
+
+  assert.equal(f.element('compose-selection-status').textContent, '已载入当前选片：2 页');
+  assert.equal(
+    f.element('compose-selection-status').className,
+    'compose-selection-status is-ready',
+  );
+  assert.equal(f.element('compose-chosen').textContent, '尚未选择保存位置');
+  assert.equal(f.element('run-compose').disabled, true);
+
+  f.run(`
+    state.output = '/tmp/composed.pptx';
+    refreshComposeReady();
+  `);
+  assert.equal(f.element('compose-chosen').textContent, '保存到：/tmp/composed.pptx');
+  assert.doesNotMatch(f.element('compose-chosen').textContent, /manifest/);
+  assert.equal(f.element('run-compose').disabled, false);
+
+  f.run(`
+    state.manifestFromSelection = false;
+    refreshComposeReady();
+  `);
+  assert.equal(f.element('compose-selection-status').textContent, '已导入已有选片清单');
+});
+
 test('selection changes invalidate a generated manifest and preflight', () => {
   const f = rendererFixture();
   f.run(`

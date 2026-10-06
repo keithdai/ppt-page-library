@@ -221,14 +221,21 @@
                       <svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
                       输出设置
                     </h3>
-                    <p class="card-sub">确认选片清单和输出位置后，先检查来源、页面尺寸与兼容性，再生成文件。</p>
+                    <p class="card-sub">选择保存位置后，先检查来源与兼容性，再生成文件。</p>
                     <p class="export-blocked" data-html-only hidden>第一阶段仅支持 PPTX 页面导出。HTML 可选片和动态预览，暂不支持 HTML 或 PPTX 导出；包含 HTML 页面的清单无法组合。</p>
+                    <div class="compose-selection-status" id="compose-selection-status" role="status" aria-live="polite"></div>
                     <div class="btn-row">
-                      <button id="pick-manifest" class="btn">手动选择 manifest…</button>
-                      <button id="pick-output" class="btn">选择输出位置…</button>
+                      <button id="pick-output" class="btn">选择保存位置…</button>
                     </div>
-                    <label class="check" style="margin-top:14px;"><input type="checkbox" id="verify-hash" checked /> 校验源文件哈希（确保源页面未变动）</label>
-                    <p class="chosen note" id="compose-chosen" style="margin-top:10px;"></p>
+                    <p class="compose-output-path" id="compose-chosen" role="status" aria-live="polite"></p>
+                    <details class="compose-advanced">
+                      <summary>高级选项</summary>
+                      <div class="compose-advanced-body">
+                        <label class="check"><input type="checkbox" id="verify-hash" checked /> 导出前校验源文件未发生变化</label>
+                        <button id="pick-manifest" class="btn ghost sm">导入已有选片清单…</button>
+                        <p class="note">仅在恢复旧清单或导入脚本生成的清单时使用。</p>
+                      </div>
+                    </details>
                     <div class="divider"></div>
                     <div class="btn-row">
                       <button id="run-compose" class="btn primary" disabled>

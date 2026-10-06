@@ -15,7 +15,7 @@ from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
 import pypdfium2 as pdfium  # type: ignore[import-untyped]
-from PIL import Image
+from PIL import Image, ImageFont
 from playwright.sync_api import Browser, Page, sync_playwright
 
 
@@ -24,13 +24,14 @@ class ThumbnailError(RuntimeError):
 
 
 _LO_APP_BINARY = Path("/Applications/LibreOffice.app/Contents/MacOS/soffice")
-_RENDER_CACHE_VERSION = 5
+_RENDER_CACHE_VERSION = 6
 _P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 _R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 _OFFICECLI_CHUNK_SIZE = 4
 _LIBREOFFICE_PAGE_CHUNK_SIZE = 16
 _FONT_EXTENSIONS = {".dfont", ".otf", ".ttc", ".ttf"}
+_MAX_FONT_FACES = 32
 _CHROME_ARGS = [
     "--password-store=basic",
     "--use-mock-keychain",
@@ -752,7 +753,7 @@ def _libreoffice_environment(work_dir: Path, temp_dir: Path) -> dict[str, str]:
 
 
 def _prepare_libreoffice_fonts(temp_dir: Path) -> tuple[Path, Path, Path]:
-    root = temp_dir / "libreoffice-fontconfig-v2"
+    root = temp_dir / "libreoffice-fontconfig-v3"
     font_dir = root / "fonts"
     cache_dir = root / "cache"
     config_path = root / "fonts.conf"
@@ -783,17 +784,98 @@ def _prepare_libreoffice_fonts(temp_dir: Path) -> tuple[Path, Path, Path]:
     config = ET.Element("fontconfig")
     ET.SubElement(config, "dir").text = str(font_dir)
     ET.SubElement(config, "cachedir").text = str(cache_dir)
-    for family, comparison in (
-        ("FZLanTingHeiPro", "contains"),
-        ("方正兰亭黑Pro_GB18030", "eq"),
-        ("等线", "contains"),
-        ("微软雅黑", "eq"),
-        ("SimHei", "eq"),
+    available_names = _font_source_names(sources)
+    has_lanting_pro = any(
+        "fzlantingheipro_gb18030" in name or "方正兰亭黑pro_gb18030" in name
+        for name in available_names
+    )
+    substitutions = [
+        ("FZLanTingHeiS-R-GB", "Lantinghei SC", "eq"),
+        ("方正兰亭黑简体", "Lantinghei SC", "eq"),
+        ("方正兰亭中粗黑简体", "Lantinghei SC", "eq"),
+    ]
+    if not any(
+        name in available_names
+        for name in {"deng", "dengb", "dengl", "dengxian", "等线"}
     ):
+        substitutions.append(("等线", "PingFang SC", "contains"))
+    if not any(
+        name in available_names
+        for name in {"msyh", "msyhbd", "msyhl", "microsoft yahei", "微软雅黑"}
+    ):
+        substitutions.append(("微软雅黑", "PingFang SC", "eq"))
+    if "simhei" not in available_names:
+        substitutions.append(("SimHei", "PingFang SC", "eq"))
+    if "oppo sans 4.0" in available_names:
+        substitutions.append(("OPPOSans", "OPPO Sans 4.0", "contains"))
+    if "notosanssc[wght]" in available_names or "noto sans sc" in available_names:
+        substitutions.extend(
+            [
+                ("Noto Sans CJK SC", "Noto Sans SC", "contains"),
+                ("Source Han Sans CN", "Noto Sans SC", "contains"),
+                ("思源黑体", "Noto Sans SC", "contains"),
+            ]
+        )
+    if "notoserifsc[wght]" in available_names or "noto serif sc" in available_names:
+        substitutions.extend(
+            [
+                ("Source Han Serif CN", "Noto Serif SC", "contains"),
+                ("Source Han Serif SC", "Noto Serif SC", "contains"),
+                ("思源宋体", "Noto Serif SC", "contains"),
+            ]
+        )
+    if has_lanting_pro:
+        substitutions.extend(
+            [
+                (
+                    "FZLanTingHeiPro_GB18030 SemiBol",
+                    "FZLanTingHeiPro_GB18030 SemiBold",
+                    "eq",
+                ),
+                (
+                    "FZLanTingHeiPro_GB18030 DemiBol",
+                    "FZLanTingHeiPro_GB18030 DemiBold",
+                    "eq",
+                ),
+                (
+                    "FZLanTingHeiPro_GB18030 ExtraLi",
+                    "FZLanTingHeiPro_GB18030 ExtraLight",
+                    "eq",
+                ),
+                (
+                    "FZLanTingHeiPro_GB18030 ExtraBo",
+                    "FZLanTingHeiPro_GB18030 ExtraBold",
+                    "eq",
+                ),
+                (
+                    "FZLanTingHeiPro_GB18030 Regular",
+                    "FZLanTingHeiPro_GB18030",
+                    "eq",
+                ),
+                (
+                    "FZLanTingHeiPro",
+                    "FZLanTingHeiPro_GB18030",
+                    "eq",
+                ),
+                (
+                    "方正兰亭黑Pro",
+                    "方正兰亭黑Pro_GB18030",
+                    "eq",
+                ),
+            ]
+        )
+    else:
+        substitutions.extend(
+            [
+                ("FZLanTingHeiPro", "PingFang SC", "contains"),
+                ("方正兰亭黑Pro_GB18030", "PingFang SC", "eq"),
+            ]
+        )
+    for family, replacement, comparison in substitutions:
         _add_fontconfig_substitution(
             config,
             family,
-            "PingFang SC",
+            replacement,
             comparison=comparison,
         )
     ET.ElementTree(config).write(config_path, encoding="utf-8", xml_declaration=True)
@@ -819,20 +901,47 @@ def _add_fontconfig_substitution(
     ET.SubElement(edit, "string").text = replacement_family
 
 
-def _libreoffice_font_sources() -> list[Path]:
+def _font_source_names(sources: list[Path]) -> set[str]:
+    names = {source.stem.casefold() for source in sources}
+    for source in sources:
+        for index in range(_MAX_FONT_FACES):
+            try:
+                family, style = ImageFont.truetype(
+                    str(source),
+                    12,
+                    index=index,
+                ).getname()
+            except OSError:
+                break
+            if family is None:
+                continue
+            names.add(family.casefold())
+            if style is not None:
+                names.add(f"{family} {style}".casefold())
+    return names
+
+
+def _libreoffice_font_roots() -> list[Path]:
     resources = _LO_APP_BINARY.parents[1] / "Resources"
     roots = [
         Path("/System/Library/Fonts"),
         Path("/Library/Fonts"),
         Path.home() / "Library" / "Fonts",
+        Path("/Applications/Microsoft PowerPoint.app/Contents/Resources/DFonts"),
         resources / "fonts",
         resources / "resource" / "common" / "fonts",
     ]
+    if home := os.environ.get("PPTLIB_HOME"):
+        roots.insert(3, Path(home).expanduser().resolve() / "fonts")
     assets = Path("/System/Library/AssetsV2")
     if assets.is_dir():
         roots.extend(assets.glob("com_apple_MobileAsset_Font*/*.asset/AssetData"))
+    return roots
+
+
+def _libreoffice_font_sources() -> list[Path]:
     sources: set[Path] = set()
-    for root in roots:
+    for root in _libreoffice_font_roots():
         if not root.is_dir():
             continue
         sources.update(
