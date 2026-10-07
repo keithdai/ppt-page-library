@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeckAtlas · 本地演示页库</title>
+    <link rel="icon" type="image/png" href="../assets/icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- Top bar -->
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo brand-mark">
+            <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden="true">
+              <rect x="4" y="6" width="22" height="16" rx="2.5" fill="#ffffff" opacity="0.38"/>
+              <rect x="7" y="10" width="22" height="16" rx="2.5" fill="#ffffff"/>
+              <path d="m11 21 5-5 4 3 5-6" fill="none" stroke="#ff6b4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="25" cy="13" r="2.2" fill="#ff6b4a"/>
+            </svg>
+          </span>
+          <span class="title">DeckAtlas<span class="brand-sub">本地演示页库</span></span>
+        </div>
+        <span class="chip">本地处理 · 源文件不外传</span>
+        <span class="spacer"></span>
+        <span class="chip mono" id="paths">仓库: …</span>
+      </header>
+
+      <!-- Top workflow nav -->
+      <nav class="nav" aria-label="工作流程">
+        <div class="nav-inner">
+          <button type="button" class="nav-item active" data-step="1" aria-current="step">
+            <span class="idx">1</span>
+            <span class="label">导入并渲染<span class="desc">抽取 · 分类 · 渲染</span></span>
+            <span class="sd gray" data-dot></span>
+          </button>
+          <button type="button" class="nav-item" data-step="2">
+            <span class="idx">2</span>
+            <span class="label">选片<span class="desc">本地页库浏览挑选</span></span>
+            <span class="sd gray" data-dot></span>
+          </button>
+          <button type="button" class="nav-item" data-step="3">
+            <span class="idx">3</span>
+            <span class="label">组合导出<span class="desc">按序拼出 PPTX</span></span>
+            <span class="sd gray" data-dot></span>
+          </button>
+          <button type="button" class="nav-item manage" data-step="4">
+            <span class="idx">4</span>
+            <span class="label">重复管理<span class="desc">识别 · 对比 · 清理</span></span>
+            <span class="sd gray" data-dot></span>
+          </button>
+          <button type="button" class="nav-item manage" data-step="5">
+            <span class="idx">5</span>
+            <span class="label">自动更新<span class="desc">目录 · 规则 · 计划</span></span>
+            <span class="sd gray" data-dot></span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Main workspace -->
+      <main class="main">
+        <div class="main-inner">
+          <div id="repo-warning" class="repo-warning" style="display: none">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4m0 4h.01"/></svg>
+            <span>未找到 pptlib 仓库（缺少 src/pptlib）。请选择你本地的 pptlib 仓库目录后再操作。</span>
+            <button id="pick-repo" class="btn sm">选择仓库目录…</button>
+          </div>
+
+          <!-- STEP 1 -->
+          <section class="step active" data-step="1">
+            <div class="page-head">
+              <div class="t">
+                <h2>导入并渲染</h2>
+                <p data-html-copy="选择本地 PPTX、HTML / HTM 或 HTML Deck ZIP，抽取文本、分类并生成静态预览。HTML 可在隔离窗口播放安全动态版本，暂不支持导出。">选择本地 PPTX，系统会抽取文本、自动分类，并按页渲染缩略图与预览。源文件只留在本地。</p>
+              </div>
+            </div>
+            <div class="cols">
+              <div>
+                <div class="card">
+                  <h3>
+                    <svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                    选择文件
+                  </h3>
+                  <p class="card-sub"><span data-html-copy="支持多选 PPTX、HTML / HTM、HTML Deck ZIP 或整个文件夹（递归查找）。">支持多选文件或整个文件夹（递归查找 PPTX）。</span>文件夹按目录同步：未变化直接跳过，目录调整后复用原索引，内容变化自动更新，源文件删除后同步移出页库。源文件不复制、不移动、不上传。</p>
+                  <div class="btn-row">
+                    <button id="pick-import" class="btn">
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                      <span data-html-copy="选择 PPTX / HTML…">选择 PPTX…</span>
+                    </button>
+                    <button id="pick-folder" class="btn">
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8"/></svg>
+                      选择文件夹…
+                    </button>
+                    <button id="run-import" class="btn primary" disabled>
+                      <svg class="ico sm" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                      导入并渲染
+                    </button>
+                  </div>
+                  <div id="import-selection-head" class="import-selection-head" hidden>
+                    <span><b id="import-source-count">0</b> 个待导入来源</span>
+                    <button id="clear-import-sources" class="btn ghost sm" type="button">
+                      清空
+                    </button>
+                  </div>
+                  <ul id="import-files" class="filelist" aria-label="待导入来源"></ul>
+                  <p id="import-selection-note" class="import-selection-note" role="status" aria-live="polite" hidden></p>
+                  <div class="prog-wrap" id="import-prog" hidden>
+                    <div class="prog"><i id="import-bar" style="width:0%"></i></div>
+                    <span class="prog-num" id="import-prog-text">准备中…</span>
+                  </div>
+                  <div class="toast ok" id="import-ok" role="status" aria-live="polite" hidden></div>
+                  <div class="toast err" id="import-err" role="alert" hidden></div>
+                  <ul id="import-summary" class="import-summary" hidden></ul>
+                </div>
+              </div>
+              <div class="side">
+                <div class="card">
+                  <h3>说明</h3>
+                  <div class="kv"><span class="k">解析</span><span class="v">文本 + 备注</span></div>
+                  <div class="kv"><span class="k">分类</span><span class="v">主题 / 类型</span></div>
+                  <div class="kv"><span class="k">渲染</span><span class="v" data-html-copy="PPTX 保真 / HTML 安全预览">LibreOffice 保真</span></div>
+                  <div class="kv"><span class="k">源文件</span><span class="v">仅本地留存</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- STEP 2: local catalog grid selection -->
+          <section class="step" data-step="2">
+            <div class="page-head">
+              <div class="t">
+                <h2>选片</h2>
+                <p>左侧挑文件、筛选、搜索；中间浏览缩略图多选；右侧排序后进入组合——全程本地。</p>
+              </div>
+              <span class="spacer"></span>
+              <button id="reload-catalog" class="btn sm">
+                <svg class="ico sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                刷新页库
+              </button>
+            </div>
+
+            <div class="sel-layout">
+              <!-- left: search + filter + file list -->
+              <div class="deck-panel">
+                <div class="deck-tools">
+                  <div class="search-scope" role="group" aria-label="搜索范围">
+                    <button type="button" class="scope-option active" data-search-scope="deck">当前文件</button>
+                    <button type="button" class="scope-option" data-search-scope="all">全部页库</button>
+                  </div>
+                  <label class="search">
+                    <svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input id="grid-search" class="input sm" aria-label="搜索页面" placeholder="在当前文件中搜索" />
+                  </label>
+                  <select id="filter-type" class="select sm"><option value="">全部类型</option></select>
+                  <select id="filter-format" class="select sm" aria-label="文件格式" data-html-only hidden>
+                    <option value="">全部格式</option>
+                    <option value="pptx">PPTX</option>
+                    <option value="render_deck_html">HTML</option>
+                  </select>
+                </div>
+                <div class="deck-head"><span>文件目录</span><span id="deck-count">0 个</span></div>
+                <div class="deck-list" id="deck-list" aria-label="页库文件目录"></div>
+              </div>
+
+              <!-- center: preview grid -->
+              <div class="grid-panel">
+                <div id="grid-head" class="grid-head" aria-live="polite" aria-atomic="true" hidden></div>
+                <div id="grid-empty" class="state-empty">
+                  <div class="brand-orb">
+                    <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true">
+                      <rect x="3.5" y="5.5" width="22" height="16" rx="2.5" fill="#3370ff" opacity="0.24"/>
+                      <rect x="6.5" y="9.5" width="22" height="16" rx="2.5" fill="#3370ff"/>
+                      <path d="m10.5 20.5 5-5 4 3 5-6" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="24.5" cy="12.5" r="2.2" fill="#ff6b4a"/>
+                    </svg>
+                  </div>
+                  <div class="h">还没有页可以拼</div>
+                  <div class="hint" data-html-copy="先在第 1 步导入 PPTX、HTML 或 HTML Deck ZIP，建成本地页库；已导入的话点下面重新加载。">先在第 1 步导入 PPTX，DeckAtlas 会把每一页拆好、建成你的本地页库；已导入的话点下面重新加载。</div>
+                  <button id="load-catalog" class="btn primary">加载本地页库</button>
+                </div>
+                <div class="grid" id="grid" hidden></div>
+              </div>
+
+              <!-- right: selected list -->
+              <div class="sel-panel">
+                <div class="ph">
+                  <svg class="ico sm" viewBox="0 0 24 24" style="color:var(--brand)"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  <span class="cnt">已选 <b id="sel-count">0</b> 页</span>
+                  <button class="btn ghost sm clr" id="sel-clear">清空</button>
+                </div>
+                <ul class="sel-list" id="sel-list"></ul>
+                <div class="sel-empty" id="sel-empty">从中间点选页面加入</div>
+                <div class="sel-hint">跨文件累加 · 拖动行调整页序</div>
+                <div class="pf">
+                  <p class="export-blocked" id="sel-export-warning" role="status" hidden></p>
+                  <button class="btn primary" id="sel-export" aria-describedby="sel-export-warning" disabled>
+                    <svg class="ico sm" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    用选片进入组合
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- STEP 3: compose -->
+          <section class="step" data-step="3">
+            <div class="page-head">
+              <div class="t">
+                <h2>组合导出</h2>
+                <p>选好页后，选一个输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。</p>
+              </div>
+            </div>
+            <div class="cols">
+              <div>
+                <div class="card">
+                  <div class="toast ok" id="manifest-ok" role="status" aria-live="polite" hidden></div>
+                  <div class="toast err" id="manifest-err" role="alert" hidden></div>
+                  <div id="compose-setup">
+                    <h3>
+                      <svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                      输出设置
+                    </h3>
+                    <p class="card-sub">选择保存位置后，先检查来源与兼容性，再生成文件。</p>
+                    <p class="export-blocked" data-html-only hidden>第一阶段仅支持 PPTX 页面导出。HTML 可选片和动态预览，暂不支持 HTML 或 PPTX 导出；包含 HTML 页面的清单无法组合。</p>
+                    <div class="compose-selection-status" id="compose-selection-status" role="status" aria-live="polite"></div>
+                    <div class="btn-row">
+                      <button id="pick-output" class="btn">选择保存位置…</button>
+                    </div>
+                    <p class="compose-output-path" id="compose-chosen" role="status" aria-live="polite"></p>
+                    <details class="compose-advanced">
+                      <summary>高级选项</summary>
+                      <div class="compose-advanced-body">
+                        <label class="check"><input type="checkbox" id="verify-hash" checked /> 导出前校验源文件未发生变化</label>
+                        <button id="pick-manifest" class="btn ghost sm">导入已有选片清单…</button>
+                        <p class="note">仅在恢复旧清单或导入脚本生成的清单时使用。</p>
+                      </div>
+                    </details>
+                    <div class="divider"></div>
+                    <div class="btn-row">
+                      <button id="run-compose" class="btn primary" disabled>
+                        <svg class="ico sm" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        检查并继续
+                      </button>
+                    </div>
+                  </div>
+                  <div id="compose-check" hidden>
+                    <div class="compose-state-head" role="status" aria-live="polite">
+                      <span class="state-icon warning">
+                        <svg class="ico" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+                      </span>
+                      <div><h3 id="compose-check-title" tabindex="-1">导出前检查</h3><p id="compose-check-copy">正在检查来源与兼容性…</p></div>
+                    </div>
+                    <div id="compose-check-summary" class="compose-summary"></div>
+                    <div id="compose-check-issues" class="compose-issues"></div>
+                    <div class="divider"></div>
+                    <div class="btn-row">
+                      <button id="compose-back" class="btn">返回修改</button>
+                      <button id="confirm-compose" class="btn primary" aria-describedby="compose-check-issues">确认导出</button>
+                    </div>
+                  </div>
+                  <div id="compose-result" hidden>
+                    <div class="compose-state-head" role="status" aria-live="polite">
+                      <span class="state-icon success">
+                        <svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+                      </span>
+                      <div><h3 id="compose-result-title" tabindex="-1">导出完成</h3><p id="compose-result-copy"></p></div>
+                    </div>
+                    <div id="compose-result-summary" class="compose-result-summary"></div>
+                    <div id="compose-result-warnings" class="compose-issues" hidden></div>
+                    <div class="divider"></div>
+                    <div class="btn-row">
+                      <button id="compose-open" class="btn primary">打开文件</button>
+                      <button id="compose-reveal" class="btn">在 Finder 中显示</button>
+                      <button id="compose-manifest" class="btn">查看来源清单</button>
+                      <button id="compose-edit" class="btn ghost">返回选片</button>
+                    </div>
+                  </div>
+                  <div class="prog-wrap" id="compose-prog" hidden><div class="prog indeterminate"><i></i></div><span class="prog-num">组合中…</span></div>
+                  <div class="toast ok" id="compose-ok" role="status" aria-live="polite" hidden></div>
+                  <div class="toast err" id="compose-err" role="alert" hidden></div>
+                </div>
+              </div>
+              <div class="side">
+                <div class="card">
+                  <h3>组合方式</h3>
+                  <div class="kv"><span class="k">保真</span><span class="v">OOXML 复制</span></div>
+                  <div class="kv"><span class="k">页序</span><span class="v">按清单顺序</span></div>
+                  <div class="kv"><span class="k">哈希校验</span><span class="v" id="side-verify">开启</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- STEP 4: duplicate management -->
+          <section class="step" data-step="4">
+            <div class="page-head">
+              <div class="t">
+                <h2>重复管理</h2>
+                <p>结构、视觉和文本在本地联合判重；确定重复可批量清理，疑似重复需要人工勾选。</p>
+              </div>
+              <span class="spacer"></span>
+              <button id="scan-duplicates" class="btn primary">
+                <svg class="ico sm" viewBox="0 0 24 24"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 8h13v13H8z"/></svg>
+                扫描重复页
+              </button>
+            </div>
+
+            <div class="dedupe-stats" id="dedupe-stats" hidden>
+              <div class="tile"><div class="k">已分析</div><div class="v" id="dedupe-total">0</div></div>
+              <div class="tile"><div class="k">确定重复组</div><div class="v" id="dedupe-exact">0</div></div>
+              <div class="tile"><div class="k">疑似重复组</div><div class="v" id="dedupe-similar">0</div></div>
+              <div class="tile"><div class="k">默认可清理</div><div class="v" id="dedupe-removable">0</div></div>
+            </div>
+
+            <div class="dedupe-toolbar" id="dedupe-toolbar" hidden>
+              <div>
+                <div class="dedupe-toolbar-title">重复组</div>
+                <div class="dedupe-toolbar-note">绿色为建议保留页；删除只清理页库索引与缓存。</div>
+              </div>
+              <span class="spacer"></span>
+              <button id="delete-duplicates" class="btn" disabled>
+                <svg class="ico sm" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                删除已勾选
+              </button>
+            </div>
+
+            <div id="dedupe-empty" class="state-empty dedupe-empty">
+              <div class="circle">
+                <svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 8h13v13H8z"/></svg>
+              </div>
+              <div class="h">还没有扫描重复页</div>
+              <div class="hint">首次扫描会为每页生成本地指纹，之后只分析新增页面。</div>
+            </div>
+            <div id="dedupe-groups" class="dedupe-groups" hidden></div>
+          </section>
+
+          <!-- STEP 5: automatic update plans -->
+          <section class="step auto-update" data-step="5">
+            <div class="page-head">
+              <div class="t">
+                <h2>自动更新</h2>
+                <p>让常用目录按计划进入页库；每次扫描、筛选、跳过和失败都可查看。</p>
+              </div>
+              <span class="spacer"></span>
+              <button id="auto-new-plan" class="btn primary" type="button">
+                <svg class="ico sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                新建扫描计划
+              </button>
+            </div>
+
+            <div class="auto-status-band">
+              <div class="auto-status-main">
+                <span class="status-indicator" id="auto-status-indicator"></span>
+                <div>
+                  <strong id="auto-status-title">正在读取计划…</strong>
+                  <p id="auto-status-copy">计划只会在 DeckAtlas 运行且电脑保持唤醒时执行。</p>
+                </div>
+              </div>
+              <div class="auto-next">
+                <span>下次运行</span>
+                <strong id="auto-next-run">—</strong>
+              </div>
+              <div class="auto-band-actions">
+                <button id="auto-preview-all" class="btn" type="button">仅预检</button>
+                <button id="auto-run-all" class="btn primary" type="button">立即更新全部</button>
+              </div>
+            </div>
+
+            <div class="auto-tabs" role="tablist" aria-label="自动更新视图">
+              <button id="auto-tab-plans" class="auto-tab active" type="button"
+                role="tab" aria-selected="true" aria-controls="auto-panel-plans"
+                data-auto-view="plans">扫描计划</button>
+              <button id="auto-tab-running" class="auto-tab" type="button"
+                role="tab" aria-selected="false" aria-controls="auto-panel-running"
+                data-auto-view="running">运行中 <span id="auto-running-dot" hidden></span></button>
+              <button id="auto-tab-history" class="auto-tab" type="button"
+                role="tab" aria-selected="false" aria-controls="auto-panel-history"
+                data-auto-view="history">运行记录</button>
+            </div>
+
+            <div id="auto-live" class="sr-live" role="status" aria-live="polite"></div>
+            <div id="auto-error" class="toast err" role="alert" hidden></div>
+
+            <section id="auto-panel-plans" class="auto-panel active"
+              role="tabpanel" aria-labelledby="auto-tab-plans">
+              <div id="auto-plans-loading" class="auto-loading">正在读取扫描计划…</div>
+              <div id="auto-plans-empty" class="state-empty auto-empty" hidden>
+                <div class="circle">
+                  <svg class="ico lg" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 12v5m-2.5-2.5h5"/></svg>
+                </div>
+                <div class="h">还没有扫描计划</div>
+                <div class="hint">添加常用素材目录，先预检影响范围，再决定是否开启每天自动更新。</div>
+                <button id="auto-empty-create" class="btn primary" type="button">新建扫描计划</button>
+              </div>
+              <div id="auto-plan-table-wrap" class="auto-table-wrap" hidden>
+                <table class="auto-table">
+                  <thead>
+                    <tr>
+                      <th>计划名称</th>
+                      <th>文件夹</th>
+                      <th>范围</th>
+                      <th>计划</th>
+                      <th>最近结果</th>
+                      <th>状态</th>
+                      <th class="auto-actions-col">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auto-plan-rows"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="auto-panel-running" class="auto-panel"
+              role="tabpanel" aria-labelledby="auto-tab-running" hidden>
+              <div id="auto-running-empty" class="state-empty auto-empty">
+                <div class="circle">
+                  <svg class="ico lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                </div>
+                <div class="h">当前没有运行任务</div>
+                <div class="hint">到达计划时间或手动确认更新后，这里会显示文件与页面进度。</div>
+              </div>
+              <div id="auto-running-content" class="running-workspace" hidden>
+                <div class="running-head">
+                  <div>
+                    <span class="status-badge running" id="auto-run-state">运行中</span>
+                    <h3 id="auto-run-title">自动更新</h3>
+                    <p id="auto-run-context">正在准备扫描…</p>
+                  </div>
+                  <button id="auto-stop-run" class="btn danger" type="button">停止任务</button>
+                </div>
+                <div class="running-progress">
+                  <div class="prog" id="auto-run-progress" role="progressbar"
+                    aria-label="自动更新进度" aria-valuemin="0" aria-valuemax="100"
+                    aria-valuenow="0"><i id="auto-run-bar" style="width:0%"></i></div>
+                  <span id="auto-run-percent">0%</span>
+                </div>
+                <div class="running-metrics">
+                  <div><span>当前文件</span><strong id="auto-run-file">—</strong></div>
+                  <div><span>文件进度</span><strong id="auto-run-files">0 / 0</strong></div>
+                  <div><span>页面进度</span><strong id="auto-run-pages">—</strong></div>
+                  <div><span>已用时间</span><strong id="auto-run-elapsed">00:00</strong></div>
+                </div>
+              </div>
+            </section>
+
+            <section id="auto-panel-history" class="auto-panel"
+              role="tabpanel" aria-labelledby="auto-tab-history" hidden>
+              <div class="history-toolbar">
+                <span id="auto-history-count">最近 0 次运行</span>
+                <button id="auto-refresh-history" class="btn sm" type="button">
+                  <svg class="ico sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  刷新
+                </button>
+              </div>
+              <div id="auto-history-empty" class="state-empty auto-empty">
+                <div class="h">还没有运行记录</div>
+                <div class="hint">预检不会写入历史；确认执行后会保留每个文件的处理结果。</div>
+              </div>
+              <div id="auto-history-list" class="history-list" hidden></div>
+            </section>
+          </section>
+        </div>
+      </main>
+
+      <!-- Log drawer -->
+      <div class="logbar" id="logbar">
+        <div class="lh" id="log-toggle">
+          <svg class="ico sm chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          运行日志
+          <span class="pill">演示时保持收起，需要时展开看细节</span>
+          <span class="spacer"></span>
+          <span class="last" id="log-last"></span>
+          <button id="clear-log" class="btn ghost sm clear">清空</button>
+        </div>
+        <div class="body">
+          <pre id="log"></pre>
+        </div>
+      </div>
+    </div>
+
+    <dialog id="onboarding" class="onboarding-dialog" aria-labelledby="onboarding-title">
+      <div class="onboarding-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="34" height="34">
+          <rect x="3.5" y="5.5" width="22" height="16" rx="2.5" fill="#3370ff" opacity="0.24"/>
+          <rect x="6.5" y="9.5" width="22" height="16" rx="2.5" fill="#3370ff"/>
+          <path d="m10.5 20.5 5-5 4 3 5-6" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="24.5" cy="12.5" r="2.2" fill="#ff6b4a"/>
+        </svg>
+      </div>
+      <div class="onboarding-copy">
+        <span class="onboarding-step">首次使用 · 约 2 分钟完成设置</span>
+        <h2 id="onboarding-title">从一份真实素材开始</h2>
+        <p>DeckAtlas 只读取你选择的本地目录。完成环境检查后，导入素材、选中页面，即可导出第一份新稿。</p>
+      </div>
+      <div id="onboarding-checks" class="onboarding-checks" role="status" aria-live="polite">
+        <div><span>运行环境</span><strong>等待检查</strong></div>
+        <div><span>预览渲染</span><strong>等待检查</strong></div>
+        <div><span>本地数据目录</span><strong>等待检查</strong></div>
+      </div>
+      <div id="onboarding-error" class="toast err" role="alert" hidden></div>
+      <div class="dialog-foot onboarding-actions">
+        <button id="onboarding-skip" class="btn ghost" type="button">先自己看看</button>
+        <span class="spacer"></span>
+        <button id="onboarding-recheck" class="btn" type="button">检查环境</button>
+        <button id="onboarding-source" class="btn primary" type="button" disabled>选择素材文件夹</button>
+      </div>
+    </dialog>
+
+    <dialog id="auto-editor" class="side-dialog" aria-labelledby="auto-editor-title">
+      <form id="auto-editor-form" method="dialog">
+        <header class="dialog-head">
+          <div>
+            <h2 id="auto-editor-title">新建扫描计划</h2>
+            <p>先确定目录和范围，再预检并保存。</p>
+          </div>
+          <button id="auto-editor-close" class="icon-btn" type="button" aria-label="关闭">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <input id="auto-plan-id" type="hidden" />
+          <div class="field">
+            <label for="auto-plan-name">计划名称</label>
+            <input id="auto-plan-name" class="input" maxlength="80" required
+              placeholder="例如：核心素材库" />
+            <span id="auto-name-error" class="field-error" hidden></span>
+          </div>
+
+          <fieldset class="form-section">
+            <legend>扫描文件夹</legend>
+            <div id="auto-root-list" class="auto-root-list"></div>
+            <button id="auto-add-root" class="btn sm" type="button">
+              <svg class="ico sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              添加文件夹
+            </button>
+            <span id="auto-root-error" class="field-error" hidden></span>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>文件规则</legend>
+            <div class="format-options">
+              <label class="check"><input id="auto-format-pptx" type="checkbox" checked /> PPTX</label>
+              <label class="check"><input id="auto-format-html" type="checkbox" /> HTML / HTM</label>
+              <label class="check"><input id="auto-format-zip" type="checkbox" /> HTML Deck ZIP</label>
+            </div>
+            <div class="size-grid">
+              <label>最小值（MB）<input id="auto-min-size" class="input" type="number" min="0" value="0" /></label>
+              <label>最大值（MB）<input id="auto-max-size" class="input" type="number" min="1" max="3072" value="3072" /></label>
+            </div>
+            <p id="auto-rule-summary" class="rule-summary">仅 PPTX · 0 MB–3 GB · 包含子文件夹</p>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>执行计划</legend>
+            <div class="schedule-grid">
+              <label>频率
+                <select id="auto-frequency" class="select">
+                  <option value="daily">每天</option>
+                  <option value="manual">仅手动</option>
+                </select>
+              </label>
+              <label>执行时间<input id="auto-schedule-time" class="input" type="time" value="02:30" /></label>
+              <label>窗口开始<input id="auto-window-start" class="input" type="time" value="02:00" /></label>
+              <label>窗口结束<input id="auto-window-end" class="input" type="time" value="05:00" /></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>更新策略</legend>
+            <label class="check"><input id="auto-repair-previews" type="checkbox" checked /> 修复旧版或缺失预览</label>
+            <label class="check"><input id="auto-enabled" type="checkbox" checked /> 保存后开启自动执行</label>
+            <p class="policy-note">源文件消失时默认保留页库内容，只在运行记录中标记。</p>
+          </fieldset>
+          <div id="auto-editor-error" class="toast err" role="alert" hidden></div>
+        </div>
+        <footer class="dialog-foot">
+          <button id="auto-editor-cancel" class="btn" type="button">取消</button>
+          <span class="spacer"></span>
+          <button id="auto-editor-preview" class="btn primary" type="submit">预检并继续</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="auto-preflight" class="preflight-dialog" aria-labelledby="auto-preflight-title">
+      <header class="dialog-head">
+        <div>
+          <h2 id="auto-preflight-title">确认影响范围</h2>
+          <p id="auto-preflight-copy">预检不会修改页库。</p>
+        </div>
+        <button id="auto-preflight-close" class="icon-btn" type="button" aria-label="关闭">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+      <div class="dialog-body">
+        <div id="auto-preflight-summary" class="preflight-summary"></div>
+        <div id="auto-preflight-roots" class="preflight-roots"></div>
+        <div id="auto-preflight-error" class="toast err" role="alert" hidden></div>
+      </div>
+      <footer class="dialog-foot">
+        <button id="auto-preflight-cancel" class="btn" type="button">返回修改</button>
+        <span class="spacer"></span>
+        <button id="auto-preflight-confirm" class="btn primary" type="button">确认并保存</button>
+      </footer>
+    </dialog>
+
+    <!-- Fullscreen preview (lightbox) -->
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lb-title" hidden>
+      <div class="lb-backdrop" id="lb-backdrop"></div>
+      <div class="lb-stage">
+        <button class="lb-nav prev" id="lb-prev" title="上一页（←）">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="lb-figure">
+          <img class="lb-img" id="lb-img" alt="" />
+          <div class="lb-bar">
+            <span class="lb-title" id="lb-title"></span>
+            <span class="lb-meta" id="lb-meta"></span>
+            <span class="spacer"></span>
+            <button class="btn sm" id="lb-dynamic" hidden>播放动态版本</button>
+            <button class="btn sm" id="lb-toggle-sel">加入选片</button>
+          </div>
+          <p class="lb-warnings" id="lb-warnings" role="status" hidden></p>
+          <p class="lb-preview-error" id="lb-preview-error" role="alert" hidden></p>
+        </div>
+        <button class="lb-nav next" id="lb-next" title="下一页（→）">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+      <div class="lb-actions">
+        <button class="lb-tool lb-fullscreen" id="lb-fullscreen" title="进入全屏（F）" aria-label="进入全屏">
+          <svg class="ico fs-enter" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          <svg class="ico fs-exit" viewBox="0 0 24 24"><path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+        </button>
+        <button class="lb-tool lb-close" id="lb-close" title="关闭（Esc）" aria-label="关闭预览">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="auto-update.js"></script>
+  </body>
+</html>

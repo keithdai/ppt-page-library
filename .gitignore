@@ -12,3 +12,6 @@ build/
 htmlcov/
 var/*
 !var/.gitkeep
+desktop/node_modules/
+desktop/dist/
+dist-app/

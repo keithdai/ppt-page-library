@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PPT 页库控制台 · 高保真原型 v2</title>
+<style>
+  /* ========================================================================
+     PPT 页库控制台 — 高保真原型 v2（飞书 / Lark 浅色原生风）
+     可在浏览器直接打开：点左侧四步切换；第 3 步网格可多选，右侧已选清单可拖拽排序。
+     审过后，这套 Token + 布局 + 组件直接落成 desktop/renderer 的实现基础。
+     ======================================================================== */
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #fafbfc;
+    --surface-hover: #f2f3f5;
+    --border: #e5e6eb;
+    --border-strong: #c9cdd4;
+    --text-1: #1d2129;
+    --text-2: #4e5969;
+    --text-3: #86909c;
+    --text-4: #a9aeb8;
+    --brand: #3370ff;
+    --brand-hover: #1f5eff;
+    --brand-active: #1a4fe0;
+    --brand-light: #eaf1ff;
+    --brand-lighter: #f3f7ff;
+    --success: #009a2e;
+    --success-light: #e8fbec;
+    --warning: #ff7d00;
+    --danger: #f53f3f;
+    --danger-light: #ffece8;
+    --purple: #7d5cff;
+    --teal: #14b8a6;
+    --r-lg: 12px;
+    --r-md: 8px;
+    --r-sm: 6px;
+    --sh-1: 0 1px 2px rgba(29, 33, 41, 0.04), 0 1px 3px rgba(29, 33, 41, 0.06);
+    --sh-2: 0 2px 8px rgba(29, 33, 41, 0.08);
+    --sh-3: 0 8px 24px rgba(29, 33, 41, 0.12);
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: "PingFang SC", -apple-system, "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  svg { display: block; }
+  .ico { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
+  .ico.sm { width: 14px; height: 14px; }
+  .ico.lg { width: 22px; height: 22px; }
+
+  /* ---- App shell -------------------------------------------------------- */
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr auto;
+    grid-template-columns: 232px 1fr;
+    grid-template-areas: "topbar topbar" "nav main" "nav logbar";
+    height: 100vh;
+  }
+
+  /* ---- Top bar ---------------------------------------------------------- */
+  .topbar {
+    grid-area: topbar;
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    z-index: 5;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .logo {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, #3370ff 0%, #6a9bff 100%);
+    display: inline-flex; align-items: center; justify-content: center; color: #fff;
+    box-shadow: 0 2px 6px rgba(51, 112, 255, 0.35);
+  }
+  .brand .title { font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+  .brand .sub { font-size: 11px; color: var(--text-3); margin-left: 2px; }
+  .topbar .spacer { flex: 1; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-2);
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 5px 11px; border-radius: 20px;
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-light); }
+  .icon-btn {
+    width: 32px; height: 32px; border-radius: var(--r-sm);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-2); background: transparent; border: 1px solid transparent; cursor: pointer;
+    transition: all .16s var(--ease);
+  }
+  .icon-btn:hover { background: var(--surface-hover); color: var(--text-1); }
+
+  /* ---- Left nav --------------------------------------------------------- */
+  .nav {
+    grid-area: nav;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 14px 12px;
+    display: flex; flex-direction: column;
+  }
+  .nav .glabel { font-size: 11px; color: var(--text-4); padding: 6px 10px 8px; letter-spacing: .6px; font-weight: 600; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 11px; border-radius: var(--r-md);
+    cursor: pointer; color: var(--text-2); margin-bottom: 3px; user-select: none;
+    position: relative; transition: background .16s var(--ease), color .16s var(--ease);
+  }
+  .nav-item:hover { background: var(--surface-hover); }
+  .nav-item.active { background: var(--brand-light); color: var(--brand); font-weight: 600; }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: -12px; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 20px; background: var(--brand); border-radius: 0 3px 3px 0;
+  }
+  .nav-item .idx {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; border: 1.5px solid var(--border-strong);
+    color: var(--text-3); flex: 0 0 auto; background: var(--surface); transition: all .16s var(--ease);
+  }
+  .nav-item.active .idx { border-color: var(--brand); color: var(--brand); background: var(--surface); }
+  .nav-item.done .idx { border-color: var(--success); color: #fff; background: var(--success); }
+  .nav-item .label { flex: 1; font-size: 14px; }
+  .nav-item .desc { font-size: 11px; color: var(--text-4); font-weight: 400; }
+  .nav-item .sd { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .sd.gray { background: var(--border-strong); }
+  .sd.blue { background: var(--brand); box-shadow: 0 0 0 3px var(--brand-light); }
+  .sd.green { background: var(--success); box-shadow: 0 0 0 3px var(--success-light); }
+  .nav .fill { flex: 1; }
+  .nav-card {
+    background: linear-gradient(135deg, var(--brand-lighter), var(--surface-2));
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    padding: 12px; font-size: 12px; color: var(--text-2);
+  }
+  .nav-card .h { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-1); margin-bottom: 6px; }
+  .nav-card .row { display: flex; justify-content: space-between; padding: 2px 0; color: var(--text-3); }
+  .nav-card .row b { color: var(--text-1); font-weight: 600; }
+
+  /* ---- Main ------------------------------------------------------------- */
+  .main { grid-area: main; overflow: auto; padding: 26px 32px 32px; }
+  .main-inner { max-width: 1120px; margin: 0 auto; }
+  .page-head { margin-bottom: 20px; display: flex; align-items: flex-end; gap: 14px; }
+  .page-head .t h2 { margin: 0 0 3px; font-size: 20px; font-weight: 600; letter-spacing: .2px; }
+  .page-head .t p { margin: 0; color: var(--text-3); font-size: 13px; }
+  .page-head .spacer { flex: 1; }
+
+  .step { display: none; animation: fade .25s var(--ease); }
+  .step.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .cols { display: grid; grid-template-columns: 1fr 320px; gap: 18px; align-items: start; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); box-shadow: var(--sh-1); padding: 20px; margin-bottom: 16px;
+  }
+  .card.pad-lg { padding: 22px 24px; }
+  .card h3 { margin: 0 0 4px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card .card-sub { margin: 0 0 16px; font-size: 12px; color: var(--text-3); }
+  .card h3 .ico { color: var(--brand); }
+
+  /* buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--surface); color: var(--text-1);
+    border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+    padding: 8px 15px; font-size: 14px; cursor: pointer; font-family: inherit; font-weight: 500;
+    transition: all .16s var(--ease);
+  }
+  .btn:hover { background: var(--surface-hover); border-color: var(--text-4); }
+  .btn:active { transform: translateY(0.5px); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 1px 3px rgba(51,112,255,.3); }
+  .btn.primary:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+  .btn.sm { padding: 6px 11px; font-size: 13px; }
+  .btn.ghost { border-color: transparent; color: var(--text-2); }
+  .btn.ghost:hover { background: var(--surface-hover); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .field label { font-size: 12px; color: var(--text-2); font-weight: 500; }
+  .input, .select {
+    background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: var(--r-sm); color: var(--text-1); padding: 9px 12px; font-size: 14px; font-family: inherit;
+    transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
+  }
+  .input::placeholder { color: var(--text-4); }
+  .input:focus, .select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-light); }
+  .form-grid { display: grid; grid-template-columns: 1fr 150px; gap: 16px; }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .check input { accent-color: var(--brand); width: 15px; height: 15px; }
+
+  .divider { height: 1px; background: var(--border); margin: 18px 0; border: 0; }
+  .note { font-size: 12px; color: var(--text-3); }
+
+  /* toast / state */
+  .toast { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-radius: var(--r-md); font-size: 13px; margin-bottom: 16px; }
+  .toast.ok { background: var(--success-light); color: #067a26; }
+  .toast.err { background: var(--danger-light); color: #cb2634; }
+  .toast .ico { flex: 0 0 auto; }
+
+  .state-empty { text-align: center; padding: 44px 20px; }
+  .state-empty .circle {
+    width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 14px;
+    background: var(--brand-lighter); color: var(--brand);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .state-empty .h { font-weight: 600; font-size: 15px; }
+  .state-empty .hint { color: var(--text-3); margin: 4px 0 18px; font-size: 13px; }
+
+  .prog-wrap { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .prog { flex: 1; height: 6px; background: var(--surface-hover); border-radius: 6px; overflow: hidden; }
+  .prog > i { display: block; height: 100%; width: 62%; background: linear-gradient(90deg, var(--brand), #6a9bff); border-radius: 6px; transition: width .4s var(--ease); }
+  .prog-num { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+  /* file list */
+  .filelist { list-style: none; margin: 6px 0 0; padding: 0; }
+  .filelist li {
+    display: flex; align-items: center; gap: 11px; padding: 11px 13px;
+    border: 1px solid var(--border); border-radius: var(--r-md); margin-bottom: 8px;
+    font-size: 13px; transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
+  }
+  .filelist li:hover { border-color: var(--border-strong); box-shadow: var(--sh-1); }
+  .filelist .fico { width: 34px; height: 34px; border-radius: 8px; background: var(--brand-lighter); color: var(--brand); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .filelist .fname { font-weight: 500; color: var(--text-1); }
+  .filelist .fmeta { font-size: 11px; color: var(--text-3); }
+  .filelist .ftag { margin-left: auto; font-size: 11px; color: var(--success); background: var(--success-light); padding: 3px 9px; border-radius: 12px; font-weight: 500; }
+
+  /* summary tiles (fill sparse steps) */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px; }
+  .tile .k { font-size: 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
+  .tile .v { font-size: 22px; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+  .tile .v small { font-size: 12px; color: var(--text-3); font-weight: 400; }
+
+  /* side card (right column) */
+  .side .card { position: sticky; top: 0; }
+  .side .kv { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; border-bottom: 1px dashed var(--border); }
+  .side .kv:last-child { border-bottom: 0; }
+  .side .kv .k { color: var(--text-3); }
+  .side .kv .v { color: var(--text-1); font-weight: 500; }
+
+  /* ---- Selection (step 3) ---------------------------------------------- */
+  .seg { display: inline-flex; gap: 3px; background: var(--surface-hover); padding: 3px; border-radius: 8px; }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text-2); font-family: inherit; font-weight: 500; transition: all .16s var(--ease); }
+  .seg button.on { background: var(--surface); color: var(--brand); box-shadow: var(--sh-1); }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .search { position: relative; }
+  .search .ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-4); pointer-events: none; }
+  .search input { padding-left: 32px; width: 220px; }
+
+  .sel-layout { display: grid; grid-template-columns: 1fr 316px; gap: 18px; align-items: start; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+  .thumb {
+    border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden;
+    cursor: pointer; background: var(--surface); position: relative;
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease), border-color .16s var(--ease);
+  }
+  .thumb:hover { transform: translateY(-3px); box-shadow: var(--sh-2); border-color: var(--border-strong); }
+  .thumb.sel { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); }
+  /* mini slide mock */
+  .slide { aspect-ratio: 16 / 9; position: relative; overflow: hidden; }
+  .slide .body { position: absolute; inset: 0; padding: 12px 13px; display: flex; flex-direction: column; gap: 6px; }
+  .slide .bar { height: 7px; border-radius: 3px; background: rgba(255,255,255,.9); }
+  .slide .bar.w1 { width: 62%; } .slide .bar.w2 { width: 90%; } .slide .bar.w3 { width: 74%; height: 5px; opacity: .7; } .slide .bar.w4 { width: 50%; height: 5px; opacity: .7; }
+  .slide.cover { background: linear-gradient(135deg, #3370ff, #5b8bff); }
+  .slide.cover .body { justify-content: center; }
+  .slide.cover .bar { background: rgba(255,255,255,.95); }
+  .slide.data { background: linear-gradient(135deg, #0e9f6e, #34d399); }
+  .slide.case { background: linear-gradient(135deg, #7d5cff, #a084ff); }
+  .slide.view { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+  .slide.end { background: linear-gradient(135deg, #1d2129, #4e5969); }
+  .slide.data .mini-chart { margin-top: auto; display: flex; align-items: flex-end; gap: 5px; height: 34px; }
+  .slide.data .mini-chart i { flex: 1; background: rgba(255,255,255,.85); border-radius: 2px 2px 0 0; }
+  .thumb .meta { padding: 9px 11px; }
+  .thumb .meta .t { font-size: 12.5px; font-weight: 600; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .thumb .meta .s { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .thumb .tick { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,.35); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; color: #fff; transition: all .16s var(--ease); }
+  .thumb.sel .tick { background: var(--brand); }
+  .thumb .tick .ico { opacity: 0; }
+  .thumb.sel .tick .ico { opacity: 1; }
+  .thumb .tag { position: absolute; top: 8px; left: 8px; font-size: 10px; background: rgba(0,0,0,.4); color: #fff; padding: 2px 7px; border-radius: 10px; backdrop-filter: blur(2px); font-weight: 500; }
+  /* 右下角「加入选片」按钮：默认隐藏，悬停/选中时显示 */
+  .thumb .add { position: absolute; right: 8px; bottom: 46px; width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(0,0,0,.45); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transform: scale(.85); transition: opacity .16s var(--ease), transform .16s var(--ease), background .16s var(--ease); backdrop-filter: blur(2px); }
+  .thumb:hover .add, .thumb.sel .add { opacity: 1; transform: scale(1); }
+  .thumb .add:hover { background: rgba(0,0,0,.65); }
+  .thumb.sel .add { background: var(--brand); }
+  .thumb .add .ico { width: 16px; height: 16px; }
+
+  /* 放大预览浮层 */
+  .lightbox { position: fixed; inset: 0; background: rgba(17,20,24,.62); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 200; }
+  .lightbox.open { display: flex; }
+  .lightbox .lb-card { width: min(72vw, 900px); border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.35); background: var(--surface); }
+  .lightbox .lb-card .slide { aspect-ratio: 16 / 9; }
+  .lightbox .lb-bar { display: flex; align-items: center; gap: 12px; padding: 14px 18px; }
+  .lightbox .lb-bar .t { font-weight: 600; color: var(--text-1); }
+  .lightbox .lb-bar .s { font-size: 12px; color: var(--text-3); }
+  .lightbox .lb-bar .sp { flex: 1; }
+  .lightbox .lb-close { position: absolute; top: 20px; right: 24px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(255,255,255,.16); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .lightbox .lb-close:hover { background: rgba(255,255,255,.28); }
+
+  /* selected list (draggable) */
+  .sel-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); position: sticky; top: 0; overflow: hidden; }
+  .sel-panel .ph { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .sel-panel .ph .cnt { font-weight: 600; }
+  .sel-panel .ph .cnt b { color: var(--brand); }
+  .sel-panel .ph .clr { margin-left: auto; }
+  .sel-list { list-style: none; margin: 0; padding: 8px; max-height: 420px; overflow: auto; }
+  .sel-list li {
+    display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-md);
+    background: var(--surface); border: 1px solid transparent; margin-bottom: 4px; cursor: grab;
+    transition: background .14s var(--ease), border-color .14s var(--ease);
+  }
+  .sel-list li:hover { background: var(--surface-2); border-color: var(--border); }
+  .sel-list li.dragging { opacity: .5; }
+  .sel-list li.over { border-color: var(--brand); background: var(--brand-lighter); }
+  .sel-list .ord { width: 22px; height: 22px; border-radius: 6px; background: var(--brand-light); color: var(--brand); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+  .sel-list .mini { width: 46px; height: 26px; border-radius: 4px; flex: 0 0 auto; }
+  .sel-list .txt { flex: 1; min-width: 0; }
+  .sel-list .txt .t { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sel-list .txt .s { font-size: 11px; color: var(--text-3); }
+  .sel-list .grip { color: var(--text-4); cursor: grab; }
+  .sel-list .rm { color: var(--text-4); cursor: pointer; border: 0; background: transparent; padding: 3px; border-radius: 4px; }
+  .sel-list .rm:hover { color: var(--danger); background: var(--danger-light); }
+  .sel-panel .pf { padding: 12px 16px; border-top: 1px solid var(--border); }
+  .sel-panel .pf .btn { width: 100%; justify-content: center; }
+  .sel-hint { font-size: 11px; color: var(--text-4); text-align: center; padding: 6px 0 2px; }
+
+  /* embed carrier */
+  .selbar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--sh-1); }
+  .selbar .url { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-3); font-family: "SF Mono", ui-monospace, monospace; margin-left: 4px; }
+  .selbar .spacer { flex: 1; }
+  .webview-frame { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: repeating-linear-gradient(45deg, #fafbfc, #fafbfc 12px, #f4f5f7 12px, #f4f5f7 24px); position: relative; min-height: 440px; box-shadow: var(--sh-1); }
+  .login-overlay { position: absolute; inset: 0; background: rgba(244,245,247,.72); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+  .login-card { background: #fff; border: 1px solid var(--border); border-radius: var(--r-lg); padding: 30px 34px; text-align: center; box-shadow: var(--sh-3); max-width: 340px; }
+  .login-card .qr { width: 128px; height: 128px; margin: 16px auto; background: repeating-conic-gradient(#1d2129 0 25%, #fff 0 50%) 50%/16px 16px; border-radius: 8px; border: 6px solid #fff; box-shadow: inset 0 0 0 1px var(--border); }
+  .login-card .h { font-size: 15px; font-weight: 600; }
+
+  /* textarea */
+  textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monospace, monospace; font-size: 12.5px; line-height: 1.7; }
+
+  /* log drawer */
+  .logbar { grid-area: logbar; background: var(--surface); border-top: 1px solid var(--border); }
+  .logbar .lh { display: flex; align-items: center; gap: 8px; padding: 9px 18px; cursor: pointer; font-size: 13px; color: var(--text-2); user-select: none; }
+  .logbar .lh .chev { transition: transform .2s var(--ease); color: var(--text-4); }
+  .logbar.open .lh .chev { transform: rotate(180deg); }
+  .logbar .lh .pill { margin-left: 8px; font-size: 11px; color: var(--text-4); }
+  .logbar .lh .spacer { flex: 1; }
+  .logbar .body { display: none; padding: 0 18px 14px; }
+  .logbar.open .body { display: block; }
+  .logbar pre { margin: 0; background: #0d1117; color: #adbac7; border-radius: var(--r-md); padding: 13px 15px; font-family: "SF Mono", ui-monospace, monospace; font-size: 12px; line-height: 1.7; height: 128px; overflow: auto; }
+  .logbar pre .ok { color: #57ab5a; } .logbar pre .dim { color: #636e7b; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo"><svg class="ico lg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 18v2m8-2v2M6 21h12"/></svg></span>
+      <div>
+        <div class="title">PPT 页库控制台</div>
+      </div>
+    </div>
+    <span class="chip" style="margin-left:6px;">源 PPTX 仅留本地</span>
+    <span class="spacer"></span>
+    <span class="chip"><span class="dot"></span>online · var/dev</span>
+    <button class="icon-btn" title="设置"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </header>
+
+  <!-- Left nav -->
+  <nav class="nav">
+    <div class="glabel">工作流程</div>
+    <div class="nav-item done" data-step="1">
+      <span class="idx"><svg class="ico sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div class="label">导入并渲染<div class="desc">98 页已入库</div></div><span class="sd green"></span>
+    </div>
+    <div class="nav-item active" data-step="2">
+      <span class="idx">2</span>
+      <div class="label">同步到妙搭<div class="desc">上传中 41/66</div></div><span class="sd blue"></span>
+    </div>
+    <div class="nav-item" data-step="3">
+      <span class="idx">3</span>
+      <div class="label">选片<div class="desc">已选 4 页</div></div><span class="sd gray"></span>
+    </div>
+    <div class="nav-item" data-step="4">
+      <span class="idx">4</span>
+      <div class="label">组合导出<div class="desc">待清单就绪</div></div><span class="sd gray"></span>
+    </div>
+    <div class="fill"></div>
+    <div class="nav-card">
+      <div class="h"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>本地页库</div>
+      <div class="row"><span>Deck</span><b>7</b></div>
+      <div class="row"><span>页面</span><b>98</b></div>
+      <div class="row"><span>仓库</span><b>10-ppt存档组合</b></div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="main-inner">
+
+      <!-- STEP 1 -->
+      <section class="step" data-step="1">
+        <div class="page-head"><div class="t"><h2>导入并渲染</h2><p>选择本地 PPTX，系统会抽取文本、自动分类，并按页渲染缩略图与预览。源文件只留在本地。</p></div></div>
+        <div class="cols">
+          <div>
+            <div class="card">
+              <h3><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>选择文件</h3>
+              <p class="card-sub">支持多选。导入会在本地暂存副本，源文件不移动、不上传。</p>
+              <div class="btn-row">
+                <button class="btn"><svg class="ico sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>选择 PPTX…</button>
+                <button class="btn primary"><svg class="ico sm" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>导入并渲染</button>
+              </div>
+              <ul class="filelist">
+                <li><span class="fico"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div><div class="fname">飞书X奇华饼家20260911.pptx</div><div class="fmeta">奇华饼家 · 客户案例</div></div><span class="ftag">已导入 66 页</span></li>
+                <li><span class="fico"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div><div class="fname">组织人才管理实践交流.pptx</div><div class="fmeta">组织文化 · 内部分享</div></div><span class="ftag">已导入 32 页</span></li>
+              </ul>
+              <div class="divider"></div>
+              <div class="toast ok" style="margin:0;"><svg class="ico sm" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>导入完成：新增 / 更新 2 个 deck，共 98 页，缩略图与预览已渲染</div>
+            </div>
+          </div>
+          <div class="side">
+            <div class="card">
+              <h3>本次导入概览</h3>
+              <div class="kv"><span class="k">新增页面</span><span class="v">98</span></div>
+              <div class="kv"><span class="k">自动分类</span><span class="v">6 类</span></div>
+              <div class="kv"><span class="k">渲染缩略图</span><span class="v">98 / 98</span></div>
+              <div class="kv"><span class="k">高清预览</span><span class="v">98 / 98</span></div>
+              <div class="kv"><span class="k">耗时</span><span class="v">2 分 14 秒</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 2 -->
+      <section class="step active" data-step="2">
+        <div class="page-head"><div class="t"><h2>同步到妙搭</h2><p>用本机 lark-cli 把缩略图和元数据推到妙搭应用，供在线浏览与选片。源文件不上传。</p></div></div>
+        <div class="tiles" style="margin-bottom:16px;">
+          <div class="tile"><div class="k"><svg class="ico sm" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg>待同步页面</div><div class="v">98</div></div>
+          <div class="tile"><div class="k"><svg class="ico sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>缩略图上传</div><div class="v">41<small> / 66</small></div></div>
+          <div class="tile"><div class="k"><svg class="ico sm" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>元数据行</div><div class="v">98</div></div>
+        </div>
+        <div class="cols">
+          <div>
+            <div class="card">
+              <h3><svg class="ico" viewBox="0 0 24 24"><path d="M17 8l4 4-4 4M3 12h18"/></svg>同步设置</h3>
+              <p class="card-sub">目标妙搭应用与环境。首次可勾选“预演”，先看将执行的动作再真正上传。</p>
+              <div class="form-grid">
+                <div class="field"><label>妙搭 App ID</label><input class="input" value="app_17eem29n0zk" /></div>
+                <div class="field"><label>环境</label><select class="select"><option>online</option><option>dev</option></select></div>
+              </div>
+              <label class="check"><input type="checkbox" checked /> 预演（不真正上传，只打印将执行的动作）</label>
+              <div class="divider"></div>
+              <div class="btn-row">
+                <button class="btn">仅导出目录</button>
+                <button class="btn primary"><svg class="ico sm" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 3v6h-6"/></svg>同步到妙搭</button>
+              </div>
+              <div class="prog-wrap"><div class="prog"><i></i></div><span class="prog-num">41 / 66</span></div>
+              <p class="note" style="margin-top:8px;">正在上传缩略图… 完成后自动 upsert 元数据到 slides_catalog 表</p>
+            </div>
+          </div>
+          <div class="side">
+            <div class="card">
+              <h3>妙搭应用</h3>
+              <div class="kv"><span class="k">App</span><span class="v">app_17eem29n0zk</span></div>
+              <div class="kv"><span class="k">环境</span><span class="v">online</span></div>
+              <div class="kv"><span class="k">登录身份</span><span class="v">戴智</span></div>
+              <div class="divider" style="margin:12px 0;"></div>
+              <button class="btn sm" style="width:100%;justify-content:center;"><svg class="ico sm" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>打开妙搭编辑态</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 3 -->
+      <section class="step" data-step="3">
+        <div class="page-head">
+          <div class="t"><h2>选片</h2><p>浏览妙搭页库、按主题筛选、多选并排序。选好后导出清单，客户端自动接住进入下一步。</p></div>
+          <span class="spacer"></span>
+          <div class="seg">
+            <button class="on" onclick="selView('grid',this)">妙搭网格（目标设计）</button>
+            <button onclick="selView('embed',this)">嵌入承载层</button>
+          </div>
+        </div>
+
+        <!-- 3a grid + selected list -->
+        <div id="sel-grid">
+          <div class="toolbar">
+            <select class="select sm" style="padding:7px 10px;"><option>全部主题</option><option>AI 实践</option><option>客户证言</option><option>组织文化</option></select>
+            <select class="select sm" style="padding:7px 10px;"><option>全部类型</option><option>封面</option><option>数据页</option><option>案例页</option><option>观点页</option></select>
+            <span class="spacer"></span>
+            <div class="search"><svg class="ico sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input sm" placeholder="搜索标题 / 关键词" /></div>
+          </div>
+          <div class="sel-layout">
+            <div class="grid" id="grid"></div>
+            <div class="sel-panel">
+              <div class="ph">
+                <svg class="ico sm" viewBox="0 0 24 24" style="color:var(--brand)"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                <span class="cnt">已选 <b id="selCount">4</b> 页</span>
+                <button class="btn ghost sm clr" onclick="clearSel()">清空</button>
+              </div>
+              <ul class="sel-list" id="selList"></ul>
+              <div class="sel-hint">拖动行可调整页序 · 决定最终 deck 顺序</div>
+              <div class="pf"><button class="btn primary"><svg class="ico sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>导出选片清单</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3b embed carrier -->
+        <div id="sel-embed" style="display:none;">
+          <div class="selbar">
+            <button class="btn sm"><svg class="ico sm" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>后退</button>
+            <button class="btn sm"><svg class="ico sm" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>刷新</button>
+            <button class="btn sm"><svg class="ico sm" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>在浏览器打开</button>
+            <span class="url"><svg class="ico sm" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>bytedance.feishuapp.cn</span>
+            <span class="spacer"></span>
+          </div>
+          <div class="webview-frame">
+            <div class="login-overlay">
+              <div class="login-card">
+                <div class="h">首次使用请登录飞书</div>
+                <div class="qr"></div>
+                <p class="note" style="margin:0;">用豆包 / 飞书移动端扫码，登录态会保留，下次免登。</p>
+              </div>
+            </div>
+          </div>
+          <p class="note" style="margin-top:10px;">承载层：登录 / 加载时盖一层自有引导；登录后 webview 干净铺满 —— 不再让飞书登录页裸占满屏。</p>
+        </div>
+      </section>
+
+      <!-- STEP 4 -->
+      <section class="step" data-step="4">
+        <div class="page-head"><div class="t"><h2>组合导出</h2><p>选片清单就绪后，选好输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。</p></div></div>
+        <div class="cols">
+          <div>
+            <div class="card">
+              <div class="toast ok"><svg class="ico sm" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>已接住妙搭选片清单：manifest-1790046.json（4 页）</div>
+              <h3><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>输出设置</h3>
+              <p class="card-sub">默认导出到下载目录，可另选位置。建议保留哈希校验，确保源页面未被改动。</p>
+              <div class="btn-row">
+                <button class="btn">手动选择 manifest…</button>
+                <button class="btn">选择输出位置…</button>
+              </div>
+              <label class="check" style="margin-top:14px;"><input type="checkbox" checked /> 校验源文件哈希（确保源页面未变动）</label>
+              <div class="divider"></div>
+              <div class="btn-row"><button class="btn primary"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 15V3m0 12-4-4m4 4 4-4M2 17l.6 2.4A2 2 0 0 0 4.5 21h15a2 2 0 0 0 1.9-1.6L22 17"/></svg>组合导出</button></div>
+              <p class="note" style="margin-top:10px;">输出：~/Downloads/composed.pptx</p>
+            </div>
+            <div class="card">
+              <h3><svg class="ico" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>兜底：粘贴 slide_id 清单</h3>
+              <p class="card-sub">妙搭暂时没有导出按钮时用这个：每行一个 slide_id，按你想要的顺序。</p>
+              <textarea class="input" rows="3" placeholder="slide_id_1&#10;slide_id_2&#10;slide_id_3"></textarea>
+              <div class="btn-row" style="margin-top:10px;"><button class="btn">用清单组合</button></div>
+            </div>
+          </div>
+          <div class="side">
+            <div class="card">
+              <h3>将导出</h3>
+              <div class="kv"><span class="k">页数</span><span class="v">4 页</span></div>
+              <div class="kv"><span class="k">来源 deck</span><span class="v">3 个</span></div>
+              <div class="kv"><span class="k">保真方式</span><span class="v">OOXML 复制</span></div>
+              <div class="kv"><span class="k">哈希校验</span><span class="v">开启</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Log drawer -->
+  <div class="logbar" id="logbar">
+    <div class="lh" onclick="document.getElementById('logbar').classList.toggle('open')">
+      <svg class="ico sm chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg> 运行日志
+      <span class="pill">演示时保持收起，需要时展开看细节</span>
+      <span class="spacer"></span>
+      <span class="note">最近：sync 上传缩略图 41/66</span>
+    </div>
+    <div class="body">
+      <pre><span class="ok">✓ 导入完成：98 页（2 个 deck）</span>
+<span class="dim">[sync]</span> 上传缩略图 41/66 …
+<span class="dim">[sync]</span> upsert slides_catalog 行 …</pre>
+    </div>
+  </div>
+</div>
+
+<!-- 放大预览浮层 -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closePreview()">
+  <button class="lb-close" title="关闭 (Esc)" onclick="closePreview()"><svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="lb-card">
+    <div class="slide" id="lbSlide"></div>
+    <div class="lb-bar">
+      <div><div class="t" id="lbTitle"></div><div class="s" id="lbSub"></div></div>
+      <span class="sp"></span>
+      <button class="btn sm primary" id="lbAdd">加入选片</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 数据（模拟妙搭页库）
+  var PAGES = [
+    { id: 'p1', t: '飞书×奇华饼家 封面', s: '奇华饼家 · p1', type: 'cover', tag: '封面' },
+    { id: 'p2', t: 'AI 提效数据总览', s: '奇华饼家 · p12', type: 'data', tag: '数据页' },
+    { id: 'p3', t: '门店排产 AI 化', s: '奇华饼家 · p23', type: 'case', tag: '案例页' },
+    { id: 'p4', t: 'Context over Control', s: '组织人才 · p8', type: 'view', tag: '观点页' },
+    { id: 'p5', t: '协作即沉淀', s: '组织人才 · p15', type: 'case', tag: '案例页' },
+    { id: 'p6', t: '负规模效应示意', s: '组织人才 · p19', type: 'data', tag: '数据页' },
+    { id: 'p7', t: '先进团队 先用飞书', s: '奇华饼家 · p66', type: 'end', tag: '结尾页' },
+    { id: 'p8', t: '品胜电子交流封面', s: '品胜电子 · p1', type: 'cover', tag: '封面' },
+    { id: 'p9', t: '三家客户证言', s: '客户证言 · p3', type: 'case', tag: '案例页' },
+  ];
+  var selected = ['p1', 'p3', 'p5', 'p7']; // 初始已选
+
+  function slideMock(type) {
+    if (type === 'data') return '<div class="slide data"><div class="body"><div class="bar w1"></div><div class="bar w3"></div><div class="mini-chart"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:90%"></i><i style="height:65%"></i></div></div></div>';
+    if (type === 'cover') return '<div class="slide cover"><div class="body"><div class="bar w2"></div><div class="bar w1"></div></div></div>';
+    if (type === 'end') return '<div class="slide end"><div class="body" style="justify-content:center"><div class="bar w1"></div><div class="bar w4"></div></div></div>';
+    var cls = type === 'view' ? 'view' : 'case';
+    return '<div class="slide ' + cls + '"><div class="body"><div class="bar w1"></div><div class="bar w2"></div><div class="bar w3"></div><div class="bar w4"></div></div></div>';
+  }
+  function miniStyle(type) {
+    var g = { cover:'linear-gradient(135deg,#3370ff,#5b8bff)', data:'linear-gradient(135deg,#0e9f6e,#34d399)', case:'linear-gradient(135deg,#7d5cff,#a084ff)', view:'linear-gradient(135deg,#f59e0b,#fbbf24)', end:'linear-gradient(135deg,#1d2129,#4e5969)' };
+    return 'background:' + (g[type] || g.case) + ';';
+  }
+  var TICK = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+  var PLUS = '<svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+  var GRIP = '<svg class="ico sm" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/></svg>';
+  var RM = '<svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+  function renderGrid() {
+    var g = document.getElementById('grid');
+    g.innerHTML = PAGES.map(function (p) {
+      var on = selected.indexOf(p.id) >= 0;
+      var addIco = on ? TICK : PLUS;
+      var addTitle = on ? '已加入选片，点击移除' : '加入选片';
+      return '<div class="thumb' + (on ? ' sel' : '') + '" data-id="' + p.id + '" onclick="openPreview(\'' + p.id + '\')">' +
+        '<span class="tag">' + p.tag + '</span><span class="tick">' + TICK + '</span>' +
+        slideMock(p.type) +
+        '<button class="add" title="' + addTitle + '" onclick="toggle(event,\'' + p.id + '\')">' + addIco + '</button>' +
+        '<div class="meta"><div class="t">' + p.t + '</div><div class="s">' + p.s + '</div></div></div>';
+    }).join('');
+  }
+  function renderSel() {
+    document.getElementById('selCount').textContent = selected.length;
+    var list = document.getElementById('selList');
+    list.innerHTML = selected.map(function (id, i) {
+      var p = PAGES.find(function (x) { return x.id === id; });
+      return '<li draggable="true" data-id="' + id + '">' +
+        '<span class="grip">' + GRIP + '</span>' +
+        '<span class="ord">' + (i + 1) + '</span>' +
+        '<span class="mini" style="' + miniStyle(p.type) + '"></span>' +
+        '<span class="txt"><div class="t">' + p.t + '</div><div class="s">' + p.s + '</div></span>' +
+        '<button class="rm" onclick="removeSel(event,\'' + id + '\')">' + RM + '</button></li>';
+    }).join('');
+    bindDrag();
+  }
+  function toggle(e, id) {
+    if (e) e.stopPropagation();
+    var i = selected.indexOf(id);
+    if (i >= 0) selected.splice(i, 1); else selected.push(id);
+    renderGrid(); renderSel();
+  }
+  function removeSel(e, id) { toggle(e, id); }
+  function clearSel() { selected = []; renderGrid(); renderSel(); }
+
+  // 单击缩略图 → 放大预览
+  function openPreview(id) {
+    var p = PAGES.find(function (x) { return x.id === id; });
+    if (!p) return;
+    var on = selected.indexOf(id) >= 0;
+    document.getElementById('lbSlide').innerHTML = slideMock(p.type);
+    document.getElementById('lbTitle').textContent = p.t;
+    document.getElementById('lbSub').textContent = p.s + ' · ' + p.tag;
+    var btn = document.getElementById('lbAdd');
+    btn.textContent = on ? '移出选片' : '加入选片';
+    btn.className = 'btn sm ' + (on ? 'ghost' : 'primary');
+    btn.onclick = function () { toggle(null, id); openPreview(id); };
+    document.getElementById('lightbox').classList.add('open');
+  }
+  function closePreview() { document.getElementById('lightbox').classList.remove('open'); }
+
+  // 原生拖拽排序
+  var dragId = null;
+  function bindDrag() {
+    var lis = document.querySelectorAll('#selList li');
+    lis.forEach(function (li) {
+      li.addEventListener('dragstart', function () { dragId = li.dataset.id; li.classList.add('dragging'); });
+      li.addEventListener('dragend', function () { li.classList.remove('dragging'); document.querySelectorAll('#selList li').forEach(function (x){x.classList.remove('over');}); });
+      li.addEventListener('dragover', function (e) { e.preventDefault(); li.classList.add('over'); });
+      li.addEventListener('dragleave', function () { li.classList.remove('over'); });
+      li.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var from = selected.indexOf(dragId), to = selected.indexOf(li.dataset.id);
+        if (from < 0 || to < 0 || from === to) return;
+        selected.splice(to, 0, selected.splice(from, 1)[0]);
+        renderSel();
+      });
+    });
+  }
+
+  // 左导航切换
+  document.querySelectorAll('.nav-item').forEach(function (item) {
+    item.addEventListener('click', function () {
+      var step = item.getAttribute('data-step');
+      document.querySelectorAll('.nav-item').forEach(function (n) { n.classList.remove('active'); });
+      item.classList.add('active');
+      document.querySelectorAll('.step').forEach(function (s) { s.classList.toggle('active', s.getAttribute('data-step') === step); });
+    });
+  });
+  function selView(which, btn) {
+    document.getElementById('sel-grid').style.display = which === 'grid' ? 'block' : 'none';
+    document.getElementById('sel-embed').style.display = which === 'embed' ? 'block' : 'none';
+    btn.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+  }
+
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePreview(); });
+
+  renderGrid(); renderSel();
+</script>
+</body>
+</html>

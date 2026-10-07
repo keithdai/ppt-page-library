@@ -1,0 +1,46 @@
+{
+  "name": "ppt-page-library-desktop",
+  "productName": "DeckAtlas",
+  "version": "0.3.0-beta.1",
+  "description": "DeckAtlas · Find the right slide. Build the next deck. Local-first PPTX search, selection, and composition.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test *.test.js",
+    "runtime": "../packaging/build_runtime.sh",
+    "dist:dir": "npm run runtime && electron-builder --dir",
+    "dist": "npm run runtime && electron-builder --mac zip",
+    "dist:dmg": "npm run runtime && electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.pptlib.desktop",
+    "productName": "DeckAtlas",
+    "afterPack": "../packaging/after-pack.js",
+    "files": [
+      "main.js",
+      "preload.js",
+      "scheduler.js",
+      "security.js",
+      "task-coordinator.js",
+      "assets/**/*",
+      "renderer/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../build/runtime/pptlib",
+        "to": "runtime/pptlib"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": [
+        "zip"
+      ]
+    }
+  }
+}

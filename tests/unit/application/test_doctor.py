@@ -19,13 +19,18 @@ def test_doctor_reports_sqlite_fts5_and_missing_libreoffice(tmp_path: Path) -> N
     assert report.sqlite.ok is True
     assert report.fts5.ok is True
     assert report.libreoffice.ok is False
-    assert report.pdftoppm.ok is False
+    assert report.pdftoppm.ok is True
     assert report.ready_for_text_search is True
     assert report.ready_for_rendering is False
 
 
 def test_doctor_reports_sqlite_unavailable(monkeypatch, tmp_path: Path) -> None:
-    settings = load_settings({"PPTLIB_HOME": str(tmp_path / "home")})
+    settings = load_settings(
+        {
+            "PPTLIB_HOME": str(tmp_path / "home"),
+            "PPTLIB_OUTPUT_ROOT": str(tmp_path / "exports"),
+        }
+    )
 
     def fail_connect(*args, **kwargs):
         raise sqlite3.OperationalError("unable to open database")

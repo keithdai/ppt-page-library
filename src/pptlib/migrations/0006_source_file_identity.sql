@@ -1,0 +1,2 @@
+ALTER TABLE deck_versions
+ADD COLUMN ctime_ns INTEGER NOT NULL DEFAULT 0;

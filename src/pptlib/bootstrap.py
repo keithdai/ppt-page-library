@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -7,7 +8,13 @@ from pathlib import Path
 from pptlib.config import Settings
 from pptlib.domain.taxonomy import CLASSIFIER_VERSION, classify_slide_result
 from pptlib.infrastructure.db.connection import connect
-from pptlib.infrastructure.db.migrations import migrate
+from pptlib.infrastructure.db.migrations import migrate, pending_migrations
+from pptlib.infrastructure.db.safety import (
+    check_database_integrity,
+    create_database_backup,
+    database_maintenance_lock,
+    restore_database_backup,
+)
 from pptlib.logging import configure_logging
 
 
@@ -21,14 +28,37 @@ def initialize(settings: Settings) -> list[str]:
     ):
         directory.mkdir(parents=True, exist_ok=True)
     configure_logging(settings.log_dir)
+    with database_maintenance_lock(settings.home):
+        return _initialize_database(settings)
+
+
+def _initialize_database(settings: Settings) -> list[str]:
+    database_existed = settings.database_path.is_file()
     connection = connect(settings.database_path)
+    backup_path: Path | None = None
     try:
         migrations_dir = Path(__file__).resolve().parent / "migrations"
-        completed = migrate(connection, migrations_dir)
+        check_database_integrity(connection)
+        pending = pending_migrations(connection, migrations_dir)
+        if database_existed and pending:
+            backup_path = create_database_backup(
+                connection,
+                settings.database_path,
+                settings.home / "backups",
+            )
+        try:
+            completed = migrate(connection, migrations_dir)
+            check_database_integrity(connection)
+        except Exception:
+            connection.close()
+            if backup_path is not None:
+                restore_database_backup(backup_path, settings.database_path)
+            raise
         _backfill_taxonomy(connection)
         return completed
     finally:
-        connection.close()
+        with contextlib.suppress(sqlite3.ProgrammingError):
+            connection.close()
 
 
 def _backfill_taxonomy(connection: sqlite3.Connection) -> None:

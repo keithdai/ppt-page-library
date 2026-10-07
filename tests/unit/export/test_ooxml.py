@@ -8,9 +8,17 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from pptlib.export import ExportError, SlideRef, export_slides, ooxml
+from pptlib.export import (
+    ExportError,
+    SlideRef,
+    export_slides,
+    ooxml,
+    output_fingerprint,
+    preflight_slides,
+)
 
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
+A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 REL = "http://schemas.openxmlformats.org/package/2006/relationships"
 CT = "http://schemas.openxmlformats.org/package/2006/content-types"
@@ -26,6 +34,9 @@ def _make_fixture(
     slide_count: int = 1,
     size: tuple[int, int] = (12192000, 6858000),
     external: bool = False,
+    theme_name: str = "fixture",
+    hidden_slides: tuple[int, ...] = (),
+    notes_slides: tuple[int, ...] = (),
 ) -> None:
     parts: dict[str, bytes] = {}
     types = ET.Element(f"{{{CT}}}Types")
@@ -60,6 +71,16 @@ def _make_fixture(
         types,
         f"{{{CT}}}Override",
         {
+            "PartName": "/ppt/slideMasters/slideMaster1.xml",
+            "ContentType": (
+                "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"
+            ),
+        },
+    )
+    ET.SubElement(
+        types,
+        f"{{{CT}}}Override",
+        {
             "PartName": "/ppt/slideLayouts/slideLayout1.xml",
             "ContentType": (
                 "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
@@ -77,6 +98,18 @@ def _make_fixture(
                 ),
             },
         )
+        if n in notes_slides:
+            ET.SubElement(
+                types,
+                f"{{{CT}}}Override",
+                {
+                    "PartName": f"/ppt/notesSlides/notesSlide{n}.xml",
+                    "ContentType": (
+                        "application/vnd.openxmlformats-officedocument."
+                        "presentationml.notesSlide+xml"
+                    ),
+                },
+            )
     parts["[Content_Types].xml"] = _xml(types)
     root_rels = ET.Element(f"{{{REL}}}Relationships")
     ET.SubElement(
@@ -119,17 +152,29 @@ def _make_fixture(
         )
     parts["ppt/_rels/presentation.xml.rels"] = _xml(presentation_rels)
     parts["ppt/slideMasters/slideMaster1.xml"] = (
-        b'<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>'
+        b'<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+        b'<p:clrMap accent1="accent1" accent2="accent2" bg1="lt1" bg2="lt2" '
+        b'folHlink="folHlink" hlink="hlink" tx1="dk1" tx2="dk2"/>'
+        b"</p:sldMaster>"
     )
     for n in range(1, slide_count + 1):
         slide = ET.Element(f"{{{P}}}sld")
+        if n in hidden_slides:
+            slide.set("show", "0")
         c_sld = ET.SubElement(slide, f"{{{P}}}cSld")
         tree = ET.SubElement(c_sld, f"{{{P}}}spTree")
         shape = ET.SubElement(tree, f"{{{P}}}sp")
         nv = ET.SubElement(shape, f"{{{P}}}nvSpPr")
         ET.SubElement(nv, f"{{{P}}}cNvPr", {"id": "1", "name": f"fixture-{n}"})
+        shape_properties = ET.SubElement(shape, f"{{{P}}}spPr")
+        solid_fill = ET.SubElement(shape_properties, f"{{{A}}}solidFill")
+        ET.SubElement(
+            solid_fill,
+            f"{{{A}}}sysClr",
+            {"val": "window", "lastClr": "FFFFFF"},
+        )
         parts[f"ppt/slides/slide{n}.xml"] = _xml(slide)
-        if external or n == 1:
+        if external or n == 1 or n in notes_slides:
             rels = ET.Element(f"{{{REL}}}Relationships")
             ET.SubElement(
                 rels,
@@ -151,12 +196,40 @@ def _make_fixture(
                         "TargetMode": "External",
                     },
                 )
+            if n in notes_slides:
+                ET.SubElement(
+                    rels,
+                    f"{{{REL}}}Relationship",
+                    {
+                        "Id": "rId3",
+                        "Type": (
+                            "http://schemas.openxmlformats.org/officeDocument/2006/"
+                            "relationships/notesSlide"
+                        ),
+                        "Target": f"../notesSlides/notesSlide{n}.xml",
+                    },
+                )
+                parts[f"ppt/notesSlides/notesSlide{n}.xml"] = (
+                    b'<p:notes xmlns:p="http://schemas.openxmlformats.org/'
+                    b'presentationml/2006/main"/>'
+                )
+                notes_rels = ET.Element(f"{{{REL}}}Relationships")
+                ET.SubElement(
+                    notes_rels,
+                    f"{{{REL}}}Relationship",
+                    {
+                        "Id": "rId1",
+                        "Type": (
+                            "http://schemas.openxmlformats.org/officeDocument/2006/"
+                            "relationships/slide"
+                        ),
+                        "Target": f"../slides/slide{n}.xml",
+                    },
+                )
+                parts[f"ppt/notesSlides/_rels/notesSlide{n}.xml.rels"] = _xml(notes_rels)
             parts[f"ppt/slides/_rels/slide{n}.xml.rels"] = _xml(rels)
     parts["ppt/slideLayouts/slideLayout1.xml"] = (
         b'<p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>'
-    )
-    parts["ppt/theme/theme1.xml"] = (
-        b'<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="fixture"/>'
     )
     layout_rels = ET.Element(f"{{{REL}}}Relationships")
     ET.SubElement(
@@ -164,11 +237,39 @@ def _make_fixture(
         f"{{{REL}}}Relationship",
         {
             "Id": "rId1",
+            "Type": (
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+            ),
+            "Target": "../slideMasters/slideMaster1.xml",
+        },
+    )
+    parts["ppt/slideLayouts/_rels/slideLayout1.xml.rels"] = _xml(layout_rels)
+    master_rels = ET.Element(f"{{{REL}}}Relationships")
+    ET.SubElement(
+        master_rels,
+        f"{{{REL}}}Relationship",
+        {
+            "Id": "rId1",
             "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
             "Target": "../theme/theme1.xml",
         },
     )
-    parts["ppt/slideLayouts/_rels/slideLayout1.xml.rels"] = _xml(layout_rels)
+    ET.SubElement(
+        master_rels,
+        f"{{{REL}}}Relationship",
+        {
+            "Id": "rId2",
+            "Type": (
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
+            ),
+            "Target": "../slideLayouts/slideLayout1.xml",
+        },
+    )
+    parts["ppt/slideMasters/_rels/slideMaster1.xml.rels"] = _xml(master_rels)
+    parts["ppt/theme/theme1.xml"] = (
+        '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        f'name="{theme_name}"/>'
+    ).encode()
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w") as archive:
         for name, data in parts.items():
@@ -189,6 +290,63 @@ def test_export_single_source_order_and_manifest(tmp_path: Path) -> None:
         assert len(root.find(f"{{{P}}}sldIdLst")) == 2  # type: ignore[arg-type]
 
 
+def test_export_prunes_unselected_slide_parts(tmp_path: Path) -> None:
+    source = tmp_path / "source.pptx"
+    _make_fixture(source, slide_count=3)
+    output = tmp_path / "out.pptx"
+
+    export_slides([SlideRef("fv_a", source, 2)], output)
+
+    with zipfile.ZipFile(output) as archive:
+        slide_parts = {
+            name
+            for name in archive.namelist()
+            if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+        }
+    assert slide_parts == {"ppt/slides/slide1.xml"}
+
+
+def test_export_freezes_system_colors_to_recorded_rgb(tmp_path: Path) -> None:
+    source = tmp_path / "source.pptx"
+    _make_fixture(source)
+    output = tmp_path / "out.pptx"
+
+    export_slides([SlideRef("fv", source, 1)], output)
+
+    with zipfile.ZipFile(output) as archive:
+        slide = ET.fromstring(archive.read("ppt/slides/slide1.xml"))
+    assert slide.find(f".//{{{A}}}sysClr") is None
+    color = slide.find(f".//{{{A}}}srgbClr")
+    assert color is not None
+    assert color.get("val") == "FFFFFF"
+
+
+def test_export_makes_selected_hidden_slide_visible(tmp_path: Path) -> None:
+    source = tmp_path / "source.pptx"
+    _make_fixture(source, hidden_slides=(1,))
+    output = tmp_path / "out.pptx"
+
+    export_slides([SlideRef("hidden", source, 1)], output)
+
+    with zipfile.ZipFile(output) as archive:
+        slide = ET.fromstring(archive.read("ppt/slides/slide1.xml"))
+    assert slide.get("show") is None
+
+
+def test_export_keeps_hidden_slide_visible_when_notes_link_back_to_slide(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source-with-notes.pptx"
+    _make_fixture(source, hidden_slides=(1,), notes_slides=(1,))
+    output = tmp_path / "out.pptx"
+
+    export_slides([SlideRef("hidden-with-notes", source, 1)], output)
+
+    with zipfile.ZipFile(output) as archive:
+        slide = ET.fromstring(archive.read("ppt/slides/slide1.xml"))
+    assert slide.get("show") is None
+
+
 def test_export_rejects_changed_source_when_expected_hash_is_set(tmp_path: Path) -> None:
     source = tmp_path / "source.pptx"
     _make_fixture(source)
@@ -201,21 +359,89 @@ def test_export_rejects_changed_source_when_expected_hash_is_set(tmp_path: Path)
     assert not (tmp_path / "out.pptx").exists()
 
 
+def test_export_does_not_replace_output_changed_after_preflight(tmp_path: Path) -> None:
+    source = tmp_path / "source.pptx"
+    output = tmp_path / "out.pptx"
+    _make_fixture(source)
+    initial_fingerprint = output_fingerprint(output)
+    output.write_bytes(b"created after preflight")
+
+    with pytest.raises(ExportError, match="输出位置在检查后发生变化") as error:
+        export_slides(
+            [SlideRef("fv", source, 1)],
+            output,
+            expected_output_fingerprint=initial_fingerprint,
+        )
+
+    assert error.value.code == "OUTPUT_CHANGED"
+    assert output.read_bytes() == b"created after preflight"
+    assert not output.with_suffix(".pptx.tmp").exists()
+
+
+def test_preflight_reports_sources_size_fidelity_and_warnings(tmp_path: Path) -> None:
+    first = tmp_path / "first.pptx"
+    second = tmp_path / "second.pptx"
+    _make_fixture(first, slide_count=2)
+    _make_fixture(second, external=True)
+
+    result = preflight_slides(
+        [
+            SlideRef("fv1", first, 2),
+            SlideRef("fv2", second, 1),
+        ]
+    )
+
+    assert result.page_count == 2
+    assert result.source_count == 2
+    assert result.estimated_output_bytes == (
+        round(first.stat().st_size * 0.525) + second.stat().st_size
+    )
+    assert result.fidelity_level == "B"
+    assert result.warnings == ("EXTERNAL_LINK_PRESERVED",)
+
+
+def test_preflight_blocks_changed_source_without_writing_output(tmp_path: Path) -> None:
+    source = tmp_path / "source.pptx"
+    _make_fixture(source)
+    expected = hashlib.sha256(source.read_bytes()).hexdigest()
+    source.write_bytes(source.read_bytes() + b"changed")
+
+    with pytest.raises(ExportError, match="源文件已发生变化") as error:
+        preflight_slides([SlideRef("fv", source, 1, expected)])
+
+    assert error.value.code == "SOURCE_CHANGED"
+
+
 def test_export_cross_source_rewrites_relationships_and_warns(tmp_path: Path) -> None:
     first = tmp_path / "first.pptx"
     second = tmp_path / "second.pptx"
-    _make_fixture(first, external=False)
-    _make_fixture(second, external=True)
+    _make_fixture(first, external=False, theme_name="first-theme")
+    _make_fixture(second, external=True, theme_name="second-theme")
     output = tmp_path / "merged.pptx"
     result = export_slides([SlideRef("fv1", first, 1), SlideRef("fv2", second, 1)], output)
     assert "EXTERNAL_LINK_PRESERVED" in result.warnings
     with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
         rels = ET.fromstring(archive.read("ppt/slides/_rels/slide2.xml.rels"))
         targets = [rel.get("Target") for rel in rels]
         assert any(target and target.startswith("../foreign1/") for target in targets)
         assert any(target == "https://example.com" for target in targets)
-        assert "ppt/foreign1/slideLayouts/slideLayout1.xml" in archive.namelist()
-        assert "ppt/foreign1/theme/theme1.xml" in archive.namelist()
+        assert "ppt/foreign1/slideLayouts/slideLayout1.xml" in names
+        assert "ppt/foreign1/slideMasters/slideMaster1.xml" in names
+        assert "ppt/foreign1/theme/theme1.xml" in names
+        assert b"second-theme" in archive.read("ppt/foreign1/theme/theme1.xml")
+
+        presentation = ET.fromstring(archive.read("ppt/presentation.xml"))
+        masters = presentation.find(f"{{{P}}}sldMasterIdLst")
+        assert masters is not None
+        master_rids = {item.get(f"{{{R}}}id") for item in masters if item.get(f"{{{R}}}id")}
+        presentation_rels = ET.fromstring(archive.read("ppt/_rels/presentation.xml.rels"))
+        registered_targets = {
+            rel.get("Target")
+            for rel in presentation_rels
+            if rel.get("Id") in master_rids and rel.get("Type", "").endswith("/slideMaster")
+        }
+        assert "foreign1/slideMasters/slideMaster1.xml" in registered_targets
 
 
 def test_export_rejects_unsafe_zip_member_path(tmp_path: Path) -> None:
@@ -224,6 +450,18 @@ def test_export_rejects_unsafe_zip_member_path(tmp_path: Path) -> None:
         archive.writestr("../outside.xml", b"not safe")
     with pytest.raises(ExportError, match="不安全") as error:
         export_slides([SlideRef("fv", source, 1)], tmp_path / "out.pptx")
+    assert error.value.code == "INVALID_SOURCE_PACKAGE"
+
+
+def test_preflight_converts_broken_required_xml_to_package_error(tmp_path: Path) -> None:
+    source = tmp_path / "broken.pptx"
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("[Content_Types].xml", b"<Types")
+        archive.writestr("ppt/presentation.xml", b"<presentation/>")
+
+    with pytest.raises(ExportError, match="OOXML") as error:
+        preflight_slides([SlideRef("fv", source, 1)])
+
     assert error.value.code == "INVALID_SOURCE_PACKAGE"
 
 
