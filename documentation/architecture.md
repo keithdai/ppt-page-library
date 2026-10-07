@@ -2,7 +2,7 @@
 
 ## Product
 
-PinPage is a local-first macOS desktop application for indexing presentation pages, searching and
+DeckAtlas is a local-first macOS desktop application for indexing presentation pages, searching and
 selecting them, and composing selected PPTX pages into a new native OOXML presentation.
 
 Key assumptions:
@@ -81,7 +81,7 @@ Renderer action
 
 ## Related Documents
 
-- [Product and engineering roadmap](../docs/PinPage-productization-engineering-roadmap.md)
+- [Product and engineering roadmap](../docs/DeckAtlas-productization-engineering-roadmap.md)
 - [Critical flows](flows.md)
 - [Permissions](permissions.md)
 - [Variables](variables.md)

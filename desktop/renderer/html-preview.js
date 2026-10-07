@@ -174,7 +174,7 @@ function createHtmlPreview({
       width: 1120,
       height: 760,
       show: false,
-      title: '拼页 · HTML 动态预览（安全模式）',
+      title: 'DeckAtlas · HTML 动态预览（安全模式）',
       autoHideMenuBar: true,
       webPreferences: {
         session: previewSession,

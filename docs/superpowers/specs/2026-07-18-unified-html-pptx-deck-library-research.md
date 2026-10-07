@@ -337,7 +337,7 @@ PASS
 架构：
 
 ```text
-PinPage 本地应用
+DeckAtlas 本地应用
   ├─ 统一资产 / 版本 / 页面 / 检索 / Selection / Job
   ├─ PPTX import adapter  → 当前 parser + renderer
   ├─ HTML import adapter  → feishu-deck-h5 backfill

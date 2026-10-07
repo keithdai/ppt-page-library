@@ -189,7 +189,7 @@
         ? `自动更新已开启 · ${enabled} 个计划`
         : '自动更新已暂停';
     els['auto-status-copy'].textContent = enabled
-      ? '拼页运行且电脑保持唤醒时，计划会在执行窗口内开始。'
+      ? 'DeckAtlas 运行且电脑保持唤醒时，计划会在执行窗口内开始。'
       : '开启计划后才会自动执行；立即更新仍可手动使用。';
     els['auto-next-run'].textContent = nextRun(autoState.plans);
     els['auto-run-all'].disabled = enabled === 0 || Boolean(autoState.currentTask);
@@ -852,7 +852,7 @@
     await Promise.all([loadPlans(), refreshCurrentTask(), loadHistory()]);
   }
 
-  window.PinPageAutoUpdate = {
+  window.DeckAtlasAutoUpdate = {
     formatBytes,
     summarizeStats,
     progressRatio,

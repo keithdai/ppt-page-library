@@ -511,7 +511,7 @@ test('main process defaults HTML on, respects off, rejects foreign IPC and waits
   const app = new EventEmitter();
   let quitCalls = 0;
   Object.assign(app, {
-    setName(name) { assert.equal(name, '拼页'); },
+    setName(name) { assert.equal(name, 'DeckAtlas'); },
     getPath: () => __dirname,
     requestSingleInstanceLock: () => false,
     quit() { quitCalls += 1; },

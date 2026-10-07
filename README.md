@@ -1,11 +1,16 @@
-# PPT 页库控制台（本地轻量版）
+# DeckAtlas
 
-本地 macOS 演示页级素材库：把 PPTX 和标准 render-deck HTML 拆到「页」级别做索引、
-分类和预览，再统一搜索与选片。**源文件只留在本地且不复制**。当前 PPTX 页面可原生组合
-导出；HTML 已完成第一阶段的入库、静态/动态预览和选片，组合输出将在后续阶段开放。
+**Find the right slide. Build the next deck.**
 
-不需要 Docker，也不需要 Node/Redis/外部数据库/CDN。整套跑在本地 Python + 一个可选的
-Electron 控制台里，内存占用接近裸 Python。
+DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文件夹中的历史 PPTX
+拆成可搜索、可预览、可重新组稿的页面，帮助高频做方案的人更快找到并复用已有内容。
+源文件不上传、不复制，索引、预览和选片记录都留在本机。
+
+当前 Beta 支持 PPTX 导入、页级搜索、高清预览、跨文件选片、拖拽排序、可编辑 PPTX
+组合导出、重复管理和目录自动更新。HTML 适配仍是开发能力，发布包默认关闭。
+
+[产品网站](website/) · [试用手册](docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md) ·
+[产品化路线图](docs/DeckAtlas-productization-engineering-roadmap.md)
 
 ## 组成
 
@@ -16,14 +21,13 @@ Electron 控制台里，内存占用接近裸 Python。
 | HTML 适配器 | exact backfill、轻量依赖清单、安全浏览器截图和隔离动态预览 |
 | Electron 控制台 | 本地导入、搜索、选片、动态预览和组合导出 |
 
-## 环境要求
+## 当前兼容性
 
-- macOS 13+，Python 3.11。
-- LibreOffice —— PPTX 默认高保真渲染引擎。
-- 本机 Chrome（HTML 静态/动态预览和 officecli 回退渲染需要）。
-- [officecli](https://d.officecli.ai/install.sh)（可选）—— LibreOffice 失败时的回退引擎。
-- lark-cli（已登录到目标妙搭租户）—— 同步 catalog 到妙搭时需要。
-- Node 18+（仅当要用 Electron 控制台时）。
+- macOS 13+，当前预览构建仅提供 Apple Silicon 版本。
+- 需要安装 LibreOffice，作为 PPTX 预览渲染引擎。
+- 当前 Beta 尚未完成 Apple Developer ID 签名与公证。
+- 从源码运行需要 Python 3.11；开发桌面端还需要 Node 18+。
+- Chrome 和 [officecli](https://d.officecli.ai/install.sh) 仅用于开发态 HTML 与回退渲染。
 
 ## 快速开始（CLI）
 
@@ -32,7 +36,7 @@ Electron 控制台里，内存占用接近裸 Python。
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib doctor
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib import ./sources
 
-桌面开发态默认启用 HTML；`v0.2.2` 正式打包版默认关闭。CLI 需要显式开启：
+桌面开发态默认启用 HTML；`v0.3.0-beta.1` Beta 打包版默认关闭。CLI 需要显式开启：
 
     PPTLIB_ENABLE_HTML=1 PPTLIB_HOME="$PWD/var/dev" \
       .venv/bin/pptlib import --html ./sources
@@ -101,9 +105,9 @@ HTML 页面会显示格式、视频和兼容性状态，并可按需打开独立
 安全停止和运行历史；不安装系统级后台任务。
 
 产品化与工程化路线图见
-[`docs/PinPage-productization-engineering-roadmap.md`](docs/PinPage-productization-engineering-roadmap.md)，
+[`docs/DeckAtlas-productization-engineering-roadmap.md`](docs/DeckAtlas-productization-engineering-roadmap.md)，
 本周试用方法与注意事项见
-[`docs/PinPage-v0.2.2-trial-manual.md`](docs/PinPage-v0.2.2-trial-manual.md)，
+[`docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md`](docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md)，
 组合导出实测见
 [`docs/compose-export-verification.md`](docs/compose-export-verification.md)。
 

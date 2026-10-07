@@ -11,7 +11,7 @@ There is no system `cron`, `launchd` agent or hidden daemon.
 
 ## Runtime Rules
 
-- Scheduler checks once per minute while PinPage is running.
+- Scheduler checks once per minute while DeckAtlas is running.
 - Computer sleep pauses execution naturally.
 - Wake or launch after the execution window records `missed`; it does not start work in daytime.
 - Cross-midnight windows use a persisted `scheduled_for` occurrence to prevent duplicate runs.
@@ -40,11 +40,11 @@ There is no system `cron`, `launchd` agent or hidden daemon.
 - Current state: Automatic Update → Running.
 - History: Automatic Update → Run History.
 - Detailed process output: desktop log drawer and `PPTLIB_LOG_DIR`.
-- Kill switch: pause an individual plan; quitting PinPage stops the scheduler.
+- Kill switch: pause an individual plan; quitting DeckAtlas stops the scheduler.
 
 ## Current Limits
 
-- The scheduler is not active when PinPage is fully quit.
+- The scheduler is not active when DeckAtlas is fully quit.
 - It does not wake the computer.
 - Active task coordination remains in Electron memory; the latest task snapshot and scan-run
   history are persisted for restart recovery and diagnosis.

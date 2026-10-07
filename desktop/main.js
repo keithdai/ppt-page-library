@@ -30,7 +30,7 @@ const {
 } = require('./security');
 const { createTaskCoordinator } = require('./task-coordinator');
 
-app.setName('拼页');
+app.setName('DeckAtlas');
 if (process.env.PPTLIB_ELECTRON_USER_DATA) {
   app.setPath('userData', path.resolve(process.env.PPTLIB_ELECTRON_USER_DATA));
 }
@@ -213,7 +213,7 @@ function runPptlib(
     if (!runtimeAvailable()) {
       reject(
         new Error(
-          '未找到拼页运行时。请重新安装应用，或在开发模式下选择 pptlib 仓库。',
+          '未找到 DeckAtlas 运行时。请重新安装应用，或在开发模式下选择 pptlib 仓库。',
         ),
       );
       return;
@@ -346,7 +346,7 @@ function createWindow() {
     height: 840,
     minWidth: 1120,
     minHeight: 680,
-    title: '拼页 PinPage',
+    title: 'DeckAtlas',
     icon: APP_ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -454,7 +454,7 @@ ipcMain.handle('html-preview', async (event, slideId) => {
       slide.capabilities.dynamic_preview !== true) {
     throw new Error('该页面不支持动态预览，请刷新页库');
   }
-  if (!runtimeAvailable()) throw new Error('未找到拼页运行时');
+  if (!runtimeAvailable()) throw new Error('未找到 DeckAtlas 运行时');
   let preview;
   preview = createHtmlPreview({
     slide,

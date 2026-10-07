@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>拼页 PinPage · 好页拼成好稿</title>
+    <title>DeckAtlas · 本地演示页库</title>
     <link rel="icon" type="image/png" href="../assets/icon.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -14,15 +14,15 @@
         <div class="brand">
           <span class="logo brand-mark">
             <svg viewBox="0 0 32 32" width="20" height="20" aria-hidden="true">
-              <rect x="12.2" y="6" width="10.9" height="15" rx="1.8" fill="#ffffff" opacity="0.55"/>
-              <rect x="7.8" y="9.8" width="11.3" height="15.3" rx="1.8" fill="#ffffff"/>
-              <circle cx="18.75" cy="15.6" r="3.45" fill="#ff7a45"/>
-              <circle cx="18.75" cy="15.6" r="1.3" fill="#ffffff"/>
+              <rect x="4" y="6" width="22" height="16" rx="2.5" fill="#ffffff" opacity="0.38"/>
+              <rect x="7" y="10" width="22" height="16" rx="2.5" fill="#ffffff"/>
+              <path d="m11 21 5-5 4 3 5-6" fill="none" stroke="#ff6b4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="25" cy="13" r="2.2" fill="#ff6b4a"/>
             </svg>
           </span>
-          <span class="title">拼页<span class="brand-sub">好页拼成好稿</span></span>
+          <span class="title">DeckAtlas<span class="brand-sub">本地演示页库</span></span>
         </div>
-        <span class="chip">全程本地 · 源文件不外传</span>
+        <span class="chip">本地处理 · 源文件不外传</span>
         <span class="spacer"></span>
         <span class="chip mono" id="paths">仓库: …</span>
       </header>
@@ -169,14 +169,14 @@
                 <div id="grid-empty" class="state-empty">
                   <div class="brand-orb">
                     <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true">
-                      <rect x="14.5" y="5" width="13" height="17" rx="2.4" transform="rotate(9 21 13.5)" fill="#3370ff" opacity="0.30"/>
-                      <rect x="5" y="8" width="13" height="18" rx="2.4" transform="rotate(-8 11.5 17)" fill="#3370ff"/>
-                      <circle cx="19" cy="16" r="4.4" fill="#ff7a45"/>
-                      <circle cx="19" cy="16" r="1.7" fill="#ffffff"/>
+                      <rect x="3.5" y="5.5" width="22" height="16" rx="2.5" fill="#3370ff" opacity="0.24"/>
+                      <rect x="6.5" y="9.5" width="22" height="16" rx="2.5" fill="#3370ff"/>
+                      <path d="m10.5 20.5 5-5 4 3 5-6" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="24.5" cy="12.5" r="2.2" fill="#ff6b4a"/>
                     </svg>
                   </div>
                   <div class="h">还没有页可以拼</div>
-                  <div class="hint" data-html-copy="先在第 1 步导入 PPTX、HTML 或 HTML Deck ZIP，建成本地页库；已导入的话点下面重新加载。">先在第 1 步导入 PPTX，拼页会把每一页拆好、建成你的本地页库；已导入的话点下面重新加载。</div>
+                  <div class="hint" data-html-copy="先在第 1 步导入 PPTX、HTML 或 HTML Deck ZIP，建成本地页库；已导入的话点下面重新加载。">先在第 1 步导入 PPTX，DeckAtlas 会把每一页拆好、建成你的本地页库；已导入的话点下面重新加载。</div>
                   <button id="load-catalog" class="btn primary">加载本地页库</button>
                 </div>
                 <div class="grid" id="grid" hidden></div>
@@ -354,7 +354,7 @@
                 <span class="status-indicator" id="auto-status-indicator"></span>
                 <div>
                   <strong id="auto-status-title">正在读取计划…</strong>
-                  <p id="auto-status-copy">计划只会在拼页运行且电脑保持唤醒时执行。</p>
+                  <p id="auto-status-copy">计划只会在 DeckAtlas 运行且电脑保持唤醒时执行。</p>
                 </div>
               </div>
               <div class="auto-next">
@@ -482,16 +482,16 @@
     <dialog id="onboarding" class="onboarding-dialog" aria-labelledby="onboarding-title">
       <div class="onboarding-mark" aria-hidden="true">
         <svg viewBox="0 0 32 32" width="34" height="34">
-          <rect x="12.2" y="6" width="10.9" height="15" rx="1.8" fill="#3370ff" opacity="0.32"/>
-          <rect x="7.8" y="9.8" width="11.3" height="15.3" rx="1.8" fill="#3370ff"/>
-          <circle cx="18.75" cy="15.6" r="3.45" fill="#ff7a45"/>
-          <circle cx="18.75" cy="15.6" r="1.3" fill="#ffffff"/>
+          <rect x="3.5" y="5.5" width="22" height="16" rx="2.5" fill="#3370ff" opacity="0.24"/>
+          <rect x="6.5" y="9.5" width="22" height="16" rx="2.5" fill="#3370ff"/>
+          <path d="m10.5 20.5 5-5 4 3 5-6" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="24.5" cy="12.5" r="2.2" fill="#ff6b4a"/>
         </svg>
       </div>
       <div class="onboarding-copy">
         <span class="onboarding-step">首次使用 · 约 2 分钟完成设置</span>
         <h2 id="onboarding-title">从一份真实素材开始</h2>
-        <p>拼页只读取你选择的本地目录。完成环境检查后，导入素材、选中页面，即可导出第一份新稿。</p>
+        <p>DeckAtlas 只读取你选择的本地目录。完成环境检查后，导入素材、选中页面，即可导出第一份新稿。</p>
       </div>
       <div id="onboarding-checks" class="onboarding-checks" role="status" aria-live="polite">
         <div><span>运行环境</span><strong>等待检查</strong></div>

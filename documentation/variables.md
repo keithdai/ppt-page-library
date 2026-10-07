@@ -1,6 +1,6 @@
 # Configuration And Variables
 
-PinPage currently has no required cloud secret. Configuration is read by the Python process and
+DeckAtlas currently has no required cloud secret. Configuration is read by the Python process and
 inherited by supervised Electron child processes.
 
 | Name | Used by | Source | Scope | Risk / rule |

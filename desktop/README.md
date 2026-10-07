@@ -1,4 +1,4 @@
-# 拼页 PinPage · 好页拼成好稿（Electron）
+# DeckAtlas Desktop
 
 本地图形化控制台，**全程本地、无云端依赖**。主要工作流实时显示 `pptlib` 运行日志：
 
@@ -34,7 +34,7 @@ HTML 在开发态默认开启，可用 `PPTLIB_ENABLE_HTML=0` 关闭。首个独
 HTML，等待 HTML 转换引擎和浏览器一并进入固定运行时。动态预览使用独立、无 preload 的
 sandbox `BrowserWindow`，只允许访问一次性 loopback capability URL 下的清理后页面和依赖。
 
-自动更新调度器运行在 Electron 主进程内，不安装 `launchd` 或 `cron`。拼页退出或电脑休眠
+自动更新调度器运行在 Electron 主进程内，不安装 `launchd` 或 `cron`。DeckAtlas 退出或电脑休眠
 时不会执行；导入、组合、重复扫描和自动更新全局互斥。停止任务时会等待当前文件完成清理，
 再结束后续文件。
 

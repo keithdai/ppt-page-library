@@ -2,7 +2,7 @@
 
 ## Current Model
 
-PinPage is a single-user local desktop application. It has no application account roles and no
+DeckAtlas is a single-user local desktop application. It has no application account roles and no
 remote multi-tenant data plane.
 
 | Resource | Read | Write | Delete |

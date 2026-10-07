@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="DeckAtlas 是一款本地优先的 macOS 演示页库，把散落的历史 PPT 变成可搜索、可复用、可重新组稿的页面。"
+    >
+    <meta name="theme-color" content="#f7f7f3">
+    <meta property="og:title" content="DeckAtlas">
+    <meta
+      property="og:description"
+      content="Find the right slide. Build the next deck."
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://keithdai.github.io/ppt-page-library/">
+    <meta
+      property="og:image"
+      content="https://keithdai.github.io/ppt-page-library/assets/deckatlas-library.webp"
+    >
+    <title>DeckAtlas | 本地演示页库</title>
+    <link rel="canonical" href="https://keithdai.github.io/ppt-page-library/">
+    <link rel="icon" href="assets/deckatlas-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="#top" aria-label="DeckAtlas 首页">
+        <svg class="wordmark__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="3.5" y="5.5" width="22" height="16" rx="2.5" fill="#6e91ff" opacity=".7"/>
+          <rect x="6.5" y="9.5" width="22" height="16" rx="2.5" fill="currentColor"/>
+          <path d="m10.5 20.5 5-5 4 3 5-6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="24.5" cy="12.5" r="2.2" fill="#ff6b4a"/>
+        </svg>
+        <span>DeckAtlas</span>
+      </a>
+      <nav class="site-nav" aria-label="主导航">
+        <a href="#workflow">工作方式</a>
+        <a href="#local">本地优先</a>
+        <a href="#download">下载</a>
+      </nav>
+      <a
+        class="icon-link"
+        href="https://github.com/keithdai/ppt-page-library"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="在 GitHub 查看 DeckAtlas"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3.3-.4 6.8-1.6 6.8-7A5.4 5.4 0 0 0 19.4 4 5 5 0 0 0 19.3.5S18.2.1 15 1.8a13.4 13.4 0 0 0-7 0C4.8.1 3.7.5 3.7.5A5 5 0 0 0 3.6 4a5.4 5.4 0 0 0-1.4 3.7c0 5.4 3.5 6.6 6.8 7A4.8 4.8 0 0 0 8 18v4"/>
+          <path d="M8 19c-3 .9-3-1.5-4-2"/>
+        </svg>
+      </a>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <img
+          class="hero__image"
+          src="assets/deckatlas-library.webp"
+          alt="DeckAtlas 本地页库界面，展示文件目录、演示页面缩略图和已选页面"
+          width="1600"
+          height="650"
+          fetchpriority="high"
+        >
+        <div class="hero__veil"></div>
+        <div class="hero__inner">
+          <p class="eyebrow">LOCAL-FIRST PRESENTATION LIBRARY</p>
+          <h1 id="hero-title">DeckAtlas</h1>
+          <p class="hero__tagline">Find the right slide. Build the next deck.</p>
+          <p class="hero__copy">
+            把散落的历史 PPT，变成可搜索、可复用、可重新组稿的本地页库。
+          </p>
+          <div class="hero__actions">
+            <a class="button button--primary" href="#download">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/>
+              </svg>
+              查看 Beta
+            </a>
+            <a
+              class="button button--quiet"
+              href="https://github.com/keithdai/ppt-page-library"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3.3-.4 6.8-1.6 6.8-7A5.4 5.4 0 0 0 19.4 4 5 5 0 0 0 19.3.5S18.2.1 15 1.8a13.4 13.4 0 0 0-7 0C4.8.1 3.7.5 3.7.5A5 5 0 0 0 3.6 4a5.4 5.4 0 0 0-1.4 3.7c0 5.4 3.5 6.6 6.8 7A4.8 4.8 0 0 0 8 18v4"/>
+                <path d="M8 19c-3 .9-3-1.5-4-2"/>
+              </svg>
+              GitHub
+            </a>
+          </div>
+          <p class="hero__meta">macOS 13+ · Apple Silicon · 源文件留在本地</p>
+        </div>
+        <div class="hero__caption">
+          <span>真实产品界面</span>
+          <span>示例内容已脱敏</span>
+        </div>
+      </section>
+
+      <section class="thesis section">
+        <div class="section__inner thesis__grid">
+          <p class="section-index">01 / WHY</p>
+          <div>
+            <h2>你的最佳页面，通常已经存在。</h2>
+            <p class="lead">
+              问题不是没有内容，而是历史方案散落在文件夹里。靠文件名和记忆寻找，
+              找到以后还要逐份打开、复制、排序。
+            </p>
+          </div>
+          <p class="thesis__answer">
+            DeckAtlas 把文件视角改成页面视角。标题、正文、备注、文件名和目录都能搜索，
+            搜到的是可直接预览和选中的真实页面。
+          </p>
+        </div>
+      </section>
+
+      <section class="workflow section" id="workflow" aria-labelledby="workflow-title">
+        <div class="section__inner">
+          <div class="section-heading">
+            <p class="section-index">02 / WORKFLOW</p>
+            <h2 id="workflow-title">从历史素材到下一份稿，只保留三步。</h2>
+          </div>
+          <ol class="workflow-list">
+            <li>
+              <span class="workflow-list__number">01</span>
+              <h3>建立页库</h3>
+              <p>选择 PPTX 或文件夹。DeckAtlas 在本地拆页、提取文本并生成高清预览。</p>
+              <span class="workflow-list__signal">导入 · 索引 · 预览</span>
+            </li>
+            <li>
+              <span class="workflow-list__number">02</span>
+              <h3>找到并选中</h3>
+              <p>按标题、正文、备注、文件名和分类搜索，从不同源稿持续加入页面。</p>
+              <span class="workflow-list__signal">搜索 · 筛选 · 跨稿选片</span>
+            </li>
+            <li>
+              <span class="workflow-list__number">03</span>
+              <h3>重新组稿</h3>
+              <p>拖拽调整顺序，再复制原生页面结构，导出仍可编辑的 PPTX。</p>
+              <span class="workflow-list__signal">排序 · 校验 · 导出</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="capabilities section" aria-labelledby="capabilities-title">
+        <div class="section__inner">
+          <div class="section-heading section-heading--wide">
+            <p class="section-index">03 / PRODUCT</p>
+            <h2 id="capabilities-title">不是再做一遍，而是把已经做过的用起来。</h2>
+          </div>
+          <div class="capability-table">
+            <article>
+              <p>Search</p>
+              <h3>页级搜索</h3>
+              <span>标题、正文、备注、文件名、目录和分类统一检索。</span>
+            </article>
+            <article>
+              <p>Preview</p>
+              <h3>真实页面预览</h3>
+              <span>缩略图、高清大图与键盘翻页，先看清再决定。</span>
+            </article>
+            <article>
+              <p>Select</p>
+              <h3>跨文件选片</h3>
+              <span>选片顺序持久保存，刷新或重启后继续工作。</span>
+            </article>
+            <article>
+              <p>Compose</p>
+              <h3>可编辑 PPTX</h3>
+              <span>复制原生 OOXML 页面结构，不把页面压成图片。</span>
+            </article>
+            <article>
+              <p>Maintain</p>
+              <h3>目录持续更新</h3>
+              <span>先预检变化，再按计划更新常用素材目录。</span>
+            </article>
+            <article>
+              <p>Clean</p>
+              <h3>重复页管理</h3>
+              <span>本地识别和人工确认，只清理索引与缓存。</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="local section" id="local" aria-labelledby="local-title">
+        <div class="section__inner local__grid">
+          <div>
+            <p class="section-index">04 / LOCAL BY DEFAULT</p>
+            <h2 id="local-title">演示资料留在你的电脑里。</h2>
+          </div>
+          <div class="local__statement">
+            <p>
+              DeckAtlas 不上传、不移动、不复制源 PPTX。SQLite 索引、缩略图、高清预览和
+              选片记录都保存在本机。
+            </p>
+            <dl>
+              <div>
+                <dt>源文件</dt>
+                <dd>只读引用，仍由你管理</dd>
+              </div>
+              <div>
+                <dt>页面索引</dt>
+                <dd>本地 SQLite</dd>
+              </div>
+              <div>
+                <dt>预览资源</dt>
+                <dd>本地缓存，可清理</dd>
+              </div>
+              <div>
+                <dt>组合导出</dt>
+                <dd>写入你选择的位置</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="download section" id="download" aria-labelledby="download-title">
+        <div class="section__inner download__grid">
+          <div>
+            <p class="section-index">05 / BETA</p>
+            <h2 id="download-title">DeckAtlas 0.3.0 Beta</h2>
+            <p>
+              首个公开 Beta 正在准备发布。当前构建面向 macOS 13+ Apple Silicon，
+              预览渲染需要 LibreOffice。
+            </p>
+            <div class="download__actions">
+              <span
+                class="button button--disabled"
+                aria-disabled="true"
+                data-release-url="https://github.com/keithdai/ppt-page-library/releases/tag/v0.3.0-beta.1"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/>
+                </svg>
+                安装包即将开放
+              </span>
+              <a
+                class="button button--quiet"
+                href="https://github.com/keithdai/ppt-page-library"
+                target="_blank"
+                rel="noreferrer"
+              >
+                查看源代码
+              </a>
+            </div>
+          </div>
+          <div class="release-notes">
+            <div>
+              <span>版本</span>
+              <strong>v0.3.0-beta.1</strong>
+            </div>
+            <div>
+              <span>平台</span>
+              <strong>macOS 13+ · Apple Silicon</strong>
+            </div>
+            <div>
+              <span>必要依赖</span>
+              <strong>LibreOffice</strong>
+            </div>
+            <div>
+              <span>发布状态</span>
+              <strong>等待签名、公证与 Release</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="faq section" aria-labelledby="faq-title">
+        <div class="section__inner faq__grid">
+          <div>
+            <p class="section-index">06 / DETAILS</p>
+            <h2 id="faq-title">当前边界</h2>
+          </div>
+          <div class="faq-list">
+            <details>
+              <summary>导出的 PPT 还能编辑吗？</summary>
+              <p>可以。DeckAtlas 复制源页面的 OOXML 结构及其关联资源，不是把预览图贴回 PPT。</p>
+            </details>
+            <details>
+              <summary>删除页面会删除源文件吗？</summary>
+              <p>不会。删除只影响 DeckAtlas 的本地索引和预览缓存，源 PPTX 保持不变。</p>
+            </details>
+            <details>
+              <summary>为什么需要 LibreOffice？</summary>
+              <p>当前 Beta 使用 LibreOffice 生成 PPTX 的缩略图和高清预览。组合导出本身不会把页面重新渲染成图片。</p>
+            </details>
+            <details>
+              <summary>现在支持 Windows 或 Intel Mac 吗？</summary>
+              <p>当前公开预览构建只面向 Apple Silicon Mac。其他平台仍需完成打包与验证。</p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>DeckAtlas</strong>
+        <span>Find the right slide. Build the next deck.</span>
+      </div>
+      <div>
+        <a href="https://github.com/keithdai/ppt-page-library">GitHub</a>
+        <span>© <span id="year">2026</span></span>
+      </div>
+    </footer>
+  </body>
+</html>
