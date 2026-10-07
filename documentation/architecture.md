@@ -17,7 +17,8 @@ Key assumptions:
 | Component | Responsibility |
 | --- | --- |
 | Electron renderer | User workflows, local page browsing, task status and configuration |
-| Electron main process | IPC boundary, file dialogs, process supervision, scheduling and task mutex |
+| Electron main process | IPC boundary and composition root for security, task and scheduling modules |
+| Desktop state service | Paginated SQLite reads, persisted selection and desktop task snapshots |
 | `pptlib` CLI | Stable process interface used by Electron |
 | Python application services | Import, preview planning, compose, deduplication and storage behavior |
 | SQLite | Deck/version/page index, selections, plans and run history |
@@ -43,12 +44,15 @@ Renderer action
 - Electron to CLI: arguments are passed without a shell; heavy commands are globally serialized.
 - CLI to source files: source files are read and hashed but must not be changed or deleted.
 - CLI to LibreOffice: rendering is headless and uses isolated profile/cache directories.
-- Custom asset protocol: currently serves local paths produced by the catalog. It should be narrowed
-  to the configured assets directory before external distribution.
+- HTML previews use a dedicated, short-lived loopback server rather than a general application API.
+- Custom asset protocol: serves only allowlisted image files below the configured assets directory;
+  traversal and symlink escapes fail closed.
 
 ## Persistence
 
 - Database: `${PPTLIB_HOME}/pages.db`, WAL mode.
+- Page browsing is paginated (100 pages per desktop request); the renderer keeps only loaded pages.
+- The default ordered selection and desktop task lifecycle are stored in SQLite.
 - Generated assets: `${PPTLIB_HOME}/assets`.
 - Temporary render files: configured `PPTLIB_TEMP_DIR`.
 - Export output: user-selected location.
@@ -60,16 +64,17 @@ Renderer action
   `Contents/Resources/runtime/pptlib/pptlib`; development mode continues to use `.venv/bin/pptlib`.
 - PDF rasterization is bundled through PDFium. LibreOffice remains an explicit, first-run checked
   system dependency.
-- Large catalogs are regenerated and loaded as one JSON document by the desktop app.
-- Renderer state is held in global JavaScript objects; feature boundaries are not enforced.
-- Task supervision is in Electron memory while run history is in SQLite; a unified persistent job
-  state machine remains future work.
+- Electron still launches one short-lived CLI process per desktop database operation. A persistent
+  sidecar can be considered only if measured interaction latency becomes a problem.
+- Renderer view state remains in a single JavaScript module; security, task coordination and
+  scheduling boundaries are enforced in separate main-process modules.
 - Preview replacement is not yet fully atomic across all rendering paths.
 - macOS signing, notarization and update delivery are not configured.
 
 ## Conditional Capabilities
 
 - Scheduled work exists; see [cron.md](cron.md).
+- No general-purpose HTTP application server.
 - No transactional email.
 - No public/indexable routes requiring SEO.
 - No embedded LLM agent or autonomous external tool-calling workflow.

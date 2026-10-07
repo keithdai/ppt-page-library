@@ -6,7 +6,6 @@ def test_cli_exposes_required_foundation_commands() -> None:
 
     assert parser.parse_args(["doctor"]).command == "doctor"
     assert parser.parse_args(["init"]).command == "init"
-    assert parser.parse_args(["serve"]).command == "serve"
     assert parser.parse_args(["worker", "--once"]).once is True
     assert parser.parse_args(["render-missing"]).command == "render-missing"
     scan_plan = parser.parse_args(["scan-plan", "history", "--limit", "25"])

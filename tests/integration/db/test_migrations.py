@@ -41,6 +41,7 @@ def test_migrate_creates_foundation_schema_and_is_idempotent(tmp_path: Path) -> 
         "0008_html_assets.sql",
         "0009_scan_plans.sql",
         "0010_scan_run_schedule.sql",
+        "0011_desktop_state.sql",
     ]
     assert second == []
     assert {
@@ -51,6 +52,7 @@ def test_migrate_creates_foundation_schema_and_is_idempotent(tmp_path: Path) -> 
         "scan_plan_roots",
         "scan_runs",
         "scan_run_items",
+        "desktop_task_state",
     }.issubset(table_names)
     assert "slide_taxonomy" in table_names
     assert "slide_fingerprints" in table_names
@@ -133,9 +135,10 @@ def test_concurrent_migrate_calls_apply_once_and_preserve_jobs_table(tmp_path: P
             "0008_html_assets.sql",
             "0009_scan_plans.sql",
             "0010_scan_run_schedule.sql",
+            "0011_desktop_state.sql",
         ],
     ]
-    assert connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 11
+    assert connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 12
     assert connection.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'jobs'"
     ).fetchone()
@@ -193,6 +196,7 @@ def test_html_migration_preserves_existing_pptx_rows_and_selection(tmp_path: Pat
             "0008_html_assets.sql",
             "0009_scan_plans.sql",
             "0010_scan_run_schedule.sql",
+            "0011_desktop_state.sql",
         ]
         assert migrate(connection, migrations_dir) == []
         for table, old_row in before.items():

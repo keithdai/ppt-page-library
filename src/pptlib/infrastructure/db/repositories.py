@@ -521,21 +521,9 @@ def _match_query(query: str) -> str:
     return f'"{cleaned.replace(chr(34), chr(34) * 2)}"'
 
 
-def search_slides(
-    connection: sqlite3.Connection,
-    query: str,
-    *,
-    limit: int = 50,
-    offset: int = 0,
-    filters: LibraryFilters = DEFAULT_LIBRARY_FILTERS,
-) -> list[SearchResult]:
-    if limit < 1 or limit > 200:
-        raise ValueError("limit must be between 1 and 200")
-    if offset < 0:
-        raise ValueError("offset cannot be negative")
-    match = _match_query(query)
+def _library_filter_sql(filters: LibraryFilters) -> tuple[str, list[str]]:
     filter_sql = ""
-    filter_values: list[str | int] = []
+    filter_values: list[str] = []
     if filters.topic:
         canonical = LEGACY_TOPIC_ALIASES.get(filters.topic, filters.topic)
         if canonical == filters.topic:
@@ -556,67 +544,66 @@ def search_slides(
     if filters.source_format:
         filter_sql += " AND v.source_format = ?"
         filter_values.append(filters.source_format)
+    return filter_sql, filter_values
+
+
+def _search_constraint(query: str) -> tuple[str, list[str]]:
+    match = _match_query(query)
     if not match:
-        rows = connection.execute(
-            f"""
-            SELECT s.id, d.id, v.id, d.canonical_path, s.slide_number,
-                   s.title, s.body_text, s.notes_text, t.topic, t.page_type,
-                   t.subtopic, t.confidence, t.classification_source, t.classifier_version,
-                   v.source_format, s.page_key, s.page_kind,
-                   s.capabilities_json, v.warnings_json
-            FROM slides s
-            JOIN deck_versions v ON v.id = s.deck_version_id
-            JOIN decks d ON d.id = v.deck_id
-            LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
-            WHERE v.status = 'parsed' AND d.current_version_id = v.id{filter_sql}
-            ORDER BY d.canonical_path, s.slide_number
-            LIMIT ? OFFSET ?
-            """,
-            (*filter_values, limit, offset),
-        ).fetchall()
-        return [
-            SearchResult(
-                slide_id=row[0],
-                deck_id=row[1],
-                version_id=row[2],
-                path=Path(row[3]),
-                slide_number=int(row[4]),
-                title=row[5],
-                body_text=row[6],
-                notes_text=row[7],
-                rank=0.0,
-                topic=str(row[8] or ""),
-                page_type=str(row[9] or ""),
-                subtopic=str(row[10] or ""),
-                confidence=str(row[11] or ""),
-                classification_source=str(row[12] or ""),
-                classifier_version=str(row[13] or ""),
-                source_format=str(row[14]),
-                page_key=str(row[15]),
-                page_kind=str(row[16]),
-                capabilities=json.loads(row[17]),
-                warnings=json.loads(row[18]),
+        return "", []
+    metadata = " ".join(query.split()).casefold()
+    return (
+        """
+        AND (
+            s.id IN (
+                SELECT slide_id FROM slide_fts WHERE slide_fts MATCH ?
             )
-            for row in rows
-        ]
+            OR instr(
+                lower(
+                    d.display_name || ' ' || d.canonical_path || ' ' ||
+                    COALESCE(t.topic, '') || ' ' || COALESCE(t.subtopic, '') || ' ' ||
+                    COALESCE(t.page_type, '')
+                ),
+                ?
+            ) > 0
+        )
+        """,
+        [match, metadata],
+    )
+
+
+def search_slides(
+    connection: sqlite3.Connection,
+    query: str,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    filters: LibraryFilters = DEFAULT_LIBRARY_FILTERS,
+) -> list[SearchResult]:
+    if limit < 1 or limit > 200:
+        raise ValueError("limit must be between 1 and 200")
+    if offset < 0:
+        raise ValueError("offset cannot be negative")
+    filter_sql, filter_values = _library_filter_sql(filters)
+    search_sql, search_values = _search_constraint(query)
     rows = connection.execute(
         f"""
         SELECT s.id, d.id, v.id, d.canonical_path, s.slide_number,
-               s.title, s.body_text, s.notes_text, bm25(slide_fts) AS rank,
+               s.title, s.body_text, s.notes_text, 0.0 AS rank,
                t.topic, t.page_type, t.subtopic, t.confidence,
                t.classification_source, t.classifier_version,
                v.source_format, s.page_key, s.page_kind,
                s.capabilities_json, v.warnings_json
-        FROM slide_fts f
-        JOIN slides s ON s.id = f.slide_id
+        FROM slides s
         JOIN deck_versions v ON v.id = s.deck_version_id
         JOIN decks d ON d.id = v.deck_id
         LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
-        WHERE slide_fts MATCH ? AND v.status = 'parsed' AND d.current_version_id = v.id{filter_sql}
-        ORDER BY rank, d.canonical_path, s.slide_number
+        WHERE v.status = 'parsed'
+          AND d.current_version_id = v.id{search_sql}{filter_sql}
+        ORDER BY d.canonical_path, s.slide_number
         LIMIT ? OFFSET ?
         """,
-        (match, *filter_values, limit, offset),
+        (*search_values, *filter_values, limit, offset),
     ).fetchall()
     return [
         SearchResult(
@@ -650,55 +637,44 @@ def count_search_slides(
     query: str,
     filters: LibraryFilters = DEFAULT_LIBRARY_FILTERS,
 ) -> int:
-    match = _match_query(query)
-    filter_sql = ""
-    filter_values: list[str] = []
-    if filters.topic:
-        canonical = LEGACY_TOPIC_ALIASES.get(filters.topic, filters.topic)
-        if canonical == filters.topic:
-            filter_sql += " AND t.topic = ?"
-            filter_values.append(filters.topic)
-        else:
-            filter_sql += " AND t.topic IN (?, ?)"
-            filter_values.extend((filters.topic, canonical))
-    if filters.subtopic:
-        filter_sql += " AND t.subtopic = ?"
-        filter_values.append(filters.subtopic)
-    if filters.page_type:
-        filter_sql += " AND t.page_type = ?"
-        filter_values.append(filters.page_type)
-    if filters.deck_id:
-        filter_sql += " AND d.id = ?"
-        filter_values.append(filters.deck_id)
-    if filters.source_format:
-        filter_sql += " AND v.source_format = ?"
-        filter_values.append(filters.source_format)
-    if not match:
-        row = connection.execute(
-            f"""
-            SELECT COUNT(*)
-            FROM slides s
-            JOIN deck_versions v ON v.id = s.deck_version_id
-            JOIN decks d ON d.id = v.deck_id
-            LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
-            WHERE v.status = 'parsed' AND d.current_version_id = v.id{filter_sql}
-            """
-            , filter_values,
-        ).fetchone()
-        return int(row[0]) if row is not None else 0
+    filter_sql, filter_values = _library_filter_sql(filters)
+    search_sql, search_values = _search_constraint(query)
     row = connection.execute(
         f"""
         SELECT COUNT(*)
-        FROM slide_fts f
-        JOIN slides s ON s.id = f.slide_id
+        FROM slides s
         JOIN deck_versions v ON v.id = s.deck_version_id
         JOIN decks d ON d.id = v.deck_id
         LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
-        WHERE slide_fts MATCH ? AND v.status = 'parsed' AND d.current_version_id = v.id{filter_sql}
+        WHERE v.status = 'parsed'
+          AND d.current_version_id = v.id{search_sql}{filter_sql}
         """,
-        (match, *filter_values),
+        (*search_values, *filter_values),
     ).fetchone()
     return int(row[0]) if row is not None else 0
+
+
+def search_deck_ids(
+    connection: sqlite3.Connection,
+    query: str,
+    filters: LibraryFilters = DEFAULT_LIBRARY_FILTERS,
+) -> tuple[str, ...]:
+    filter_sql, filter_values = _library_filter_sql(filters)
+    search_sql, search_values = _search_constraint(query)
+    rows = connection.execute(
+        f"""
+        SELECT DISTINCT d.id
+        FROM slides s
+        JOIN deck_versions v ON v.id = s.deck_version_id
+        JOIN decks d ON d.id = v.deck_id
+        LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
+        WHERE v.status = 'parsed'
+          AND d.current_version_id = v.id{search_sql}{filter_sql}
+        ORDER BY d.id
+        """,
+        (*search_values, *filter_values),
+    ).fetchall()
+    return tuple(str(row[0]) for row in rows)
 
 
 def library_facets(connection: sqlite3.Connection) -> LibraryFacets:

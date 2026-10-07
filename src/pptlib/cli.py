@@ -4,47 +4,24 @@ import argparse
 import json
 import os
 import signal
-import socket
 import sqlite3
 import threading
 import uuid
 import warnings
-import webbrowser
 from dataclasses import replace
 from pathlib import Path
 
-import uvicorn
-
-from pptlib.application.catalog import (
-    MiaodaSync,
-    MiaodaSyncError,
-    build_catalog,
-    write_catalog_bundle,
+from pptlib.application.desktop_state import (
+    desktop_bootstrap,
+    desktop_search,
+    recover_desktop_task,
+    save_desktop_selection,
+    set_desktop_task,
 )
-from pptlib.application.compose import compose_from_manifest, preflight_compose_from_manifest
-from pptlib.application.deduplicate import find_duplicate_slides
-from pptlib.application.delete import delete_decks, delete_slides
-from pptlib.application.doctor import run_doctor
-from pptlib.application.import_decks import scan_and_import
-from pptlib.application.scan_plans import (
-    current_scan_run,
-    delete_scan_plan,
-    list_scan_plans,
-    preview_scan_plan,
-    record_missed_scan_run,
-    recover_interrupted_runs,
-    retry_scan_run,
-    run_scan_plan,
-    save_scan_plan,
-    scan_run_history,
-    set_scan_plan_enabled,
-)
+from pptlib.application.library import LibraryFilters
 from pptlib.bootstrap import initialize
 from pptlib.config import load_settings
 from pptlib.domain.errors import AppError
-from pptlib.infrastructure.db.connection import connect
-from pptlib.web.app import create_app
-from pptlib.worker.main import run_once
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,6 +29,24 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("doctor")
     subparsers.add_parser("init")
+    desktop = subparsers.add_parser(
+        "desktop", help="SQLite-backed desktop application interface"
+    )
+    desktop_actions = desktop.add_subparsers(dest="desktop_action", required=True)
+    desktop_boot = desktop_actions.add_parser("bootstrap")
+    desktop_boot.add_argument("--since-revision")
+    desktop_search_command = desktop_actions.add_parser("search")
+    desktop_search_command.add_argument("--query", default="")
+    desktop_search_command.add_argument("--page", type=int, default=1)
+    desktop_search_command.add_argument("--page-size", type=int, default=100)
+    desktop_search_command.add_argument("--filters", default="{}")
+    desktop_selection = desktop_actions.add_parser("selection-save")
+    desktop_selection_input = desktop_selection.add_mutually_exclusive_group(required=True)
+    desktop_selection_input.add_argument("--payload")
+    desktop_selection_input.add_argument("--stdin", action="store_true")
+    desktop_task = desktop_actions.add_parser("task-set")
+    desktop_task.add_argument("--payload", required=True)
+    desktop_actions.add_parser("task-recover")
     import_command = subparsers.add_parser(
         "import", help="scan and index PPTX files or source directories (indexed in place)"
     )
@@ -161,34 +156,100 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument(
         "--dry-run", action="store_true", help="print lark-cli commands without executing"
     )
-    serve = subparsers.add_parser("serve")
-    serve.add_argument("--no-open", action="store_true")
     worker = subparsers.add_parser("worker")
     worker.add_argument("--once", action="store_true")
     return parser
-
-
-def _available_port(host: str, preferred: int) -> int:
-    with socket.socket() as probe:
-        try:
-            probe.bind((host, preferred))
-            return preferred
-        except OSError:
-            probe.bind((host, 0))
-            return int(probe.getsockname()[1])
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     settings = load_settings()
     if args.command == "doctor":
+        from pptlib.application.doctor import run_doctor
+
         print(json.dumps(run_doctor(settings).to_dict(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "init":
         applied = initialize(settings)
         print(json.dumps({"applied_migrations": applied}, ensure_ascii=False))
         return 0
+    if args.command == "desktop":
+        initialize(settings)
+        try:
+            if args.desktop_action == "bootstrap":
+                result = desktop_bootstrap(
+                    settings,
+                    since_revision=args.since_revision,
+                )
+            elif args.desktop_action == "search":
+                raw_filters = json.loads(args.filters)
+                if not isinstance(raw_filters, dict):
+                    raise ValueError("filters must be a JSON object")
+                result = desktop_search(
+                    settings,
+                    query=args.query,
+                    page=args.page,
+                    page_size=args.page_size,
+                    filters=LibraryFilters(
+                        topic=str(raw_filters.get("topic", "")),
+                        subtopic=str(raw_filters.get("subtopic", "")),
+                        page_type=str(raw_filters.get("page_type", "")),
+                        deck_id=str(raw_filters.get("deck_id", "")),
+                        source_format=str(raw_filters.get("source_format", "")),
+                    ),
+                )
+            elif args.desktop_action == "selection-save":
+                if args.stdin:
+                    import sys
+
+                    payload = json.load(sys.stdin)
+                else:
+                    payload = json.loads(args.payload)
+                if not isinstance(payload, dict):
+                    raise ValueError("payload must be a JSON object")
+                result = save_desktop_selection(settings, payload)
+            elif args.desktop_action == "task-set":
+                payload = json.loads(args.payload)
+                if not isinstance(payload, dict):
+                    raise ValueError("payload must be a JSON object")
+                result = set_desktop_task(settings, payload)
+            elif args.desktop_action == "task-recover":
+                result = recover_desktop_task(settings)
+            else:
+                raise AssertionError("unreachable desktop action")
+        except (ValueError, OSError, sqlite3.Error, AppError, json.JSONDecodeError) as error:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": error.code.value
+                        if isinstance(error, AppError)
+                        else "DESKTOP_ERROR",
+                        "message": str(error),
+                        "details": dict(error.details) if isinstance(error, AppError) else {},
+                    },
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
+            return 1
+        print(json.dumps(result, ensure_ascii=False), flush=True)
+        return 0
     if args.command == "scan-plan":
+        from pptlib.application.scan_plans import (
+            current_scan_run,
+            delete_scan_plan,
+            list_scan_plans,
+            preview_scan_plan,
+            record_missed_scan_run,
+            recover_interrupted_runs,
+            retry_scan_run,
+            run_scan_plan,
+            save_scan_plan,
+            scan_run_history,
+            set_scan_plan_enabled,
+        )
+
         initialize(settings)
 
         def _emit_scan_progress(event: dict[str, object]) -> None:
@@ -257,6 +318,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
         return 0
     if args.command == "import":
+        from pptlib.application.import_decks import scan_and_import
+        from pptlib.infrastructure.db.connection import connect
+
         if args.html:
             settings = replace(settings, html_enabled=True)
         initialize(settings)
@@ -364,6 +428,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(repair.to_dict(), ensure_ascii=False), flush=True)
         return 0 if not repair.failed else 1
     if args.command == "remove":
+        from pptlib.application.delete import delete_decks, delete_slides
+
         initialize(settings)
         if not args.deck and not args.slide:
             raise SystemExit("remove requires at least one --deck or --slide")
@@ -405,11 +471,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.command == "duplicates":
+        from pptlib.application.deduplicate import find_duplicate_slides
+
         initialize(settings)
         duplicate_report = find_duplicate_slides(settings, refresh=args.refresh)
         print(json.dumps(duplicate_report.to_dict(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "compose-preflight":
+        from pptlib.application.compose import preflight_compose_from_manifest
+
         initialize(settings)
         preflight_result = preflight_compose_from_manifest(
             settings,
@@ -420,6 +490,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(preflight_result.to_dict(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "compose":
+        from pptlib.application.compose import compose_from_manifest
+
         initialize(settings)
         manifest = args.manifest.expanduser().resolve()
         if not manifest.is_file():
@@ -464,6 +536,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.command == "catalog":
+        from pptlib.application.catalog import build_catalog, write_catalog_bundle
+
         initialize(settings)
         output_dir = args.output_dir.expanduser().resolve()
         catalog_path = write_catalog_bundle(
@@ -485,6 +559,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.command == "sync":
+        from pptlib.application.catalog import MiaodaSync, MiaodaSyncError
+
         initialize(settings)
         syncer = MiaodaSync(
             args.app_id,
@@ -514,16 +590,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.command == "worker":
+        from pptlib.worker.main import run_once
+
         if not args.once:
             raise SystemExit("M0.0 worker requires --once")
         initialize(settings)
         run_once(settings, worker_id=f"worker-{uuid.uuid4().hex[:8]}")
-        return 0
-    if args.command == "serve":
-        initialize(settings)
-        port = _available_port(settings.host, settings.port)
-        if not args.no_open:
-            webbrowser.open(f"http://{settings.host}:{port}")
-        uvicorn.run(create_app(settings), host=settings.host, port=port)
         return 0
     raise AssertionError("unreachable command")

@@ -3,7 +3,7 @@ PYTEST := .venv/bin/pytest
 RUFF := .venv/bin/ruff
 MYPY := .venv/bin/mypy
 
-.PHONY: install lint typecheck test-unit test-integration test-contract check run worker
+.PHONY: install lint typecheck test-unit test-integration check worker
 
 install:
 	python3.11 -m venv .venv
@@ -22,13 +22,7 @@ test-unit:
 test-integration:
 	$(PYTEST) tests/integration -v
 
-test-contract:
-	$(PYTEST) tests/contract -v
-
-check: lint typecheck test-unit test-integration test-contract
-
-run:
-	.venv/bin/pptlib serve
+check: lint typecheck test-unit test-integration
 
 worker:
 	.venv/bin/pptlib worker --once

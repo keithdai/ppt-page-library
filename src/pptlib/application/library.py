@@ -158,6 +158,8 @@ class DeckSummary:
     name: str
     slide_count: int
     cover_thumbnail_url: str | None = None
+    source_path: str = ""
+    source_format: str = "pptx"
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -165,6 +167,8 @@ class DeckSummary:
             "name": self.name,
             "slide_count": self.slide_count,
             "cover_thumbnail_url": self.cover_thumbnail_url,
+            "source_path": self.source_path,
+            "source_format": self.source_format,
         }
 
 

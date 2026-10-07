@@ -19,10 +19,16 @@ const {
   powerMonitor,
 } = require('electron');
 const { spawn } = require('node:child_process');
-const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 const fs = require('node:fs');
-const { createHtmlPreview, isMainSender, isSlideId } = require('./renderer/html-preview');
+const { createHtmlPreview, isSlideId } = require('./renderer/html-preview');
+const { createScheduler, planIsDue, planWasMissed } = require('./scheduler');
+const {
+  assetUrl,
+  createAssetProtocolHandler,
+  requireMainSender: assertMainSender,
+} = require('./security');
+const { createTaskCoordinator } = require('./task-coordinator');
 
 app.setName('拼页');
 if (process.env.PPTLIB_ELECTRON_USER_DATA) {
@@ -34,24 +40,15 @@ const hasElectronInstanceLock = app.requestSingleInstanceLock();
 let mainWindow = null;
 let approvedSlides = new Map();
 const htmlPreviews = new Set();
-let activeHeavyTask = null;
-let schedulerTimer = null;
 
 function closeHtmlPreviews() {
   return Promise.allSettled([...htmlPreviews].map((preview) => preview.dispose()));
 }
 
-// Custom scheme to serve local thumbnail/preview images to the renderer. A
-// file://-loaded page can't reliably read images from other directories, so
-// catalog thumbnails are served through `pptlib-asset://local/<encoded-abs>`.
+// Custom scheme serves only thumbnail/preview images below PPTLIB_HOME/assets.
 protocol.registerSchemesAsPrivileged([
   { scheme: 'pptlib-asset', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
-
-function assetUrl(absPath) {
-  const version = fs.existsSync(absPath) ? fs.statSync(absPath).mtimeMs : 0;
-  return `pptlib-asset://local/${encodeURIComponent(absPath)}?v=${version}`;
-}
 
 // Where the pptlib repo lives. In dev the desktop/ folder sits inside the repo,
 // so its parent is the root. Once packaged into a .app that assumption breaks
@@ -210,7 +207,7 @@ function htmlEnabled() {
 function runPptlib(
   args,
   webContents,
-  { onLine, onSpawn, taskId = null, taskKind = null, onProgress } = {},
+  { input = null, onLine, onSpawn, taskId = null, taskKind = null, onProgress } = {},
 ) {
   return new Promise((resolve, reject) => {
     if (!runtimeAvailable()) {
@@ -225,9 +222,10 @@ function runPptlib(
       cwd: runtimeWorkingDirectory(),
       env: childEnv(),
       shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
     if (onSpawn) onSpawn(child);
+    if (input !== null) child.stdin.end(input);
     let stdout = ''; // accumulates only non-progress stdout (for final JSON parse)
     let stderr = '';
     let outBuf = ''; // line buffer so progress markers survive chunk splits
@@ -293,251 +291,53 @@ function runPptlib(
   });
 }
 
-function taskSnapshot(task = activeHeavyTask) {
-  if (!task) return null;
-  return {
-    taskId: task.taskId,
-    kind: task.kind,
-    state: task.state,
-    startedAt: task.startedAt,
-    progress: task.progress || null,
-  };
-}
-
-function broadcastTaskState(task = activeHeavyTask) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('task-state', taskSnapshot(task));
-  }
-}
-
-function beginHeavyTask(kind) {
-  if (activeHeavyTask) {
-    throw new Error(`当前正在执行“${activeHeavyTask.kind}”，请等待完成或先停止`);
-  }
-  let finish;
-  const done = new Promise((resolve) => { finish = resolve; });
-  activeHeavyTask = {
-    taskId: randomUUID(),
-    kind,
-    state: 'running',
-    startedAt: new Date().toISOString(),
-    child: null,
-    progress: null,
-    done,
-    finish,
-  };
-  broadcastTaskState();
-  return activeHeavyTask;
-}
-
-function finishHeavyTask(task) {
-  if (activeHeavyTask !== task) return;
-  task.state = 'finished';
-  task.child = null;
-  task.finish();
-  activeHeavyTask = null;
-  broadcastTaskState(null);
-}
-
-async function runHeavyTask(kind, args, webContents) {
-  const task = beginHeavyTask(kind);
-  try {
-    return await runPptlibForTask(task, args, webContents);
-  } finally {
-    finishHeavyTask(task);
-  }
-}
-
-function runPptlibForTask(task, args, webContents) {
-  return runPptlib(args, webContents, {
-    taskId: task.taskId,
-    taskKind: task.kind,
-    onSpawn(child) {
-      task.child = child;
-      if (task.state === 'stopping' && child.exitCode === null) child.kill('SIGTERM');
-    },
-    onProgress(progress) {
-      task.progress = progress;
-      broadcastTaskState(task);
-    },
-  });
-}
-
-async function stopHeavyTask({ wait = false, timeoutMs = 15000 } = {}) {
-  const task = activeHeavyTask;
-  if (!task) return { ok: true, stopped: false };
-  if (task.state !== 'stopping') {
-    task.state = 'stopping';
-    broadcastTaskState(task);
-    if (task.child && !task.child.killed) task.child.kill('SIGTERM');
-  }
-  if (!wait) return { ok: true, stopped: true, task: taskSnapshot(task) };
-  let timeout;
-  await Promise.race([
-    task.done,
-    new Promise((resolve) => {
-      timeout = setTimeout(() => {
-        if (activeHeavyTask === task && task.child && task.child.exitCode === null) {
-          task.child.kill('SIGKILL');
-        }
-        resolve();
-      }, timeoutMs);
-    }),
-  ]);
-  if (timeout) clearTimeout(timeout);
-  return { ok: true, stopped: true, task: taskSnapshot(task) };
-}
-
 function requireMainSender(event) {
-  if (!isMainSender(event, mainWindow)) throw new Error('不允许的请求');
+  assertMainSender(event, mainWindow);
 }
 
-function localDayKey(value) {
-  const date = new Date(value);
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-');
-}
-
-function minuteOfDay(value) {
-  const [hour, minute] = String(value).split(':').map(Number);
-  return hour * 60 + minute;
-}
-
-function timeInWindow(nowMinutes, start, end) {
-  const startMinutes = minuteOfDay(start);
-  const endMinutes = minuteOfDay(end);
-  if (startMinutes <= endMinutes) {
-    return nowMinutes >= startMinutes && nowMinutes <= endMinutes;
-  }
-  return nowMinutes >= startMinutes || nowMinutes <= endMinutes;
-}
-
-function scheduledOccurrence(plan, now) {
-  const scheduleMinutes = minuteOfDay(plan.scheduleTime);
-  const startMinutes = minuteOfDay(plan.windowStart);
-  const endMinutes = minuteOfDay(plan.windowEnd);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const target = new Date(now);
-  target.setHours(Math.floor(scheduleMinutes / 60), scheduleMinutes % 60, 0, 0);
-  if (startMinutes > endMinutes) {
-    if (scheduleMinutes >= startMinutes && nowMinutes < startMinutes) {
-      target.setDate(target.getDate() - 1);
-    } else if (scheduleMinutes <= endMinutes && nowMinutes >= startMinutes) {
-      target.setDate(target.getDate() + 1);
-    }
-  }
-  return target;
-}
-
-function planRunRecorded(plan, history, target) {
-  const day = localDayKey(target);
-  return history.some(
-    (run) => run.planId === plan.id &&
-      run.triggerType === 'scheduled' &&
-      localDayKey(run.scheduledFor || run.startedAt) === day,
-  );
-}
-
-function planIsDue(plan, history, now = new Date()) {
-  if (!plan.enabled || plan.scheduleKind !== 'daily') return false;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  if (!timeInWindow(nowMinutes, plan.windowStart, plan.windowEnd)) return false;
-  const target = scheduledOccurrence(plan, now);
-  return now >= target && !planRunRecorded(plan, history, target);
-}
-
-function planWasMissed(plan, history, now = new Date()) {
-  if (!plan.enabled || plan.scheduleKind !== 'daily') return false;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  if (timeInWindow(nowMinutes, plan.windowStart, plan.windowEnd)) return false;
-  const target = scheduledOccurrence(plan, now);
-  if (plan.updatedAt && new Date(plan.updatedAt) > target) return false;
-  return now > target && !planRunRecorded(plan, history, target);
-}
-let schedulerChecking = false;
-async function checkScheduledPlans() {
-  if (schedulerChecking || activeHeavyTask || !runtimeAvailable()) return;
-  schedulerChecking = true;
-  try {
-    const [planResult, historyResult] = await Promise.all([
-      runPptlib(['scan-plan', 'list'], null),
-      runPptlib(['scan-plan', 'history', '--limit', '200'], null),
-    ]);
-    const plans = planResult.parsed?.plans || [];
-    const history = historyResult.parsed?.runs || [];
-    for (const plan of plans.filter((item) => planWasMissed(item, history))) {
-      const scheduledFor = scheduledOccurrence(plan, new Date()).toISOString();
-      const missed = await runPptlib(
-        ['scan-plan', 'missed', plan.id, '--scheduled-for', scheduledFor],
-        null,
-      );
-      if (missed.parsed) {
-        history.push({
-          planId: plan.id,
-          triggerType: 'scheduled',
-          startedAt: scheduledFor,
-        });
-      }
-    }
-    const due = plans.find((plan) => planIsDue(plan, history));
-    if (!due || activeHeavyTask) return;
-    const scheduledFor = scheduledOccurrence(due, new Date()).toISOString();
-    runHeavyTask(
-      '自动更新',
-      [
-        'scan-plan', 'run', due.id, '--trigger', 'scheduled',
-        '--scheduled-for', scheduledFor,
-      ],
-      mainWindow?.webContents,
-    ).catch((error) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('task-error', {
-          kind: '自动更新',
-          message: error.message,
-        });
-      }
+function taskError(kind, error) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('task-error', {
+      kind,
+      message: error.message,
     });
-  } catch (error) {
+  }
+}
+
+const taskCoordinator = createTaskCoordinator({
+  runCommand: runPptlib,
+  onState(task) {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('task-error', {
-        kind: '自动更新调度',
-        message: error.message,
-      });
+      mainWindow.webContents.send('task-state', task);
     }
-  } finally {
-    schedulerChecking = false;
-  }
+  },
+  async persistTask(task) {
+    await runPptlib(
+      ['desktop', 'task-set', '--payload', JSON.stringify(task)],
+      null,
+    );
+  },
+});
+
+const scheduler = createScheduler({
+  runCommand: runPptlib,
+  taskCoordinator,
+  runtimeAvailable,
+  getWebContents: () => mainWindow?.webContents || null,
+  onError: taskError,
+});
+
+function assetizeSlide(slide) {
+  const assetsDir = path.join(childEnv().PPTLIB_HOME, 'assets');
+  return {
+    ...slide,
+    thumbnail_url: assetUrl(assetsDir, slide.thumbnail_url),
+    preview_url: assetUrl(assetsDir, slide.preview_url),
+  };
 }
 
-function startScheduler() {
-  if (schedulerTimer) clearInterval(schedulerTimer);
-  schedulerTimer = setInterval(checkScheduledPlans, 60 * 1000);
-  schedulerTimer.unref?.();
-  setTimeout(checkScheduledPlans, 1500);
-}
-
-async function runAllEnabledPlans(webContents) {
-  const task = beginHeavyTask('立即更新全部');
-  const results = [];
-  try {
-    const listResult = await runPptlibForTask(task, ['scan-plan', 'list'], webContents);
-    const plans = (listResult.parsed?.plans || []).filter((plan) => plan.enabled);
-    for (const plan of plans) {
-      if (task.state === 'stopping') break;
-      const result = await runPptlibForTask(
-        task,
-        ['scan-plan', 'run', plan.id, '--trigger', 'manual'],
-        webContents,
-      );
-      results.push(result.parsed || {});
-    }
-    return { ok: true, results };
-  } finally {
-    finishHeavyTask(task);
-  }
+function rememberSlides(slides) {
+  for (const slide of slides) approvedSlides.set(slide.slide_id, slide);
 }
 
 function createWindow() {
@@ -552,6 +352,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -578,28 +379,16 @@ if (!hasSingleInstanceLock) {
     if (!appIcon.isEmpty() && app.dock) app.dock.setIcon(appIcon);
     app.setAppUserModelId('com.pptlib.desktop');
 
-    // Serve local catalog thumbnails to the renderer via pptlib-asset://.
-    protocol.handle('pptlib-asset', (request) => {
-      try {
-        const encoded = new URL(request.url).pathname.slice(1);
-        const abs = decodeURIComponent(encoded);
-        if (!fs.existsSync(abs)) return new Response('not found', { status: 404 });
-        const data = fs.readFileSync(abs);
-        const ext = path.extname(abs).toLowerCase();
-        const type = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
-        return new Response(data, {
-          headers: { 'content-type': type, 'cache-control': 'no-store' },
-        });
-      } catch (error) {
-        return new Response(String(error), { status: 500 });
-      }
-    });
+    protocol.handle(
+      'pptlib-asset',
+      createAssetProtocolHandler(() => path.join(childEnv().PPTLIB_HOME, 'assets')),
+    );
     createWindow();
-    runPptlib(['scan-plan', 'recover'], null).catch(() => {
-      /* Recovery is best effort; the module will surface database errors. */
-    });
-    startScheduler();
-    powerMonitor.on('resume', checkScheduledPlans);
+    Promise.allSettled([
+      runPptlib(['scan-plan', 'recover'], null),
+      runPptlib(['desktop', 'task-recover'], null),
+    ]).finally(() => scheduler.start());
+    powerMonitor.on('resume', scheduler.check);
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
@@ -612,7 +401,7 @@ if (!hasSingleInstanceLock) {
 }
 
 app.on('will-quit', () => {
-  if (schedulerTimer) clearInterval(schedulerTimer);
+  scheduler.stop();
   releaseRepositoryInstanceLock();
 });
 let quitCleanupPending = false;
@@ -623,12 +412,12 @@ app.on('before-quit', (event) => {
     event.preventDefault();
     return;
   }
-  if (htmlPreviews.size === 0 && !activeHeavyTask) return;
+  if (htmlPreviews.size === 0 && !taskCoordinator.hasActive()) return;
   event.preventDefault();
   quitCleanupPending = true;
   Promise.allSettled([
     closeHtmlPreviews(),
-    stopHeavyTask({ wait: true }),
+    taskCoordinator.stop({ wait: true }),
   ]).finally(() => {
     quitCleanupPending = false;
     quitCleanupDone = true;
@@ -644,17 +433,20 @@ app.on('window-all-closed', () => {
 // IPC handlers
 // --------------------------------------------------------------------------- //
 
-ipcMain.handle('paths', () => ({
-  repoRoot: REPO_ROOT,
-  repoRootValid: runtimeAvailable(),
-  runtimeMode: hasBundledRuntime() ? 'bundled' : 'development',
-  home: childEnv().PPTLIB_HOME,
-  pptlib: pptlibBinary(),
-  htmlEnabled: htmlEnabled(),
-}));
+ipcMain.handle('paths', (event) => {
+  requireMainSender(event);
+  return {
+    repoRoot: REPO_ROOT,
+    repoRootValid: runtimeAvailable(),
+    runtimeMode: hasBundledRuntime() ? 'bundled' : 'development',
+    home: childEnv().PPTLIB_HOME,
+    pptlib: pptlibBinary(),
+    htmlEnabled: htmlEnabled(),
+  };
+});
 
 ipcMain.handle('html-preview', async (event, slideId) => {
-  if (!isMainSender(event, mainWindow)) throw new Error('不允许的预览请求');
+  requireMainSender(event);
   if (!htmlEnabled()) throw new Error('HTML 功能已关闭');
   if (!isSlideId(slideId)) throw new Error('无效的页面 ID');
   const slide = approvedSlides.get(slideId);
@@ -685,6 +477,7 @@ ipcMain.handle('html-preview', async (event, slideId) => {
 // Persist an ordered slide_id selection as a manifest.json under PPTLIB_HOME so
 // the existing compose flow consumes it unchanged.
 ipcMain.handle('write-manifest', async (event, slideIds) => {
+  requireMainSender(event);
   const ids = Array.isArray(slideIds)
     ? slideIds.map((v) => String(v).trim()).filter(Boolean)
     : [];
@@ -698,7 +491,8 @@ ipcMain.handle('write-manifest', async (event, slideIds) => {
 
 // Let the user point the app at their pptlib checkout (needed after packaging,
 // where the .app no longer sits inside the repo).
-ipcMain.handle('pick-repo-root', async () => {
+ipcMain.handle('pick-repo-root', async (event) => {
+  requireMainSender(event);
   const result = await dialog.showOpenDialog({
     title: '选择 pptlib 仓库目录（包含 src/pptlib）',
     properties: ['openDirectory'],
@@ -712,7 +506,8 @@ ipcMain.handle('pick-repo-root', async () => {
   return { ok: true, repoRoot: REPO_ROOT, home: childEnv().PPTLIB_HOME, pptlib: pptlibBinary() };
 });
 
-ipcMain.handle('pick-pptx', async () => {
+ipcMain.handle('pick-pptx', async (event) => {
+  requireMainSender(event);
   const result = await dialog.showOpenDialog({
     title: htmlEnabled()
       ? '选择 PPTX、HTML 或 HTML Deck ZIP（源文件仅留在本地）'
@@ -726,7 +521,8 @@ ipcMain.handle('pick-pptx', async () => {
 });
 
 // Pick one or more folders; the backend scans them recursively for PPTX files.
-ipcMain.handle('pick-folder', async () => {
+ipcMain.handle('pick-folder', async (event) => {
+  requireMainSender(event);
   const result = await dialog.showOpenDialog({
     title: htmlEnabled()
       ? '选择文件夹（递归查找 PPTX / HTML / ZIP，源文件仅留在本地）'
@@ -736,7 +532,8 @@ ipcMain.handle('pick-folder', async () => {
   return result.canceled ? [] : result.filePaths;
 });
 
-ipcMain.handle('pick-manifest', async () => {
+ipcMain.handle('pick-manifest', async (event) => {
+  requireMainSender(event);
   const result = await dialog.showOpenDialog({
     title: '选择选片清单 manifest.json',
     properties: ['openFile'],
@@ -745,7 +542,8 @@ ipcMain.handle('pick-manifest', async () => {
   return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle('pick-output-pptx', async () => {
+ipcMain.handle('pick-output-pptx', async (event) => {
+  requireMainSender(event);
   const result = await dialog.showSaveDialog({
     title: '组合结果保存为',
     defaultPath: path.join(app.getPath('downloads'), 'composed.pptx'),
@@ -758,85 +556,96 @@ ipcMain.handle('pick-output-pptx', async () => {
 // recorded as the canonical source, so nothing is copied and no local space is
 // consumed. Compose later reads directly from the original locations.
 ipcMain.handle('import', async (event, filePaths) => {
+  requireMainSender(event);
   if (!Array.isArray(filePaths) || filePaths.length === 0) {
     throw new Error('未选择任何文件');
   }
   closeHtmlPreviews();
   approvedSlides.clear();
-  const res = await runHeavyTask('导入并渲染', ['import', ...filePaths], event.sender);
+  const res = await taskCoordinator.run(
+    '导入并渲染',
+    ['import', ...filePaths],
+    event.sender,
+  );
   return [res.parsed || {}];
 });
 
-ipcMain.handle('catalog', async (event, outputDir) => {
-  if (activeHeavyTask) throw new Error('页库正在更新，请等待当前任务完成');
-  const target = outputDir || path.join(childEnv().PPTLIB_HOME, 'catalog');
-  const res = await runPptlib(['catalog', target], event.sender);
-  return res.parsed;
+ipcMain.handle('library:bootstrap', async (event, sinceRevision) => {
+  requireMainSender(event);
+  const args = ['desktop', 'bootstrap'];
+  if (sinceRevision) args.push('--since-revision', String(sinceRevision));
+  const result = await runPptlib(args, event.sender);
+  const payload = result.parsed || {};
+  payload.htmlEnabled = htmlEnabled();
+  if (!payload.unchanged) approvedSlides.clear();
+  payload.decks = (payload.decks || []).map((deck) => ({
+    ...deck,
+    cover_thumbnail_url: assetUrl(
+      path.join(childEnv().PPTLIB_HOME, 'assets'),
+      deck.cover_thumbnail_url,
+    ),
+  }));
+  const selectionItems = (payload.selection?.items || []).map(assetizeSlide);
+  if (payload.selection) payload.selection.items = selectionItems;
+  rememberSlides(selectionItems);
+  return payload;
 });
 
-// Load the local catalog for in-app grid selection. This regenerates
-// catalog.json from the local index, then attaches a resolvable asset URL for
-// each slide's thumbnail (assets live under PPTLIB_HOME/assets). Selection then
-// happens entirely locally.
-ipcMain.handle('load-catalog', async (event) => {
-  if (!isMainSender(event, mainWindow)) throw new Error('不允许的页库请求');
-  if (activeHeavyTask) throw new Error('页库正在更新，请等待当前任务完成');
-  const home = childEnv().PPTLIB_HOME;
-  const target = path.join(home, 'catalog');
-  await runPptlib(['catalog', target, '--include-local-fields'], event.sender);
-  const catalogPath = path.join(target, 'catalog.json');
-  const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
-  const assetsDir = path.join(home, 'assets');
-  const slides = (catalog.slides || []).map((s) => {
-    const thumbAbs = path.join(assetsDir, s.thumbnail_file || '');
-    const hasThumb = s.thumbnail_file && fs.existsSync(thumbAbs);
-    // The renderer also produces a high-resolution preview per page under
-    // assets/previews/{slide_id}.jpg — used for zoom/lightbox. Fall back to the
-    // thumbnail when a preview is missing (e.g. an older partial render).
-    const previewAbs = path.join(assetsDir, 'previews', `${s.slide_id}.jpg`);
-    const hasPreview = fs.existsSync(previewAbs);
-    return {
-      slide_id: s.slide_id,
-      deck_id: s.deck_id,
-      deck_name: s.deck_name,
-      source_path: s.source_path || '',
-      source_format: s.source_format || 'pptx',
-      page_key: s.page_key || '',
-      page_kind: s.page_kind || '',
-      capabilities: s.capabilities && typeof s.capabilities === 'object' ? s.capabilities : {},
-      warnings: Array.isArray(s.warnings) ? s.warnings : [],
-      slide_number: s.slide_number,
-      title: s.title,
-      summary: s.summary || '',
-      search_text: s.search_text || s.summary || '',
-      topic: s.topic,
-      subtopic: s.subtopic,
-      page_type: s.page_type,
-      thumbnail_url: hasThumb ? assetUrl(thumbAbs) : '',
-      preview_url: hasPreview ? assetUrl(previewAbs) : hasThumb ? assetUrl(thumbAbs) : '',
-    };
-  });
-  approvedSlides = new Map(slides.map((slide) => [slide.slide_id, slide]));
-  return { slide_count: slides.length, slides, htmlEnabled: htmlEnabled() };
+ipcMain.handle('library:search', async (event, options = {}) => {
+  requireMainSender(event);
+  const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+  const pageSize = Math.min(200, Math.max(1, Number.parseInt(options.pageSize, 10) || 100));
+  const result = await runPptlib(
+    [
+      'desktop',
+      'search',
+      '--query',
+      String(options.query || '').slice(0, 500),
+      '--page',
+      String(page),
+      '--page-size',
+      String(pageSize),
+      '--filters',
+      JSON.stringify(options.filters || {}),
+    ],
+    event.sender,
+  );
+  const payload = result.parsed || {};
+  payload.items = (payload.items || []).map(assetizeSlide);
+  rememberSlides(payload.items);
+  return payload;
+});
+
+ipcMain.handle('selection:save', async (event, payload = {}) => {
+  requireMainSender(event);
+  const result = await runPptlib(
+    ['desktop', 'selection-save', '--stdin'],
+    event.sender,
+    { input: JSON.stringify(payload) },
+  );
+  const response = result.parsed || {};
+  response.items = (response.items || []).map(assetizeSlide);
+  rememberSlides(response.items);
+  return response;
 });
 
 ipcMain.handle('find-duplicates', async (event, refresh) => {
+  requireMainSender(event);
   const args = ['duplicates'];
   if (refresh === true) args.push('--refresh');
-  const res = await runHeavyTask('重复扫描', args, event.sender);
+  const res = await taskCoordinator.run('重复扫描', args, event.sender);
   const report = res.parsed || {};
   const assetsDir = path.join(childEnv().PPTLIB_HOME, 'assets');
   report.groups = (report.groups || []).map((group) => ({
     ...group,
     members: (group.members || []).map((member) => {
-      const thumbnail = path.join(assetsDir, 'thumbnails', `${member.slide_id}.jpg`);
-      const preview = path.join(assetsDir, 'previews', `${member.slide_id}.jpg`);
-      let previewUrl = '';
-      if (fs.existsSync(preview)) previewUrl = assetUrl(preview);
-      else if (fs.existsSync(thumbnail)) previewUrl = assetUrl(thumbnail);
+      const thumbnail = `/assets/thumbnails/${member.slide_id}.jpg`;
+      const preview = `/assets/previews/${member.slide_id}.jpg`;
+      const thumbnailUrl = assetUrl(assetsDir, thumbnail);
+      const previewUrl = assetUrl(assetsDir, preview) || thumbnailUrl;
       return {
         ...member,
-        thumbnail_url: fs.existsSync(thumbnail) ? assetUrl(thumbnail) : '',
+        thumbnail_url: thumbnailUrl,
         preview_url: previewUrl,
       };
     }),
@@ -847,6 +656,7 @@ ipcMain.handle('find-duplicates', async (event, refresh) => {
 // Remove decks or individual slides from the local index. This only clears the
 // local index + cached thumbnails; the original PPTX files are never touched.
 ipcMain.handle('remove-deck', async (event, deckIds) => {
+  requireMainSender(event);
   const ids = (Array.isArray(deckIds) ? deckIds : [deckIds]).filter(Boolean);
   if (ids.length === 0) throw new Error('未提供要删除的文件');
   closeHtmlPreviews();
@@ -855,18 +665,19 @@ ipcMain.handle('remove-deck', async (event, deckIds) => {
   }
   const args = ['remove'];
   ids.forEach((id) => args.push('--deck', String(id)));
-  const res = await runHeavyTask('页库清理', args, event.sender);
+  const res = await taskCoordinator.run('页库清理', args, event.sender);
   return res.parsed;
 });
 
 ipcMain.handle('remove-slide', async (event, slideIds) => {
+  requireMainSender(event);
   const ids = (Array.isArray(slideIds) ? slideIds : [slideIds]).filter(Boolean);
   if (ids.length === 0) throw new Error('未提供要删除的页面');
   closeHtmlPreviews();
   for (const id of ids) approvedSlides.delete(id);
   const args = ['remove'];
   ids.forEach((id) => args.push('--slide', String(id)));
-  const res = await runHeavyTask('页库清理', args, event.sender);
+  const res = await taskCoordinator.run('页库清理', args, event.sender);
   return res.parsed;
 });
 
@@ -891,7 +702,7 @@ ipcMain.handle('compose', async (event, {
   const args = ['compose', manifest, output];
   if (verifyHash === false) args.push('--no-verify-hash');
   if (preflightToken) args.push('--preflight-token', String(preflightToken));
-  const res = await runHeavyTask('组合导出', args, event.sender);
+  const res = await taskCoordinator.run('组合导出', args, event.sender);
   return res.parsed;
 });
 
@@ -936,7 +747,7 @@ ipcMain.handle('scan-plan:set-enabled', async (event, { planId, enabled } = {}) 
 
 ipcMain.handle('scan-plan:preview', async (event, payload) => {
   requireMainSender(event);
-  const res = await runHeavyTask(
+  const res = await taskCoordinator.run(
     '自动更新预检',
     ['scan-plan', 'preview', '--payload', JSON.stringify(payload || {})],
     event.sender,
@@ -948,23 +759,23 @@ ipcMain.handle('scan-plan:run', async (event, { planId, rootId } = {}) => {
   requireMainSender(event);
   const args = ['scan-plan', 'run', String(planId), '--trigger', 'manual'];
   if (rootId) args.push('--root-id', String(rootId));
-  const res = await runHeavyTask('自动更新', args, event.sender);
+  const res = await taskCoordinator.run('自动更新', args, event.sender);
   return res.parsed;
 });
 
 ipcMain.handle('scan-plan:run-all', async (event) => {
   requireMainSender(event);
-  return runAllEnabledPlans(event.sender);
+  return scheduler.runAll(event.sender);
 });
 
 ipcMain.handle('scan-run:current', async (event) => {
   requireMainSender(event);
-  return { ok: true, task: taskSnapshot() };
+  return { ok: true, task: taskCoordinator.snapshot() };
 });
 
 ipcMain.handle('scan-run:stop', async (event) => {
   requireMainSender(event);
-  return stopHeavyTask();
+  return taskCoordinator.stop();
 });
 
 ipcMain.handle('scan-run:history', async (event, limit = 50) => {
@@ -979,7 +790,7 @@ ipcMain.handle('scan-run:history', async (event, limit = 50) => {
 
 ipcMain.handle('scan-run:retry', async (event, runId) => {
   requireMainSender(event);
-  const res = await runHeavyTask(
+  const res = await taskCoordinator.run(
     '重试失败项',
     ['scan-plan', 'retry', String(runId)],
     event.sender,

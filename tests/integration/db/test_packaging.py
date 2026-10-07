@@ -47,6 +47,7 @@ def test_built_wheel_includes_all_migrations(tmp_path: Path) -> None:
         "pptlib/migrations/0008_html_assets.sql",
         "pptlib/migrations/0009_scan_plans.sql",
         "pptlib/migrations/0010_scan_run_schedule.sql",
+        "pptlib/migrations/0011_desktop_state.sql",
     }
 
 

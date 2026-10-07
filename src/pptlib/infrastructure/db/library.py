@@ -6,6 +6,7 @@ from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pptlib.application.library import (
     DEFAULT_LIBRARY_FILTERS,
@@ -19,14 +20,17 @@ from pptlib.application.library import (
     ensure_pptx_exportable,
     validate_filters,
 )
+from pptlib.domain.errors import AppError, ErrorCode
 from pptlib.domain.ids import new_id
-from pptlib.export.ooxml import SlideRef
 from pptlib.infrastructure.db.connection import connect
 from pptlib.infrastructure.db.repositories import (
     count_search_slides,
     library_facets,
     search_slides,
 )
+
+if TYPE_CHECKING:
+    from pptlib.export.ooxml import SlideRef
 
 
 @contextmanager
@@ -155,15 +159,18 @@ class SqliteSlideCatalog(SlideCatalog):
         with _open(self.database_path) as connection:
             rows = connection.execute(
                 """
-                SELECT d.id, d.display_name, v.slide_count,
+                SELECT d.id, d.display_name, COUNT(s.id),
                        (
-                         SELECT s.id FROM slides s
-                         WHERE s.deck_version_id = v.id
-                         ORDER BY s.slide_number LIMIT 1
-                       ) AS cover_slide_id
+                         SELECT cover.id FROM slides cover
+                         WHERE cover.deck_version_id = v.id
+                         ORDER BY cover.slide_number LIMIT 1
+                       ) AS cover_slide_id,
+                       d.canonical_path, v.source_format
                 FROM decks d
                 JOIN deck_versions v ON v.id = d.current_version_id
+                JOIN slides s ON s.deck_version_id = v.id
                 WHERE v.status = 'parsed'
+                GROUP BY d.id, d.display_name, v.id, d.canonical_path, v.source_format
                 ORDER BY d.display_name
                 """
             ).fetchall()
@@ -175,6 +182,8 @@ class SqliteSlideCatalog(SlideCatalog):
                 cover_thumbnail_url=(
                     _thumbnail_url(str(row[3]), self.assets_dir) if row[3] else None
                 ),
+                source_path=str(row[4]),
+                source_format=str(row[5]),
             )
             for row in rows
         )
@@ -205,28 +214,149 @@ class SqliteSelectionStore(SelectionStore):
             (self.selection_id, now, now),
         )
 
-    def list(self) -> tuple[SlideSummary, ...]:
+    def _items(self, connection: sqlite3.Connection) -> tuple[SlideSummary, ...]:
+        rows = connection.execute(
+            """
+            SELECT s.id AS slide_id, d.id AS deck_id, d.display_name,
+                   s.slide_number, s.title, s.body_text, s.notes_text,
+                   t.topic, t.page_type, t.subtopic, t.confidence,
+                   t.classification_source, t.classifier_version,
+                   v.source_format, s.page_key, s.page_kind,
+                   s.capabilities_json, v.warnings_json
+            FROM selection_items i
+            JOIN slides s ON s.id = i.slide_id
+            JOIN deck_versions v ON v.id = s.deck_version_id
+            JOIN decks d ON d.id = v.deck_id
+            LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
+            WHERE i.selection_id = ?
+            ORDER BY i.sort_order
+            """,
+            (self.selection_id,),
+        ).fetchall()
+        return tuple(_summary(row, self.assets_dir) for row in rows)
+
+    def snapshot(self) -> tuple[tuple[SlideSummary, ...], int]:
         with _open(self.database_path) as connection:
             self._ensure(connection)
-            rows = connection.execute(
-                """
-                SELECT s.id AS slide_id, d.id AS deck_id, d.display_name,
-                       s.slide_number, s.title, s.body_text, s.notes_text,
-                       t.topic, t.page_type, t.subtopic, t.confidence,
-                       t.classification_source, t.classifier_version,
-                       v.source_format, s.page_key, s.page_kind,
-                       s.capabilities_json, v.warnings_json
-                FROM selection_items i
-                JOIN slides s ON s.id = i.slide_id
-                JOIN deck_versions v ON v.id = s.deck_version_id
-                JOIN decks d ON d.id = v.deck_id
-                LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
-                WHERE i.selection_id = ?
-                ORDER BY i.sort_order
-                """,
-                (self.selection_id,),
-            ).fetchall()
-        return tuple(_summary(row, self.assets_dir) for row in rows)
+            connection.execute("BEGIN")
+            try:
+                row = connection.execute(
+                    "SELECT revision FROM selections WHERE id = ?",
+                    (self.selection_id,),
+                ).fetchone()
+                items = self._items(connection)
+                connection.execute("COMMIT")
+            except Exception:
+                if connection.in_transaction:
+                    connection.execute("ROLLBACK")
+                raise
+        return items, int(row["revision"]) if row is not None else 0
+
+    def list(self) -> tuple[SlideSummary, ...]:
+        return self.snapshot()[0]
+
+    def revision(self) -> int:
+        return self.snapshot()[1]
+
+    def replace(
+        self,
+        slide_ids: Sequence[str],
+        *,
+        expected_revision: int | None = None,
+    ) -> tuple[tuple[SlideSummary, ...], int]:
+        ids = tuple(str(slide_id).strip() for slide_id in slide_ids)
+        if any(not slide_id for slide_id in ids) or len(set(ids)) != len(ids):
+            raise AppError(
+                ErrorCode.REQUEST_INVALID,
+                "selection must contain unique, non-empty slide IDs",
+            )
+        with _open(self.database_path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._ensure(connection)
+                row = connection.execute(
+                    "SELECT revision FROM selections WHERE id = ?",
+                    (self.selection_id,),
+                ).fetchone()
+                revision = int(row["revision"])
+                if expected_revision is not None and expected_revision != revision:
+                    raise AppError(
+                        ErrorCode.INVALID_STATE_TRANSITION,
+                        "选片单已在其他窗口更新，请刷新后重试",
+                        details={"expected_revision": expected_revision, "revision": revision},
+                    )
+                current_ids = tuple(
+                    str(item["slide_id"])
+                    for item in connection.execute(
+                        """
+                        SELECT slide_id FROM selection_items
+                        WHERE selection_id = ? ORDER BY sort_order
+                        """,
+                        (self.selection_id,),
+                    ).fetchall()
+                )
+                if ids == current_ids:
+                    items = self._items(connection)
+                    connection.execute("COMMIT")
+                    return items, revision
+                rows = connection.execute(
+                    f"""
+                    SELECT id, deck_version_id, slide_number
+                    FROM slides
+                    WHERE id IN ({",".join("?" * len(ids))})
+                    """
+                    if ids
+                    else "SELECT id, deck_version_id, slide_number FROM slides WHERE 0",
+                    ids,
+                ).fetchall()
+                by_id = {str(item["id"]): item for item in rows}
+                missing = [slide_id for slide_id in ids if slide_id not in by_id]
+                if missing:
+                    raise AppError(
+                        ErrorCode.NOT_FOUND,
+                        "选片单包含已不存在的页面",
+                        details={"slide_ids": missing},
+                    )
+                connection.execute(
+                    "DELETE FROM selection_items WHERE selection_id = ?",
+                    (self.selection_id,),
+                )
+                now = datetime.now(UTC).isoformat()
+                for sort_order, slide_id in enumerate(ids, start=1):
+                    slide = by_id[slide_id]
+                    connection.execute(
+                        """
+                        INSERT INTO selection_items(
+                            id, selection_id, slide_id, deck_version_id,
+                            source_page_number, sort_order, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_id("selection_item"),
+                            self.selection_id,
+                            slide_id,
+                            slide["deck_version_id"],
+                            slide["slide_number"],
+                            sort_order,
+                            now,
+                        ),
+                    )
+                revision += 1
+                connection.execute(
+                    """
+                    UPDATE selections
+                    SET revision = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (revision, now, self.selection_id),
+                )
+                items = self._items(connection)
+                connection.execute("COMMIT")
+                return items, revision
+            except Exception:
+                if connection.in_transaction:
+                    connection.execute("ROLLBACK")
+                raise
 
     def add(self, slide: SlideSummary) -> tuple[SlideSummary, ...]:
         with _open(self.database_path) as connection:
@@ -293,8 +423,6 @@ class SqliteSelectionStore(SelectionStore):
         current = self.list()
         current_ids = {item.id for item in current}
         if set(slide_ids) != current_ids or len(slide_ids) != len(current):
-            from pptlib.domain.errors import AppError, ErrorCode
-
             raise AppError(
                 ErrorCode.REQUEST_INVALID,
                 "reorder must contain every selected slide exactly once",
@@ -332,6 +460,8 @@ class SqliteSelectionStore(SelectionStore):
 def selection_slide_refs(
     database_path: Path, selection_id: str = "selection_default"
 ) -> tuple[SlideRef, ...]:
+    from pptlib.export.ooxml import SlideRef
+
     with _open(database_path) as connection:
         rows = connection.execute(
             """

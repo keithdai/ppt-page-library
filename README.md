@@ -11,7 +11,7 @@ Electron 控制台里，内存占用接近裸 Python。
 
 | 层 | 作用 |
 | --- | --- |
-| `pptlib`（Python/FastAPI CLI） | 统一导入、分类、检索、预览、catalog 和 PPTX 组合导出 |
+| `pptlib`（Python CLI） | 统一导入、分类、检索、预览、catalog 和 PPTX 组合导出 |
 | PPTX 渲染器 | LibreOffice 高保真分段渲染，officecli 作为失败回退 |
 | HTML 适配器 | exact backfill、轻量依赖清单、安全浏览器截图和隔离动态预览 |
 | Electron 控制台 | 本地导入、搜索、选片、动态预览和组合导出 |
@@ -32,7 +32,7 @@ Electron 控制台里，内存占用接近裸 Python。
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib doctor
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib import ./sources
 
-桌面端默认启用 HTML。CLI 需要显式开启：
+桌面开发态默认启用 HTML；`v0.2.2` 正式打包版默认关闭。CLI 需要显式开启：
 
     PPTLIB_ENABLE_HTML=1 PPTLIB_HOME="$PWD/var/dev" \
       .venv/bin/pptlib import --html ./sources
@@ -95,19 +95,17 @@ SHA-256（源已变更会拒绝），需要跳过时加 `--no-verify-hash`。
 
 控制台提供本地闭环：选择 PPTX / HTML → 导入并渲染 → 搜索与选片 → PPTX 组合导出。
 HTML 页面会显示格式、视频和兼容性状态，并可按需打开独立 sandbox 动态预览窗口。
+页库直接从 SQLite 分页读取，不再为每次刷新生成全量 `catalog.json`；选片顺序与任务状态
+会持久化，窗口刷新或应用重启后可恢复。
 「自动更新」模块支持多文件夹、格式/大小规则、预检、立即更新、应用内定时执行、
 安全停止和运行历史；不安装系统级后台任务。
 
 产品化与工程化路线图见
 [`docs/PinPage-productization-engineering-roadmap.md`](docs/PinPage-productization-engineering-roadmap.md)，
+本周试用方法与注意事项见
+[`docs/PinPage-v0.2.2-trial-manual.md`](docs/PinPage-v0.2.2-trial-manual.md)，
 组合导出实测见
 [`docs/compose-export-verification.md`](docs/compose-export-verification.md)。
-
-## 本地 Web（可选）
-
-仍保留一个只绑定 `127.0.0.1` 的本地 Web，用于本地浏览/选片：
-
-    PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib serve
 
 ## Verify
 
@@ -121,5 +119,5 @@ HTML 页面会显示格式、视频和兼容性状态，并可按需打开独立
 `流程与步骤`、`时间线与路线图`、`组织架构`、`数据图表`、`表格与清单`、`案例与证言`、
 `总结与行动`。
 
-API 与卡片还暴露 `confidence`（high/medium/low）、`classification_source`（auto/manual）、
+索引数据与卡片还暴露 `confidence`（high/medium/low）、`classification_source`（auto/manual）、
 `classifier_version`。低置信页仍可检索，带「待确认」标记；`manual` 行在重分类时保留。

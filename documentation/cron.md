@@ -46,6 +46,7 @@ There is no system `cron`, `launchd` agent or hidden daemon.
 
 - The scheduler is not active when PinPage is fully quit.
 - It does not wake the computer.
-- Task state is coordinated in Electron memory; only scan-run history is persistent.
+- Active task coordination remains in Electron memory; the latest task snapshot and scan-run
+  history are persisted for restart recovery and diagnosis.
 - A future worker service should use leases and checkpoints before allowing execution outside the
   desktop process.

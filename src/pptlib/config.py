@@ -15,8 +15,6 @@ class Settings:
     temp_dir: Path
     log_dir: Path
     output_root: Path
-    host: str
-    port: int
     max_workers: int
     job_lease_seconds: int
     renderer: str
@@ -30,7 +28,6 @@ class Settings:
 
     def __post_init__(self) -> None:
         checks = (
-            ("port", 0 <= self.port <= 65535),
             ("max_workers", 1 <= self.max_workers <= 2),
             ("job_lease_seconds", self.job_lease_seconds > 0),
             ("renderer", self.renderer in {"auto", "officecli", "libreoffice"}),
@@ -91,8 +88,6 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         temp_dir=temp_dir,
         log_dir=log_dir,
         output_root=output_root,
-        host=values.get("PPTLIB_HOST", str(defaults["host"])),
-        port=_int_setting(values, "PPTLIB_PORT", defaults["port"], "port"),
         max_workers=_int_setting(
             values, "PPTLIB_MAX_WORKERS", defaults["max_workers"], "max_workers"
         ),

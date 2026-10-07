@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files
 
 
 project_root = Path(SPECPATH).parent
@@ -8,8 +8,6 @@ package_root = project_root / "src" / "pptlib"
 datas = [
     (str(package_root / "default.toml"), "pptlib"),
     (str(package_root / "migrations"), "pptlib/migrations"),
-    (str(package_root / "web" / "templates"), "pptlib/web/templates"),
-    (str(package_root / "web" / "static"), "pptlib/web/static"),
 ]
 datas += collect_data_files("playwright")
 
@@ -18,7 +16,7 @@ a = Analysis(
     pathex=[str(project_root / "src")],
     binaries=[],
     datas=datas,
-    hiddenimports=collect_submodules("uvicorn"),
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

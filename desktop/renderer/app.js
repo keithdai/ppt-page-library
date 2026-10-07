@@ -523,8 +523,26 @@ runImportBtn.addEventListener('click', async () => {
 // Browse the local page library (real thumbnails), multi-select, reorder by
 // dragging, then compose — entirely local, no upload/round-trip.
 
-const catalog = { slides: [], byId: {}, decks: [], tree: null, commonRoot: '' };
+const catalog = {
+  slides: [],
+  byId: {},
+  decks: [],
+  tree: null,
+  commonRoot: '',
+  facets: null,
+  libraryRevision: null,
+  slideCount: 0,
+  total: 0,
+  page: 1,
+  pageSize: 100,
+  loading: false,
+  requestId: 0,
+  matchingDeckIds: null,
+};
 const selectedIds = [];
+let selectionRevision = 0;
+let selectionWrite = Promise.resolve();
+let selectionGeneration = 0;
 const CURRENT_DECK_KEY = 'pinpage.catalog.currentDeckId';
 const EXPANDED_FOLDERS_KEY = 'pinpage.catalog.expandedFolders';
 const SEARCH_SCOPE_KEY = 'pinpage.catalog.searchScope';
@@ -541,6 +559,45 @@ function invalidateSelectionManifest() {
   state.composeResult = null;
   state.manifestFromSelection = false;
   refreshComposeReady();
+}
+
+function rememberSlide(slide) {
+  const deck = catalog.decks.find((item) => item.deck_id === slide.deck_id);
+  const normalized = {
+    ...slide,
+    source_path: slide.source_path || deck?.source_path || '',
+    source_format: slide.source_format || deck?.source_format || 'pptx',
+  };
+  catalog.byId[normalized.slide_id] = normalized;
+  return normalized;
+}
+
+function applySelection(selection) {
+  selectionRevision = Number(selection?.revision) || 0;
+  selectedIds.length = 0;
+  for (const item of selection?.items || []) {
+    const slide = rememberSlide(item);
+    selectedIds.push(slide.slide_id);
+  }
+}
+
+function persistSelection() {
+  const slideIds = selectedIds.slice();
+  selectionGeneration += 1;
+  selectionWrite = selectionWrite
+    .catch(() => undefined)
+    .then(async () => {
+      const response = await window.pptlib.saveSelection({
+        slideIds,
+        expectedRevision: selectionRevision,
+      });
+      selectionRevision = response.revision;
+      for (const item of response.items || []) rememberSlide(item);
+    })
+    .catch((error) => {
+      log(`保存选片失败：${error.message}`, 'stderr');
+    });
+  return selectionWrite;
 }
 try {
   expandedFolderIds = new Set(JSON.parse(localStorage.getItem(EXPANDED_FOLDERS_KEY) || '[]'));
@@ -695,34 +752,8 @@ function revealCurrentDeck() {
   deck.folderIds.forEach((id) => expandedFolderIds.add(id));
 }
 
-// Group slides into decks (files), preserving first-seen order.
 function buildDecks() {
   const previousDeckId = currentDeckId;
-  const map = new Map();
-  for (const s of catalog.slides) {
-    s.searchIndex = [
-      s.deck_name,
-      s.source_path,
-      s.title,
-      s.search_text,
-      s.topic,
-      s.subtopic,
-      s.page_type,
-    ]
-      .join(' ')
-      .toLowerCase();
-    if (!map.has(s.deck_id)) {
-      map.set(s.deck_id, {
-        deck_id: s.deck_id,
-        deck_name: s.deck_name,
-        source_path: s.source_path || '',
-        source_format: s.source_format || 'pptx',
-        slides: [],
-      });
-    }
-    map.get(s.deck_id).slides.push(s);
-  }
-  catalog.decks = [...map.values()];
   if (!catalog.decks.some((d) => d.deck_id === currentDeckId)) {
     currentDeckId = catalog.decks.length ? catalog.decks[0].deck_id : null;
   }
@@ -744,17 +775,15 @@ function currentDeck() {
 }
 
 function fillFilters() {
-  const types = [...new Set(catalog.slides.map((s) => s.page_type).filter(Boolean))].sort();
+  const types = (catalog.facets?.page_types || [])
+    .filter((item) => item.count > 0)
+    .map((item) => item.id);
   filterTypeEl.innerHTML =
     '<option value="">全部类型</option>' + types.map((t) => `<option>${esc(t)}</option>`).join('');
 }
 
 function searchQuery() {
   return gridSearchEl.value.trim().toLowerCase();
-}
-
-function slideMatchesQuery(slide, query) {
-  return !query || slide.searchIndex.includes(query);
 }
 
 function setSearchScope(scope, shouldRender = true) {
@@ -769,24 +798,12 @@ function setSearchScope(scope, shouldRender = true) {
     searchScope === 'all' ? '搜索全部页库' : '在当前文件中搜索';
   if (shouldRender) {
     renderDeckList();
-    renderGrid();
+    loadSlidePage(true);
   }
 }
 
-// Pages shown in the grid = current deck or all decks, filtered by type + search.
 function visibleSlides() {
-  const deck = currentDeck();
-  const type = filterTypeEl.value;
-  const query = searchQuery();
-  if (searchScope === 'all' && !query && !filterFormatEl.value) return [];
-  let source = [];
-  if (searchScope === 'all') source = catalog.slides;
-  else if (deck) source = deck.slides;
-  return source.filter((slide) => {
-    if (!matchesFormat(slide)) return false;
-    if (type && slide.page_type !== type) return false;
-    return slideMatchesQuery(slide, query);
-  });
+  return catalog.slides;
 }
 
 function pic(s) {
@@ -796,23 +813,20 @@ function pic(s) {
 }
 
 function deckMatchesQuery(deck, query) {
-  return (
-    !query ||
-    deck.pathSearchText.includes(query) ||
-    deck.slides.some((slide) => slideMatchesQuery(slide, query))
-  );
+  const filtering = Boolean(query || filterTypeEl.value || filterFormatEl.value);
+  return !filtering || catalog.matchingDeckIds?.has(deck.deck_id);
 }
 
 function filteredFolder(folder, query) {
   if (!folder) return null;
-  if (!query && !filterFormatEl.value) return folder;
+  if (!query && !filterFormatEl.value && !filterTypeEl.value) return folder;
   const folderMatches = query && `${folder.name} ${folder.fullPath}`.toLowerCase().includes(query);
   const childQuery = folderMatches ? '' : query;
   const folders = folder.folders
     .map((child) => filteredFolder(child, childQuery))
     .filter(Boolean);
   const decks = folder.decks.filter((deck) =>
-    deckMatchesQuery(deck, childQuery) && deck.slides.some(matchesFormat));
+    deckMatchesQuery(deck, childQuery) && matchesFormat(deck));
   if (!folders.length && !decks.length) return null;
   return { ...folder, folders, decks };
 }
@@ -825,7 +839,7 @@ function folderDeckCount(folder) {
 function folderSelectedCount(folder) {
   const own = folder.decks.reduce(
     (total, deck) =>
-      total + deck.slides.filter((slide) => selectedIds.includes(slide.slide_id)).length,
+      total + selectedIds.filter((id) => catalog.byId[id]?.deck_id === deck.deck_id).length,
     0,
   );
   return own + folder.folders.reduce(
@@ -835,7 +849,7 @@ function folderSelectedCount(folder) {
 }
 
 function renderDeckRow(deck, depth, query) {
-  const picked = deck.slides.filter((slide) => selectedIds.includes(slide.slide_id)).length;
+  const picked = selectedIds.filter((id) => catalog.byId[id]?.deck_id === deck.deck_id).length;
   const pathHint = query && deck.relativeDirectory
     ? `<span class="dpath">${esc(deck.relativeDirectory)}</span>`
     : '';
@@ -847,7 +861,7 @@ function renderDeckRow(deck, depth, query) {
     `title="${esc(deck.source_path || deck.deck_name)}">` +
     `<span class="tree-spacer"></span><span class="dico">${DECK_ICON}</span>` +
     `<span class="dinfo"><span class="dname">${esc(deck.deck_name)}</span>` +
-    `${pathHint}<span class="dmeta">${formatBadge(deck)} ${deck.slides.length} 页${picked ? ` · 已选 ${picked}` : ''}</span></span></button>` +
+    `${pathHint}<span class="dmeta">${formatBadge(deck)} ${deck.slide_count} 页${picked ? ` · 已选 ${picked}` : ''}</span></span></button>` +
     `<button class="ddel" data-deck="${esc(deck.deck_id)}" ` +
     `title="从页库移除该文件（不删源文件）" aria-label="移除文件">${TRASH}</button></div>`
   );
@@ -907,7 +921,7 @@ function renderDeckList() {
       setSearchScope('deck', false);
       saveTreeState();
       renderDeckList();
-      renderGrid();
+      loadSlidePage(true);
     });
   });
   deckListEl.querySelectorAll('.ddel').forEach((btn) => {
@@ -930,7 +944,7 @@ function renderGrid() {
   const query = searchQuery();
   const allLibrary = searchScope === 'all';
   const slides = visibleSlides();
-  const hasContext = allLibrary ? catalog.slides.length > 0 : Boolean(deck);
+  const hasContext = allLibrary ? catalog.slideCount > 0 : Boolean(deck);
 
   if (hasContext) {
     const allSelected = slides.length > 0 && slides.every((s) => selectedIds.includes(s.slide_id));
@@ -939,12 +953,12 @@ function renderGrid() {
     let count = '';
     if (allLibrary) {
       count = query || filterFormatEl.value
-        ? `${slides.length} 个结果 · ${fileCount} 个文件`
-        : `可搜索 ${catalog.slides.length} 页`;
+        ? `已加载 ${slides.length} / ${catalog.total} 个结果 · ${fileCount} 个文件`
+        : `可搜索 ${catalog.slideCount} 页`;
     } else {
-      count = `显示 ${slides.length} / ${deck.slides.length} 页`;
+      count = `已加载 ${slides.length} / ${catalog.total || deck.slide_count} 页`;
     }
-    let selectLabel = allLibrary ? '全选结果' : '全选本页';
+    let selectLabel = catalog.total > slides.length ? '全选已加载' : '全选本页';
     if (allSelected) selectLabel = '取消全选';
     const selectButton = slides.length
       ? `<button class="btn sm" id="grid-selall">${selectLabel}</button>`
@@ -966,6 +980,7 @@ function renderGrid() {
           for (const id of ids) if (!selectedIds.includes(id)) selectedIds.push(id);
         }
         invalidateSelectionManifest();
+        persistSelection();
         renderGrid();
         renderSelected();
         renderDeckList();
@@ -975,7 +990,7 @@ function renderGrid() {
     gridHeadEl.hidden = true;
   }
 
-  if (allLibrary && !query && !filterFormatEl.value) {
+  if (allLibrary && !query && !filterFormatEl.value && !filterTypeEl.value) {
     gridEl.innerHTML = gridMessage(
       '搜索全部页库',
       '输入标题、正文关键词、页面类型、文件名或目录名。',
@@ -986,7 +1001,7 @@ function renderGrid() {
       '换个关键词，或调整页面类型、格式筛选后再试。',
     );
   } else {
-    gridEl.innerHTML = slides
+    const cards = slides
       .map((s) => {
         const on = selectedIds.includes(s.slide_id);
         const tag = s.page_type || s.topic || '';
@@ -1007,7 +1022,13 @@ function renderGrid() {
         );
       })
       .join('');
+    const loadMore = slides.length < catalog.total
+      ? `<div class="grid-more"><button class="btn" id="grid-more" ${catalog.loading ? 'disabled' : ''}>` +
+        `${catalog.loading ? '正在加载…' : `继续加载（剩余 ${catalog.total - slides.length} 页）`}</button></div>`
+      : '';
+    gridEl.innerHTML = cards + loadMore;
   }
+  document.getElementById('grid-more')?.addEventListener('click', () => loadSlidePage(false));
   gridEl.querySelectorAll('.thumb-preview').forEach((button) => {
     button.addEventListener('click', () => {
       openLightbox(button.dataset.previewSlide);
@@ -1063,6 +1084,7 @@ function toggleSelect(id, restoreGridFocus = false) {
   if (i >= 0) selectedIds.splice(i, 1);
   else selectedIds.push(id);
   invalidateSelectionManifest();
+  persistSelection();
   renderGrid();
   renderSelected();
   renderDeckList();
@@ -1242,33 +1264,24 @@ function forgetSlide(id) {
   }
 }
 
-function repaintCatalog() {
-  buildDecks();
-  fillFilters();
-  renderDeckList();
-  renderGrid();
-  renderSelected();
-  if (catalog.slides.length === 0) {
-    gridEl.hidden = true;
-    gridEmptyEl.hidden = false;
-  }
-}
-
 // Remove a whole file (deck) from the library. Source PPTX is never touched.
 async function removeDeck(deckId) {
   const deck = catalog.decks.find((d) => d.deck_id === deckId);
   if (!deck) return;
   const ok = window.confirm(
-    `从页库移除文件「${deck.deck_name}」的全部 ${deck.slides.length} 页？\n\n` +
+    `从页库移除文件「${deck.deck_name}」的全部 ${deck.slide_count} 页？\n\n` +
       `只从本地页库移除索引与缩略图，不会删除你的原始文件。`,
   );
   if (!ok) return;
   try {
     const res = await window.pptlib.removeDeck(deckId);
-    for (const s of deck.slides) forgetSlide(s.slide_id);
+    catalog.slides
+      .filter((slide) => slide.deck_id === deckId)
+      .forEach((slide) => forgetSlide(slide.slide_id));
     if (currentDeckId === deckId) currentDeckId = null;
-    repaintCatalog();
-    log(`已从页库移除「${deck.deck_name}」：${(res && res.slides_removed) || deck.slides.length} 页`, 'ok');
+    catalog.libraryRevision = null;
+    await loadCatalog();
+    log(`已从页库移除「${deck.deck_name}」：${(res && res.slides_removed) || deck.slide_count} 页`, 'ok');
   } catch (error) {
     log(`删除失败：${error.message}`, 'stderr');
     window.alert(`删除失败：${error.message}`);
@@ -1287,7 +1300,8 @@ async function removeSlide(slideId) {
   try {
     const res = await window.pptlib.removeSlide(slideId);
     forgetSlide(slideId);
-    repaintCatalog();
+    catalog.libraryRevision = null;
+    await loadCatalog();
     log(`已从页库移除 1 页（${s.deck_name} · p${s.slide_number}）`, 'ok');
     return res;
   } catch (error) {
@@ -1320,9 +1334,95 @@ function bindDrag() {
       if (from < 0 || to < 0 || from === to) return;
       selectedIds.splice(to, 0, selectedIds.splice(from, 1)[0]);
       invalidateSelectionManifest();
+      persistSelection();
       renderSelected();
     });
   });
+}
+
+function pageFilters() {
+  return {
+    deck_id: searchScope === 'deck' ? currentDeckId || '' : '',
+    page_type: filterTypeEl.value,
+    source_format: filterFormatEl.value,
+  };
+}
+
+async function loadSlidePage(reset = true) {
+  if (!reset && catalog.loading) return;
+  const requestId = ++catalog.requestId;
+  if (catalog.slideCount === 0) {
+    catalog.slides = [];
+    catalog.total = 0;
+    catalog.loading = false;
+    renderGrid();
+    return;
+  }
+  if (searchScope === 'deck' && !currentDeckId) {
+    catalog.slides = [];
+    catalog.total = 0;
+    catalog.loading = false;
+    renderGrid();
+    return;
+  }
+  if (
+    searchScope === 'all' &&
+    !searchQuery() &&
+    !filterFormatEl.value &&
+    !filterTypeEl.value
+  ) {
+    catalog.slides = [];
+    catalog.total = catalog.slideCount;
+    catalog.loading = false;
+    renderGrid();
+    return;
+  }
+  const page = reset ? 1 : catalog.page + 1;
+  if (reset) {
+    catalog.slides = [];
+    catalog.total = 0;
+    catalog.matchingDeckIds = new Set();
+  }
+  catalog.loading = true;
+  renderGrid();
+  try {
+    const response = await window.pptlib.searchLibrary({
+      query: searchQuery(),
+      page,
+      pageSize: catalog.pageSize,
+      filters: pageFilters(),
+    });
+    if (requestId !== catalog.requestId) return;
+    const incoming = (response.items || []).map(rememberSlide);
+    if (reset) {
+      catalog.slides = incoming;
+    } else {
+      const existing = new Set(catalog.slides.map((slide) => slide.slide_id));
+      catalog.slides.push(...incoming.filter((slide) => !existing.has(slide.slide_id)));
+    }
+    catalog.page = response.page || page;
+    catalog.total = Number(response.total) || 0;
+    catalog.matchingDeckIds = new Set(response.deckIds || []);
+  } catch (error) {
+    if (requestId === catalog.requestId) log(`加载页面失败：${error.message}`, 'stderr');
+  } finally {
+    if (requestId === catalog.requestId) {
+      catalog.loading = false;
+      renderDeckList();
+      renderGrid();
+    }
+  }
+}
+
+function normalizeDeck(deck) {
+  return {
+    deck_id: deck.id,
+    deck_name: deck.name,
+    slide_count: Number(deck.slide_count) || 0,
+    source_path: deck.source_path || '',
+    source_format: deck.source_format || 'pptx',
+    cover_thumbnail_url: deck.cover_thumbnail_url || '',
+  };
 }
 
 async function loadCatalog() {
@@ -1332,31 +1432,36 @@ async function loadCatalog() {
   if (reloadBtn) busy(reloadBtn, true);
   navState(2, 'blue');
   try {
-    log('加载本地页库…');
-    const res = await window.pptlib.loadCatalog();
+    await selectionWrite;
+    const selectionGenerationAtRequest = selectionGeneration;
+    log(catalog.libraryRevision ? '检查页库更新…' : '加载本地页库…');
+    const res = await window.pptlib.loadLibrary(catalog.libraryRevision);
     applyHtmlFeature(res.htmlEnabled === true);
-    catalog.slides = res.slides || [];
-    catalog.byId = {};
-    catalog.slides.forEach((s) => (catalog.byId[s.slide_id] = s));
-    // drop any previously-selected ids no longer present
-    let selectionChanged = false;
-    for (let i = selectedIds.length - 1; i >= 0; i--) {
-      if (!catalog.byId[selectedIds[i]]) {
-        selectedIds.splice(i, 1);
-        selectionChanged = true;
-      }
+    if (!res.unchanged) {
+      catalog.libraryRevision = res.libraryRevision;
+      catalog.slideCount = Number(res.slideCount) || 0;
+      catalog.decks = (res.decks || []).map(normalizeDeck);
+      catalog.facets = res.facets || null;
+      catalog.byId = {};
+      buildDecks();
+      fillFilters();
     }
-    if (selectionChanged) invalidateSelectionManifest();
-    buildDecks();
-    fillFilters();
+    if (selectionGeneration === selectionGenerationAtRequest) {
+      applySelection(res.selection);
+    }
     renderDeckList();
-    renderGrid();
     renderSelected();
-    gridEmptyEl.hidden = catalog.slides.length > 0;
-    gridEl.hidden = catalog.slides.length === 0;
-    log(`页库已加载：${catalog.slides.length} 页，${catalog.decks.length} 个文件`, 'ok');
-    navState(2, catalog.slides.length ? 'green' : 'gray');
-    maybeStartOnboarding(catalog.slides.length);
+    gridEmptyEl.hidden = catalog.slideCount > 0;
+    gridEl.hidden = catalog.slideCount === 0;
+    await loadSlidePage(true);
+    log(
+      res.unchanged
+        ? `页库无变化，已恢复 ${selectedIds.length} 页选片`
+        : `页库已加载：${catalog.slideCount} 页，${catalog.decks.length} 个文件`,
+      'ok',
+    );
+    navState(2, catalog.slideCount ? 'green' : 'gray');
+    maybeStartOnboarding(catalog.slideCount);
   } catch (error) {
     log(`加载页库失败：${error.message}`, 'stderr');
     navState(2, 'gray');
@@ -1368,57 +1473,42 @@ async function loadCatalog() {
 
 document.getElementById('load-catalog').addEventListener('click', loadCatalog);
 document.getElementById('reload-catalog').addEventListener('click', loadCatalog);
-// Auto-load the local library on startup so the grid is ready without a click.
-// Silent: failures just leave the empty-state + "加载本地页库" button in place.
-window.pptlib
-  .loadCatalog()
-  .then((res) => {
-    if (res) applyHtmlFeature(res.htmlEnabled === true);
-    if (!res || !res.slides || res.slides.length === 0) {
-      maybeStartOnboarding(0);
-      return;
-    }
-    maybeStartOnboarding(res.slides.length);
-    catalog.slides = res.slides;
-    catalog.byId = {};
-    catalog.slides.forEach((s) => (catalog.byId[s.slide_id] = s));
-    buildDecks();
-    fillFilters();
-    renderDeckList();
-    renderGrid();
-    renderSelected();
-    gridEmptyEl.hidden = true;
-    gridEl.hidden = false;
-    navState(2, 'green');
-    log(`页库已就绪：${catalog.slides.length} 页，${catalog.decks.length} 个文件`, 'ok');
-  })
-  .catch(() => {
-    /* no library yet — leave the empty state's load button for the user */
-    maybeStartOnboarding(0);
-  });
+loadCatalog().catch(() => maybeStartOnboarding(0));
+let libraryTaskWasActive = false;
+window.pptlib.onTaskState((task) => {
+  if (task) {
+    libraryTaskWasActive = true;
+    return;
+  }
+  if (libraryTaskWasActive) {
+    libraryTaskWasActive = false;
+    loadCatalog();
+  }
+});
 document.getElementById('sel-clear').addEventListener('click', () => {
   selectedIds.length = 0;
   invalidateSelectionManifest();
+  persistSelection();
   renderGrid();
   renderSelected();
   renderDeckList();
 });
-filterTypeEl.addEventListener('change', renderGrid);
+filterTypeEl.addEventListener('change', () => loadSlidePage(true));
 filterFormatEl.addEventListener('change', () => {
-  if (searchScope === 'deck' && !currentDeck()?.slides.some(matchesFormat)) {
-    currentDeckId = catalog.decks.find((deck) => deck.slides.some(matchesFormat))?.deck_id || null;
+  if (searchScope === 'deck' && !matchesFormat(currentDeck())) {
+    currentDeckId = catalog.decks.find(matchesFormat)?.deck_id || null;
     revealCurrentDeck();
     saveTreeState();
   }
   renderDeckList();
-  renderGrid();
+  loadSlidePage(true);
 });
 gridSearchEl.addEventListener('input', () => {
   window.clearTimeout(searchRenderTimer);
   searchRenderTimer = window.setTimeout(() => {
     renderDeckList();
-    renderGrid();
-  }, 100);
+    loadSlidePage(true);
+  }, 250);
 });
 searchScopeButtons.forEach((button) => {
   button.addEventListener('click', () => setSearchScope(button.dataset.searchScope));
@@ -1609,7 +1699,8 @@ deleteDuplicatesBtn.addEventListener('click', async () => {
   try {
     await window.pptlib.removeSlide(ids);
     ids.forEach(forgetSlide);
-    repaintCatalog();
+    catalog.libraryRevision = null;
+    await loadCatalog();
     log(`已从页库删除 ${ids.length} 个重复页面，原始 PPTX 未改动`, 'ok');
     await scanDuplicates(false);
   } catch (error) {
@@ -1628,6 +1719,7 @@ selExportBtn.addEventListener('click', async () => {
   }
   busy(selExportBtn, true);
   try {
+    await selectionWrite;
     const res = await window.pptlib.writeManifest(selectedIds.slice());
     state.manifest = res.path;
     state.manifestFromSelection = true;

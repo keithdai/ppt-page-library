@@ -342,6 +342,10 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 }
 .grid-message .h { color: var(--text-2); font-size: 14px; font-weight: 600; }
 .grid-message .hint { max-width: 320px; margin-top: 4px; font-size: 12px; line-height: 1.6; }
+.grid-more {
+  grid-column: 1 / -1; min-height: 48px;
+  display: flex; align-items: center; justify-content: center;
+}
 
 /* left: search + filter + file list (one panel) */
 .deck-panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); overflow: hidden; position: sticky; top: 0; }

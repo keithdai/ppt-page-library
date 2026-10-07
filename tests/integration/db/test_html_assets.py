@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-from fastapi.testclient import TestClient
 
 from pptlib.application.catalog import build_catalog
 from pptlib.application.compose import compose_from_manifest, compose_from_slide_ids
@@ -38,7 +37,6 @@ from pptlib.infrastructure.db.repositories import (
     version_id_for,
 )
 from pptlib.ingestion.parser import PARSER_VERSION, ParsedDeck, ParsedSlide
-from pptlib.web.app import create_app
 
 MIGRATIONS = Path(__file__).resolve().parents[3] / "src" / "pptlib" / "migrations"
 HTML_EXPORT_MESSAGE = (
@@ -442,42 +440,35 @@ def test_pptx_compose_still_passes_locked_hash_and_order(library, monkeypatch) -
     )
 
 
-def test_web_results_and_direct_export_guard_use_selected_html_version(library, monkeypatch):
+def test_direct_export_guard_uses_selected_html_version(library, monkeypatch):
     settings, pptx, html = library
-    with TestClient(create_app(settings)) as client:
-        response = client.get("/api/v1/slides", params={"q": "overview"})
-        assert response.status_code == 200
-        item = response.json()["data"]["items"][0]
-        assert item["source_format"] == "render_deck_html"
-        assert item["page_key"] == "overview"
-        assert item["page_kind"] == "h5_raw"
-        assert item["capabilities"] == HTML_CAPABILITIES
-        assert item["warnings"] == HTML_WARNINGS
-        assert client.get(f"/api/v1/slides/{item['id']}").json()["data"] == item
-        for slide_id in (_slide_id(pptx), item["id"]):
-            added = client.post("/api/v1/selection/items", json={"slide_id": slide_id})
-            assert added.status_code == 200
-        assert client.get("/api/v1/selection").json()["data"]["items"][1] == item
+    catalog = SqliteSlideCatalog(settings.database_path)
+    item = catalog.search("overview", page=1, page_size=10).items[0]
+    assert item.source_format == "render_deck_html"
+    assert item.page_key == "overview"
+    assert item.page_kind == "h5_raw"
+    assert item.capabilities == HTML_CAPABILITIES
+    assert item.warnings == HTML_WARNINGS
 
-        # A new current PPTX version must not bypass the selected HTML version's guard.
-        connection = connect(settings.database_path)
-        try:
-            replacement = ParsedDeck((ParsedSlide(1, "Replacement", "", ""),))
-            DeckRepository(connection).import_parsed(
-                ScannedFile(html.path, "new-pptx-digest", 1, 2), replacement
-            )
-        finally:
-            connection.close()
-        refs = Mock(side_effect=AssertionError("OOXML reference must not be constructed"))
-        exporter = Mock(side_effect=AssertionError("OOXML exporter must not run"))
-        monkeypatch.setattr("pptlib.infrastructure.db.library.SlideRef", refs)
-        monkeypatch.setattr("pptlib.web.routes.api.export_slides", exporter)
-        with pytest.raises(AppError, match=HTML_EXPORT_MESSAGE):
-            selection_slide_refs(settings.database_path)
-        exported = client.post("/api/v1/exports", json={})
-        assert exported.status_code == 409
-        assert exported.json()["error"]["code"] == "REQUEST_INVALID"
-        assert exported.json()["error"]["message"] == HTML_EXPORT_MESSAGE
-        refs.assert_not_called()
-        exporter.assert_not_called()
-        assert not list(settings.output_root.glob("*.pptx"))
+    selection = SqliteSelectionStore(settings.database_path)
+    pptx_item = catalog.get(_slide_id(pptx))
+    assert pptx_item is not None
+    selection.add(pptx_item)
+    selection.add(item)
+    assert selection.list()[1] == item
+
+    # A new current PPTX version must not bypass the selected HTML version's guard.
+    connection = connect(settings.database_path)
+    try:
+        replacement = ParsedDeck((ParsedSlide(1, "Replacement", "", ""),))
+        DeckRepository(connection).import_parsed(
+            ScannedFile(html.path, "new-pptx-digest", 1, 2), replacement
+        )
+    finally:
+        connection.close()
+    refs = Mock(side_effect=AssertionError("OOXML reference must not be constructed"))
+    monkeypatch.setattr("pptlib.export.ooxml.SlideRef", refs)
+    with pytest.raises(AppError, match=HTML_EXPORT_MESSAGE):
+        selection_slide_refs(settings.database_path)
+    refs.assert_not_called()
+    assert not list(settings.output_root.glob("*.pptx"))

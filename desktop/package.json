@@ -6,6 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test *.test.js",
     "runtime": "../packaging/build_runtime.sh",
     "dist:dir": "npm run runtime && electron-builder --dir",
     "dist": "npm run runtime && electron-builder --mac zip",
@@ -22,6 +23,9 @@
     "files": [
       "main.js",
       "preload.js",
+      "scheduler.js",
+      "security.js",
+      "task-coordinator.js",
       "assets/**/*",
       "renderer/**/*"
     ],

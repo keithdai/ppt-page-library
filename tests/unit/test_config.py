@@ -13,7 +13,6 @@ def test_load_settings_uses_local_paths_and_environment_override(tmp_path: Path)
     settings = load_settings(
         {
             "PPTLIB_HOME": str(tmp_path / "home"),
-            "PPTLIB_PORT": "9321",
             "PPTLIB_MAX_WORKERS": "1",
         }
     )
@@ -21,7 +20,6 @@ def test_load_settings_uses_local_paths_and_environment_override(tmp_path: Path)
     assert settings.home == (tmp_path / "home").resolve()
     assert settings.database_path == settings.home / "pages.db"
     assert settings.assets_dir == settings.home / "assets"
-    assert settings.port == 9321
     assert settings.max_workers == 1
 
 
@@ -81,7 +79,7 @@ def test_load_settings_works_from_built_wheel(tmp_path: Path) -> None:
             "-c",
             (
                 "from pptlib.config import load_settings; "
-                "print(load_settings({'PPTLIB_HOME': '.'}).port)"
+                "print(load_settings({'PPTLIB_HOME': '.'}).renderer)"
             ),
         ],
         cwd=package_dir,
@@ -91,7 +89,7 @@ def test_load_settings_works_from_built_wheel(tmp_path: Path) -> None:
         text=True,
     )
 
-    assert result.stdout.strip() == "8765"
+    assert result.stdout.strip() == "libreoffice"
 
 
 def test_temp_dir_default_and_override(tmp_path: Path) -> None:
@@ -107,7 +105,6 @@ def test_temp_dir_default_and_override(tmp_path: Path) -> None:
 
 def test_invalid_numeric_settings_have_deterministic_errors(tmp_path: Path) -> None:
     cases = {
-        "PPTLIB_PORT": "65536",
         "PPTLIB_MAX_WORKERS": "3",
         "PPTLIB_JOB_LEASE_SECONDS": "0",
         "PPTLIB_THUMBNAIL_LONG_EDGE": "0",

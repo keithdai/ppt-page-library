@@ -321,9 +321,11 @@ function rendererFixture() {
     sessionStorage: { getItem: () => null, setItem() {} },
     window: {
       pptlib: {
-        onLog() {}, onProgress() {},
+        onLog() {}, onProgress() {}, onTaskState() {},
         paths: () => new Promise(() => {}),
-        loadCatalog: () => new Promise(() => {}),
+        loadLibrary: () => new Promise(() => {}),
+        searchLibrary: () => new Promise(() => {}),
+        saveSelection: () => new Promise(() => {}),
       },
     },
   });
@@ -341,11 +343,10 @@ function rendererFixture() {
   return { element, run: (code) => vm.runInContext(code, context) };
 }
 
-test('renderer filters formats, permits HTML selection and blocks mixed export', () => {
+test('renderer sends format filters, permits HTML selection and blocks mixed export', () => {
   const f = rendererFixture();
   f.run("applyHtmlFeature(true); searchScope = 'all'; filterFormatEl.value = 'render_deck_html'");
-  assert.equal(f.run('visibleSlides().map(s => s.slide_id).join()'), 'h1');
-  assert.equal(f.run("folderDeckCount(visibleTree(''))"), 1);
+  assert.equal(f.run('pageFilters().source_format'), 'render_deck_html');
   f.run("selectedIds.push('p1'); renderSelected()");
   assert.equal(f.element('sel-export').disabled, false);
   f.run("selectedIds.push('h1'); renderSelected()");
@@ -533,6 +534,7 @@ test('main process defaults HTML on, respects off, rejects foreign IPC and waits
   vm.runInContext(readFileSync(path.join(__dirname, 'main.js'), 'utf8'), context);
   const run = (code) => vm.runInContext(code, context);
   run('mainWindow = parent');
+  const event = { sender: parent.webContents, senderFrame: parent.webContents.mainFrame };
   for (const channel of [
     'scan-plan:list',
     'scan-plan:create',
@@ -549,7 +551,7 @@ test('main process defaults HTML on, respects off, rejects foreign IPC and waits
     assert.equal(typeof handlers.get(channel), 'function', channel);
   }
   assert.equal(run('childEnv().PPTLIB_ENABLE_HTML'), '1');
-  assert.equal(handlers.get('paths')().htmlEnabled, true);
+  assert.equal(handlers.get('paths')(event).htmlEnabled, true);
   assert.equal(run('app.isPackaged = true; runtimeAvailable()'), false);
   assert.equal(run('app.isPackaged = false; runtimeAvailable()'), true);
   assert.equal(run(`planIsDue(
@@ -603,14 +605,13 @@ test('main process defaults HTML on, respects off, rejects foreign IPC and waits
     new Date(2026, 9, 5, 10, 0)
   )`), true);
   const open = handlers.get('html-preview');
-  const event = { sender: parent.webContents, senderFrame: parent.webContents.mainFrame };
   await assert.rejects(open({ ...event, sender: {} }, 's1'), /不允许/);
   await assert.rejects(open({ ...event, senderFrame: {} }, 's1'), /不允许/);
   await assert.rejects(open(event, url), /无效/);
   await assert.rejects(open(event, 's1'), /不支持/);
   run("process.env.PPTLIB_ENABLE_HTML = '0'");
   assert.equal(run('childEnv().PPTLIB_ENABLE_HTML'), '0');
-  assert.equal(handlers.get('paths')().htmlEnabled, false);
+  assert.equal(handlers.get('paths')(event).htmlEnabled, false);
   await assert.rejects(open(event, 's1'), /关闭/);
   run(`
     let finishCleanup;
