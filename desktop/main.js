@@ -30,6 +30,8 @@ const {
 } = require('./security');
 const { createTaskCoordinator } = require('./task-coordinator');
 
+const LEGACY_APP_NAMES = ['拼页', 'PPT Page Library'];
+
 app.setName('DeckAtlas');
 if (process.env.PPTLIB_ELECTRON_USER_DATA) {
   app.setPath('userData', path.resolve(process.env.PPTLIB_ELECTRON_USER_DATA));
@@ -61,6 +63,18 @@ function repoRootConfigPath() {
   return path.join(app.getPath('userData'), 'repo-root.txt');
 }
 
+function legacyUserDataDirs() {
+  const appData = app.getPath('appData');
+  return LEGACY_APP_NAMES.map((name) => path.join(appData, name));
+}
+
+function repoRootConfigPaths() {
+  return [
+    repoRootConfigPath(),
+    ...legacyUserDataDirs().map((dir) => path.join(dir, 'repo-root.txt')),
+  ];
+}
+
 function isRepoRoot(dir) {
   return !!dir && fs.existsSync(path.join(dir, 'src', 'pptlib'));
 }
@@ -81,11 +95,13 @@ function runtimeAvailable() {
 function resolveRepoRoot() {
   const candidates = [];
   if (process.env.PPTLIB_REPO_ROOT) candidates.push(process.env.PPTLIB_REPO_ROOT);
-  try {
-    const saved = fs.readFileSync(repoRootConfigPath(), 'utf8').trim();
-    if (saved) candidates.push(saved);
-  } catch {
-    /* no persisted choice yet */
+  for (const configPath of repoRootConfigPaths()) {
+    try {
+      const saved = fs.readFileSync(configPath, 'utf8').trim();
+      if (saved) candidates.push(saved);
+    } catch {
+      /* no persisted choice at this path */
+    }
   }
   candidates.push(path.resolve(__dirname, '..'));
   return candidates.find(isRepoRoot) || path.resolve(__dirname, '..');
@@ -160,9 +176,18 @@ function defaultHome() {
   if (app.isPackaged === true) {
     const packagedHome = path.join(app.getPath('userData'), 'data');
     if (fs.existsSync(path.join(packagedHome, 'pages.db'))) return packagedHome;
+    for (const legacyDir of legacyUserDataDirs()) {
+      const legacyPackagedHome = path.join(legacyDir, 'data');
+      if (fs.existsSync(path.join(legacyPackagedHome, 'pages.db'))) {
+        return legacyPackagedHome;
+      }
+    }
     const legacyHome = path.join(REPO_ROOT, 'var', 'dev');
     if (isRepoRoot(REPO_ROOT) && fs.existsSync(path.join(legacyHome, 'pages.db'))) {
       return legacyHome;
+    }
+    for (const legacyDir of legacyUserDataDirs()) {
+      if (fs.existsSync(path.join(legacyDir, 'pages.db'))) return legacyDir;
     }
     return packagedHome;
   }

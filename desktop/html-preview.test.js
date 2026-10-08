@@ -533,6 +533,10 @@ test('main process defaults HTML on, respects off, rejects foreign IPC and waits
   });
   vm.runInContext(readFileSync(path.join(__dirname, 'main.js'), 'utf8'), context);
   const run = (code) => vm.runInContext(code, context);
+  assert.equal(
+    run('JSON.stringify(legacyUserDataDirs().map(dir => path.basename(dir)))'),
+    '["拼页","PPT Page Library"]',
+  );
   run('mainWindow = parent');
   const event = { sender: parent.webContents, senderFrame: parent.webContents.mainFrame };
   for (const channel of [
