@@ -225,6 +225,72 @@ function htmlEnabled() {
   return childEnv().PPTLIB_ENABLE_HTML === '1';
 }
 
+function experimentalLabel() {
+  return app.isPackaged === true ? '' : (process.env.PPTLIB_EXPERIMENTAL_LABEL || '').trim().slice(0, 80);
+}
+
+function importUrl(value) {
+  if (typeof value !== 'string' || !/^https?:\/\//i.test(value) ||
+      /[\s\\]/.test(value)) throw new Error('请输入完整的 http:// 或 https:// 链接');
+  const url = new URL(value);
+  if (!url.hostname || url.username || url.password) {
+    throw new Error('在线链接不能包含用户名或密码');
+  }
+  return url.href;
+}
+
+function importCommands(sources) {
+  if (!Array.isArray(sources) || sources.length === 0) {
+    throw new Error('未选择任何来源');
+  }
+  const commands = [];
+  for (const source of sources) {
+    const value = typeof source === 'string' ? source : source?.url ?? source?.path;
+    const isUrl = source?.kind === 'url' || source?.url !== undefined ||
+      (typeof value === 'string' && /^[a-z][a-z\d+.-]*:/i.test(value) && !path.isAbsolute(value));
+    if (isUrl) {
+      if (!htmlEnabled()) throw new Error('HTML 功能已关闭');
+      commands.push({ args: ['import-url', importUrl(value)], sources: [{ url: value }] });
+    } else {
+      if (typeof value !== 'string' || !path.isAbsolute(value) || value.includes('\0')) {
+        throw new Error('导入来源必须是本地绝对路径或在线链接');
+      }
+      if (!htmlEnabled() && /\.(?:html?|zip)$/i.test(value)) throw new Error('HTML 功能已关闭');
+      const previous = commands.at(-1);
+      if (previous?.args[0] === 'import') {
+        previous.args.push(value);
+        previous.sources.push({ path: value });
+      } else {
+        commands.push({ args: ['import', value], sources: [{ path: value }] });
+      }
+    }
+  }
+  return commands;
+}
+
+function outputFormat(format = 'pptx') {
+  const formats = {
+    pptx: { name: 'PowerPoint（可编辑）', extension: 'pptx' },
+    html: { name: 'HTML 离线单文件', extension: 'html' },
+    zip: { name: 'HTML 资源包', extension: 'zip' },
+  };
+  if (!Object.hasOwn(formats, format)) throw new Error('不支持的输出格式');
+  if (format !== 'pptx' && !htmlEnabled()) throw new Error('HTML 功能已关闭');
+  return formats[format];
+}
+
+function validateOutput(output, format) {
+  if (typeof output !== 'string' || !path.isAbsolute(output) || output.includes('\0')) {
+    throw new Error('请选择本地输出位置');
+  }
+  const extension = path.extname(output).slice(1).toLowerCase();
+  const selected = outputFormat(format === undefined ? extension : format);
+  if (extension !== selected.extension) {
+    throw new Error(`输出文件扩展名必须为 .${selected.extension}`);
+  }
+  return output;
+}
+
 /**
  * Run a pptlib subcommand, streaming stdout/stderr lines to the renderer and
  * resolving with the last JSON object printed on stdout (pptlib prints one).
@@ -310,7 +376,9 @@ function runPptlib(
         resolve({ code, parsed, stdout, stderr });
       } else {
         const message = (parsed && parsed.message) || stderr.trim() || `exit ${code}`;
-        reject(new Error(message));
+        const error = new Error(message);
+        error.parsed = parsed;
+        reject(error);
       }
     });
   });
@@ -371,7 +439,7 @@ function createWindow() {
     height: 840,
     minWidth: 1120,
     minHeight: 680,
-    title: 'DeckAtlas',
+    title: experimentalLabel() ? `DeckAtlas · ${experimentalLabel()}` : 'DeckAtlas',
     icon: APP_ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -467,6 +535,7 @@ ipcMain.handle('paths', (event) => {
     home: childEnv().PPTLIB_HOME,
     pptlib: pptlibBinary(),
     htmlEnabled: htmlEnabled(),
+    experimentalLabel: experimentalLabel(),
   };
 });
 
@@ -567,32 +636,64 @@ ipcMain.handle('pick-manifest', async (event) => {
   return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle('pick-output-pptx', async (event) => {
+async function pickSaveOutput(event, { format = 'pptx' } = {}) {
   requireMainSender(event);
+  const selected = outputFormat(format);
   const result = await dialog.showSaveDialog({
     title: '组合结果保存为',
-    defaultPath: path.join(app.getPath('downloads'), 'composed.pptx'),
-    filters: [{ name: 'PowerPoint', extensions: ['pptx'] }],
+    defaultPath: path.join(app.getPath('downloads'), `composed.${selected.extension}`),
+    filters: [{ name: selected.name, extensions: [selected.extension] }],
   });
-  return result.canceled ? null : result.filePath;
-});
+  return result.canceled ? null : validateOutput(result.filePath, format);
+}
 
-// Import indexes each chosen PPTX *in place* — the original file's path is
-// recorded as the canonical source, so nothing is copied and no local space is
-// consumed. Compose later reads directly from the original locations.
-ipcMain.handle('import', async (event, filePaths) => {
+ipcMain.handle('pick-save-output', pickSaveOutput);
+ipcMain.handle('pick-output-pptx', (event) => pickSaveOutput(event));
+
+// Local sources stay in place; online sources are archived by import-url.
+// Keep the entire mixed batch under one task lock, including between commands.
+ipcMain.handle('import', async (event, sources) => {
   requireMainSender(event);
-  if (!Array.isArray(filePaths) || filePaths.length === 0) {
-    throw new Error('未选择任何文件');
-  }
+  const commands = importCommands(sources);
   closeHtmlPreviews();
   approvedSlides.clear();
-  const res = await taskCoordinator.run(
-    '导入并渲染',
-    ['import', ...filePaths],
-    event.sender,
-  );
-  return [res.parsed || {}];
+  const results = [];
+  let batchError;
+  try {
+    await taskCoordinator.withTask('导入并渲染', async (task) => {
+      for (const command of commands) {
+        let result;
+        try {
+          if (task.state === 'stopping') throw new Error('任务已停止，此来源未完成导入');
+          const response = await taskCoordinator.runForTask(task, command.args, event.sender);
+          if (!response.parsed || typeof response.parsed !== 'object') {
+            throw new Error('导入命令未返回有效结果，请查看运行日志');
+          }
+          result = response.parsed;
+        } catch (error) {
+          result = { ...error.parsed, ok: false, message: error.message };
+        }
+        if (result.ok === false && !result.failed?.length) {
+          result.failed = command.sources.map((source) => ({
+            ...source, error: result.message || '导入失败，请查看运行日志',
+          }));
+        }
+        if (command.args[0] === 'import-url') {
+          result.failed = (result.failed || []).map((failure) => ({
+            ...failure, url: failure.url || command.sources[0].url,
+          }));
+        }
+        results.push(result);
+      }
+      if (results.some((result) => result.ok === false || result.failed?.length)) {
+        batchError = new Error('部分来源导入失败，请查看导入结果');
+        throw batchError;
+      }
+    });
+  } catch (error) {
+    if (error !== batchError) throw error;
+  }
+  return results;
 });
 
 ipcMain.handle('library:bootstrap', async (event, sinceRevision) => {
@@ -712,8 +813,9 @@ ipcMain.handle('doctor', async (event) => {
   return res.parsed;
 });
 
-ipcMain.handle('compose-preflight', async (event, { manifest, output, verifyHash }) => {
+ipcMain.handle('compose-preflight', async (event, { manifest, output, verifyHash, format }) => {
   requireMainSender(event);
+  validateOutput(output, format);
   const args = ['compose-preflight', manifest, output];
   if (verifyHash === false) args.push('--no-verify-hash');
   const res = await runPptlib(args, event.sender);
@@ -721,9 +823,10 @@ ipcMain.handle('compose-preflight', async (event, { manifest, output, verifyHash
 });
 
 ipcMain.handle('compose', async (event, {
-  manifest, output, verifyHash, preflightToken,
+  manifest, output, verifyHash, preflightToken, format,
 }) => {
   requireMainSender(event);
+  validateOutput(output, format);
   const args = ['compose', manifest, output];
   if (verifyHash === false) args.push('--no-verify-hash');
   if (preflightToken) args.push('--preflight-token', String(preflightToken));

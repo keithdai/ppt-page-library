@@ -96,3 +96,13 @@ make agent-runtime
 
 The runtime keeps the legacy `PPTLIB_HOME` and related environment variable names so it reads the
 same local library as the DeckAtlas desktop application.
+
+## HTML preview branch
+
+With `PPTLIB_ENABLE_HTML=1`, capabilities and search results advertise `html` and
+`zip` export formats. `compose preflight` / `compose run` accept those suffixes
+under the same write permission, output-root and preflight-token checks.
+HTML pages require HTML/ZIP output; mixed PPTX pages use high-resolution images
+with an explicit preflight warning. Ingestion remains available through the
+desktop and `pptlib import` / `pptlib import-url`; the Agent interface stays
+read-only except for explicit composition.

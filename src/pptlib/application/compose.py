@@ -184,7 +184,19 @@ def compose_from_slide_ids(
     expected_output_fingerprint: str | None = None,
     expected_manifest_fingerprint: str | None = None,
 ) -> ExportResult:
-    """Compose selected pages into a new PPTX using the OOXML native exporter."""
+    """Compose selected pages; HTML/ZIP use the isolated offline HTML exporter."""
+    if output_path.suffix.lower() in {".html", ".zip"}:
+        from pptlib.application.html_compose import compose_html_from_slide_ids
+
+        return compose_html_from_slide_ids(
+            settings,
+            slide_ids,
+            output_path,
+            manifest_path=manifest_path,
+            verify_source_hash=verify_source_hash,
+            expected_output_fingerprint=expected_output_fingerprint,
+            expected_manifest_fingerprint=expected_manifest_fingerprint,
+        )
     plan = build_compose_plan(settings, slide_ids)
     missing = [item.slide_id for item in plan if not item.source_path.exists()]
     if missing:
@@ -226,6 +238,12 @@ def preflight_compose_from_manifest(
     *,
     verify_source_hash: bool = True,
 ) -> ComposePreflightResult:
+    if output_path.suffix.lower() in {".html", ".zip"}:
+        from pptlib.application.html_compose import preflight_html_from_manifest
+
+        return preflight_html_from_manifest(
+            settings, manifest_path, output_path, verify_source_hash=verify_source_hash
+        )
     output = output_path.expanduser().resolve()
     result_manifest = output.with_suffix(".manifest.json")
     manifest_state = output_fingerprint(manifest_path)
@@ -325,6 +343,17 @@ def compose_from_manifest(
     verify_source_hash: bool = True,
     preflight_token: str | None = None,
 ) -> ExportResult:
+    if output_path.suffix.lower() in {".html", ".zip"}:
+        from pptlib.application.html_compose import compose_html_from_slide_ids
+
+        return compose_html_from_slide_ids(
+            settings,
+            load_manifest_slide_ids(manifest_path),
+            output_path,
+            verify_source_hash=verify_source_hash,
+            input_manifest=manifest_path,
+            preflight_token=preflight_token,
+        )
     expected_output: str | None = None
     expected_manifest: str | None = None
     expected_source_manifest: str | None = None

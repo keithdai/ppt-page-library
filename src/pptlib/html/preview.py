@@ -93,6 +93,10 @@ _HTML_TAGS = set(
         "source",
         "track",
         "wbr",
+        "input",
+        "label",
+        "details",
+        "summary",
     ]
 )
 _SVG_TAGS = {
@@ -179,6 +183,11 @@ _ATTRS = set(
         "preload",
         "playsinline",
         "rel",
+        "name",
+        "checked",
+        "disabled",
+        "for",
+        "open",
     ]
 )
 _SVG_ATTRS = {
@@ -421,12 +430,18 @@ _RUNTIME = """(() => {
   const root = document.documentElement;
   const frame = document.querySelector('.slide-frame');
   const slide = frame && frame.querySelector('.slide');
+  const width = Number(slide && slide.dataset.pptlibWidth) || 1920;
+  const height = Number(slide && slide.dataset.pptlibHeight) || 1080;
+  if (slide) {
+    slide.style.setProperty('width', width + 'px', 'important');
+    slide.style.setProperty('height', height + 'px', 'important');
+  }
   const fit = () => {
-    const scale = Math.min(innerWidth / 1920, innerHeight / 1080);
+    const scale = Math.min(innerWidth / width, innerHeight / height);
     root.style.setProperty('--fs-scale', String(scale));
     if (frame) {
-      frame.style.setProperty('width', (1920 * scale) + 'px', 'important');
-      frame.style.setProperty('height', (1080 * scale) + 'px', 'important');
+      frame.style.setProperty('width', (width * scale) + 'px', 'important');
+      frame.style.setProperty('height', (height * scale) + 'px', 'important');
     }
     if (slide) slide.style.setProperty('transform', 'scale(' + scale + ')', 'important');
   };
@@ -682,6 +697,8 @@ class _Sanitizer:
             tag = _tag(node)
             in_svg = svg or tag == "svg" or any(_tag(p) == "svg" for p in node.iterancestors())
             allowed = tag in _SVG_TAGS if in_svg else tag in _HTML_TAGS
+            if tag == "input" and str(node.get("type", "")).lower() not in {"radio", "checkbox"}:
+                allowed = False
             if tag == "link" and str(node.get("rel", "")).lower() != "stylesheet":
                 allowed = False
             if not allowed:
@@ -746,7 +763,8 @@ class _Sanitizer:
                 node.set("loading", "eager")
 
     def document(self, page_key: str, *, static: bool) -> bytes:
-        original = deepcopy(self.source.document)
+        documents = getattr(self.source, "page_documents", {})
+        original = deepcopy(documents.get(page_key, self.source.document))
         if sum(1 for _ in original.iter()) > _MAX_NODES:
             raise ValueError("HTML preview exceeds node count limit")
         frames = [
@@ -819,6 +837,10 @@ class _Sanitizer:
         for slide in frame.iter():
             if "slide" in str(slide.get("class", "")).split():
                 slide.set("class", str(slide.get("class", "")) + " active is-active")
+                sizes = getattr(self.source, "page_sizes", {})
+                width, height = sizes.get(page_key, (1920, 1080))
+                slide.set("data-pptlib-width", str(width))
+                slide.set("data-pptlib-height", str(height))
         meta = html.Element("meta", charset="utf-8")
         head.insert(0, meta)
         style = html.Element("style")

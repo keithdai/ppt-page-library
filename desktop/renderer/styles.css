@@ -182,7 +182,7 @@ svg { display: block; }
 .btn.ghost { border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover:not(:disabled) { background: var(--surface-hover); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn[hidden], [data-html-only][hidden] { display: none; }
+.btn[hidden], [data-html-only][hidden], #experimental-label[hidden] { display: none; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
@@ -227,6 +227,13 @@ svg { display: block; }
 .import-failure { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(0, 1.2fr); gap: 12px; margin-top: 6px; }
 .import-failure strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .import-failure span { color: var(--text-2); }
+.import-url-form {
+  display: grid; gap: 7px; margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.import-url-form > label { font-size: 12px; color: var(--text-2); font-weight: 500; }
+.import-url-form .input { flex: 1 1 260px; min-width: 0; }
+.import-url-form .note, .import-url-form .field-error { margin: 0; }
 
 /* file list */
 .import-selection-head {
@@ -445,6 +452,7 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
   background: #fff7e8; color: #8a4b00; font-size: 11.5px; line-height: 1.6;
 }
 .export-blocked[hidden] { display: none; }
+#sel-export-warning { padding: 0; background: transparent; color: var(--text-3); }
 .thumb .tag { position: absolute; top: 8px; left: 8px; font-size: 10px; background: rgba(0,0,0,.42); color: #fff; padding: 2px 7px; border-radius: 10px; backdrop-filter: blur(2px); font-weight: 500; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* add/remove selection: bottom-right, hidden until hover and persistent when selected */
 .thumb .tadd {
@@ -489,6 +497,10 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
   background: #fff7e8; color: #8a4b00; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .lb-preview-error { background: var(--danger-light); color: #cb2634; }
+.lb-source {
+  max-width: 960px; max-height: 48px; overflow: auto; overflow-wrap: anywhere;
+  margin: 0; padding: 4px 10px; color: #fff; font-size: 11px; user-select: text;
+}
 .lightbox.has-notices .lb-img { max-height: calc(100vh - 270px); }
 .lb-nav { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; border: none; cursor: pointer;
   background: rgba(255,255,255,.16); color: #fff; display: flex; align-items: center; justify-content: center;
@@ -518,6 +530,7 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 }
 .lightbox:fullscreen .lb-bar,
 .lightbox:fullscreen .lb-warnings,
+.lightbox:fullscreen .lb-source,
 .lightbox:fullscreen .lb-preview-error {
   display: none;
 }
@@ -868,6 +881,8 @@ textarea.input { width: 100%; resize: vertical; font-family: "SF Mono", ui-monos
 }
 
 /* compose preflight and result */
+.compose-format { max-width: 480px; }
+.compose-format .note { margin: 0; }
 .compose-selection-status {
   min-height: 38px; margin-bottom: 12px; padding: 8px 11px;
   display: flex; align-items: center;

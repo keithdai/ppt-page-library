@@ -39,10 +39,7 @@ from pptlib.infrastructure.db.repositories import (
 from pptlib.ingestion.parser import PARSER_VERSION, ParsedDeck, ParsedSlide
 
 MIGRATIONS = Path(__file__).resolve().parents[3] / "src" / "pptlib" / "migrations"
-HTML_EXPORT_MESSAGE = (
-    "HTML \u9875\u9762\u5f53\u524d\u652f\u6301\u5165\u5e93\u548c\u9884\u89c8\uff0c"
-    "\u7ec4\u5408\u5bfc\u51fa\u5c06\u5728\u540e\u7eed\u9636\u6bb5\u5f00\u653e"
-)
+HTML_EXPORT_MESSAGE = "选片中包含 HTML 页面，请选择离线 HTML 或 HTML 资源包输出"
 HTML_CAPABILITIES = {
     "dynamic_preview": True,
     "video": True,

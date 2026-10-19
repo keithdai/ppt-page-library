@@ -300,6 +300,7 @@ function rendererFixture() {
         disabled: false, style: {}, listeners: {},
         classList: { toggle() {}, add() {}, remove() {} },
         setAttribute() {}, removeAttribute() {}, querySelectorAll: () => [],
+        querySelector: (selector) => element(`${id} ${selector}`),
         addEventListener(name, callback) { this.listeners[name] = callback; },
         appendChild() {}, focus() {},
       });
@@ -308,14 +309,16 @@ function rendererFixture() {
   }
   const document = {
     getElementById: element,
-    querySelector: () => null,
+    querySelector: (selector) => selector === '#compose-prog .prog-num'
+      ? element('compose-progress-copy') : null,
     querySelectorAll: (selector) => selector === '[data-html-only]'
-      ? [element('filter-format')] : [],
+      ? [element('filter-format'), element('import-url-form'), element('compose-format')] : [],
     addEventListener() {},
     createElement: () => element('created'),
   };
   const context = vm.createContext({
     document,
+    URL,
     requestAnimationFrame: (callback) => callback(),
     localStorage: { getItem: () => null, setItem() {} },
     sessionStorage: { getItem: () => null, setItem() {} },
@@ -343,7 +346,7 @@ function rendererFixture() {
   return { element, run: (code) => vm.runInContext(code, context) };
 }
 
-test('renderer sends format filters, permits HTML selection and blocks mixed export', () => {
+test('renderer sends format filters and lets mixed selections proceed to output preflight', () => {
   const f = rendererFixture();
   f.run("applyHtmlFeature(true); searchScope = 'all'; filterFormatEl.value = 'render_deck_html'");
   assert.equal(f.run('pageFilters().source_format'), 'render_deck_html');
@@ -351,14 +354,241 @@ test('renderer sends format filters, permits HTML selection and blocks mixed exp
   assert.equal(f.element('sel-export').disabled, false);
   f.run("selectedIds.push('h1'); renderSelected()");
   assert.equal(f.element('sel-count').textContent, 2);
-  assert.equal(f.element('sel-export').disabled, true);
+  assert.equal(f.element('sel-export').disabled, false);
   assert.equal(f.element('sel-export-warning').hidden, false);
+  assert.equal(f.element('sel-export-warning').textContent, 'HTML 页请选 HTML 输出');
   f.run('selectedIds.pop(); renderSelected()');
   assert.equal(f.element('sel-export').disabled, false);
   assert.equal(f.element('sel-export-warning').hidden, true);
   f.run('applyHtmlFeature(false)');
   assert.equal(f.element('filter-format').hidden, true);
   assert.equal(f.element('filter-format').value, '');
+  assert.equal(f.element('import-url-form').hidden, true);
+  assert.equal(f.element('compose-format').hidden, true);
+});
+
+test('URL input validates, de-duplicates, preserves URL syntax and never adds a disk path', () => {
+  const f = rendererFixture();
+  f.run('applyHtmlFeature(true)');
+  f.element('import-url').value = ' https://example.com/a//deck.html?x=1&y=2#page-3 ';
+  const submit = () => f.element('import-url-form').listeners.submit({ preventDefault() {} });
+  submit();
+  assert.deepEqual(JSON.parse(f.run('JSON.stringify(state.importSources)')), [
+    { kind: 'url', url: 'https://example.com/a//deck.html?x=1&y=2#page-3' },
+  ]);
+  f.element('import-url').value = 'https://example.com/a//deck.html?x=1&y=2#page-3';
+  submit();
+  assert.equal(f.run('state.importSources.length'), 1);
+  assert.match(f.element('import-selection-note').textContent, /无需重复/);
+  assert.equal(f.run('importSourceType(state.importSources[0])'), '在线链接');
+  assert.equal(f.run('withoutImportSource(state.importSources, state.importSources[0]).length'), 0);
+  for (const value of ['not a URL', 'file:///private/file.html', 'https://user:secret@example.com', 'https://', 'https://example.com\\a']) {
+    f.element('import-url').value = value;
+    submit();
+    assert.equal(f.element('import-url-error').hidden, false, value);
+    assert.equal(f.element('import-url').value, value);
+    assert.equal(f.run('state.importSources.length'), 1);
+  }
+  f.run('setImportBusy(true)');
+  assert.equal(f.element('import-url').disabled, true);
+  assert.equal(f.element('add-import-url').disabled, true);
+  f.run('setImportBusy(false); applyHtmlFeature(false)');
+  f.element('import-url').value = 'https://example.com/other';
+  submit();
+  assert.equal(f.run('state.importSources.length'), 1);
+});
+
+test('renderer imports mixed sources without flattening URLs and keeps failure details visible', async () => {
+  const f = rendererFixture();
+  f.run(`
+    applyHtmlFeature(true);
+    state.importSources = [{path:'/tmp/local.pptx'}, {kind:'url', url:'https://example.com/deck'}];
+    window.pptlib.import = async sources => {
+      window.sentSources = sources;
+      return [
+        {imported:[{created:true, name:'local.pptx'}], failed:[]},
+        {ok:false, imported:[], failed:[{url:'https://example.com/deck', error:'<download failed>'}]}
+      ];
+    };
+  `);
+  await f.element('run-import').listeners.click();
+  assert.equal(f.run('JSON.stringify(window.sentSources)'),
+    '["/tmp/local.pptx",{"kind":"url","url":"https://example.com/deck"}]');
+  assert.equal(f.element('import-summary').hidden, false);
+  assert.match(f.element('import-summary').innerHTML, /https:\/\/example.com\/deck/);
+  assert.match(f.element('import-summary').innerHTML, /&lt;download failed&gt;/);
+  assert.equal(f.element('import-err').hidden, false);
+  assert.equal(f.element('import-ok').hidden, true);
+  assert.equal(f.element('run-import').disabled, false);
+});
+
+test('download progress is readable and unrelated task progress is ignored', () => {
+  const f = rendererFixture();
+  f.run(`setImportProgress({stage:'download_start', path:'https://example.com/deck', taskKind:'导入并渲染'})`);
+  assert.match(f.element('import-prog-text').textContent, /正在连接在线演示.*https:\/\/example.com\/deck/);
+  f.run(`setImportProgress({stage:'download_resource', name:'image.png', taskKind:'导入并渲染'})`);
+  assert.match(f.element('import-prog-text').textContent, /正在下载页面资源.*image.png/);
+  f.run(`setImportProgress({stage:'download_resource', resource_count:3, bytes:1048576, taskKind:'导入并渲染'})`);
+  assert.match(f.element('import-prog-text').textContent, /已保存 3 项.*1 MB/);
+  const text = f.element('import-prog-text').textContent;
+  f.run(`setImportProgress({stage:'scan', total:4, taskKind:'自动更新'})`);
+  assert.equal(f.element('import-prog-text').textContent, text);
+});
+
+test('HTML controls are gated in markup and compatibility copy explains flattened PPTX pages', () => {
+  const markup = readFileSync(path.join(__dirname, 'renderer/index.html'), 'utf8');
+  assert.match(markup, /<form id="import-url-form"[^>]*data-html-only hidden>/);
+  assert.match(markup, /class="field compose-format" data-html-only hidden/);
+  assert.match(markup, /<label for="import-url">/);
+  assert.match(markup, /<option value="html">HTML 离线单文件（\.html）/);
+  assert.match(markup, /<option value="zip">HTML 资源包（\.zip）/);
+  assert.doesNotMatch(markup, /第一阶段仅支持|暂不支持导出/);
+  const f = rendererFixture();
+  f.run(`renderComposePreflight({
+    ok:true, blockers:[], preflight_token:'token',
+    warnings:['PPTX_FLATTENED_TO_IMAGE: details', 'HTML_EXTERNAL_RESOURCES_BLOCKED']
+  })`);
+  assert.match(f.element('compose-check-issues').innerHTML, /不保留原生编辑/);
+  assert.match(f.element('compose-check-issues').innerHTML, /部分内容可能缺失/);
+});
+
+test('source URL provenance survives normalization and is displayed as plain text', () => {
+  const f = rendererFixture();
+  f.run(`
+    const deck = normalizeDeck({id:'d2', name:'HTML', source_url:'https://example.com/<source>'});
+    catalog.decks = [deck];
+    rememberSlide(catalog.byId.h1);
+    lbList = ['h1']; lbIndex = 0; showLightboxSlide();
+  `);
+  assert.equal(f.element('lb-source').hidden, false);
+  assert.equal(f.element('lb-source').textContent, '在线来源：https://example.com/<source>');
+  assert.equal(f.element('lb-source').innerHTML, '');
+});
+
+test('mixed selection writes its ordered manifest before choosing a compatible output', async () => {
+  const f = rendererFixture();
+  f.run(`
+    applyHtmlFeature(true);
+    selectedIds.push('h1', 'p1');
+    window.pptlib.writeManifest = async ids => {
+      window.manifestIds = ids;
+      return {path:'/tmp/mixed.json', count:ids.length};
+    };
+  `);
+  await f.element('sel-export').listeners.click();
+  assert.equal(f.run('JSON.stringify(window.manifestIds)'), '["h1","p1"]');
+  assert.equal(f.run('state.manifest'), '/tmp/mixed.json');
+  assert.equal(f.run('state.manifestFromSelection'), true);
+  assert.equal(f.element('sel-export').disabled, false);
+});
+
+test('format changes invalidate output and preflight, and the save picker receives the format', async () => {
+  const f = rendererFixture();
+  f.run(`
+    applyHtmlFeature(true);
+    state.manifest = '/tmp/manifest.json';
+    state.output = '/tmp/out.pptx';
+    state.composePreflight = {ok:true, preflight_token:'old'};
+    window.pptlib.pickSaveOutput = async options => {
+      window.saveOptions = options;
+      return '/tmp/out.' + options.format;
+    };
+  `);
+  for (const format of ['html', 'zip', 'pptx']) {
+    f.element('output-format').value = format;
+    f.element('output-format').listeners.change();
+    assert.equal(f.run('state.output'), null);
+    assert.equal(f.run('state.composePreflight'), null);
+    assert.equal(f.element('run-compose').disabled, true);
+    await f.element('pick-output').listeners.click();
+    assert.equal(f.run('window.saveOptions.format'), format);
+    assert.equal(f.run('state.output'), `/tmp/out.${format}`);
+    assert.equal(f.element('run-compose').disabled, false);
+  }
+  f.run("window.pptlib.pickSaveOutput = async () => '/tmp/wrong.zip'");
+  await f.element('pick-output').listeners.click();
+  assert.match(f.element('compose-err').textContent, /\.pptx/);
+  assert.equal(f.run('state.output'), '/tmp/out.pptx');
+  f.run('applyHtmlFeature(false)');
+  assert.equal(f.element('compose-format').hidden, true);
+  assert.equal(f.run('state.outputFormat'), 'pptx');
+  assert.equal(f.element('confirm-compose').textContent, '确认导出');
+});
+
+test('all formats use the existing preflight/compose contract and HTML is blocked only for PPTX', async () => {
+  const f = rendererFixture();
+  f.run(`
+    applyHtmlFeature(true);
+    selectedIds.push('h1', 'p1');
+    state.manifest = '/tmp/mixed.json';
+    window.pptlib.preflightCompose = async options => {
+      window.checkedOptions = options;
+      return options.format === 'pptx'
+        ? {ok:false, blockers:[{message:'HTML 页请选 HTML 输出'}]}
+        : {ok:true, blockers:[], preflight_token:'html-token'};
+    };
+    window.pptlib.compose = async options => {
+      window.composedOptions = options;
+      return {ok:true, output_path:options.output, page_count:2};
+    };
+  `);
+  for (const format of ['pptx', 'html', 'zip']) {
+    f.run(`state.outputFormat = '${format}'; state.output = '/tmp/out.${format}'; refreshComposeReady()`);
+    await f.element('run-compose').listeners.click();
+    assert.equal(f.run('window.checkedOptions.format'), format);
+    if (format === 'pptx') {
+      assert.equal(f.element('confirm-compose').disabled, true);
+      assert.match(f.element('compose-check-issues').innerHTML, /HTML 页请选 HTML 输出/);
+      continue;
+    }
+    assert.equal(f.element('confirm-compose').disabled, false);
+    await f.element('confirm-compose').listeners.click();
+    assert.equal(f.run('window.composedOptions.output'), `/tmp/out.${format}`);
+    assert.equal(f.run('window.composedOptions.preflightToken'), 'html-token');
+    assert.doesNotMatch(f.element('compose-result-copy').textContent, /undefined/);
+    assert.match(f.element('compose-result-copy').textContent, /HTML/);
+    assert.equal(f.element('compose-manifest').hidden, true);
+  }
+});
+
+test('PPTX export works with HTML disabled and resets any stale HTML output', async () => {
+  const f = rendererFixture();
+  f.run(`
+    state.outputFormat = 'html'; state.output = '/tmp/old.html';
+    state.composePreflight = {ok:true, preflight_token:'old'};
+    applyHtmlFeature(false);
+    state.manifest = '/tmp/pptx.json';
+    window.pptlib.pickSaveOutput = async ({format}) => '/tmp/out.' + format;
+    window.pptlib.preflightCompose = async options => ({ok:true, preflight_token:'pptx-token'});
+    window.pptlib.compose = async options => {
+      window.composedOptions = options;
+      return {ok:true, output_path:options.output, page_count:1, fidelity_level:'A'};
+    };
+  `);
+  assert.equal(f.run('state.output'), null);
+  assert.equal(f.run('state.composePreflight'), null);
+  await f.element('pick-output').listeners.click();
+  await f.element('run-compose').listeners.click();
+  await f.element('confirm-compose').listeners.click();
+  assert.equal(f.run('window.composedOptions.output'), '/tmp/out.pptx');
+  assert.equal(f.element('compose-result-copy').textContent, '1 页已按选片顺序生成，保真等级 A。');
+  assert.match(f.element('compose-description').textContent, /原生 OOXML/);
+});
+
+test('a selection change during preflight cannot resurrect an old token', async () => {
+  const f = rendererFixture();
+  f.run(`
+    state.manifest = '/tmp/old.json'; state.output = '/tmp/out.pptx';
+    state.manifestFromSelection = true;
+    window.pptlib.preflightCompose = () => new Promise(resolve => { window.finishCheck = resolve; });
+  `);
+  const pending = f.element('run-compose').listeners.click();
+  assert.equal(f.element('output-format').disabled, true);
+  f.run(`invalidateSelectionManifest(); window.finishCheck({ok:true, preflight_token:'old'})`);
+  await pending;
+  assert.equal(f.run('state.composePreflight'), null);
+  assert.equal(f.element('run-compose').disabled, true);
+  assert.match(f.element('compose-err').textContent, /重新检查/);
 });
 
 test('import source selection accumulates, de-duplicates and removes one source', () => {

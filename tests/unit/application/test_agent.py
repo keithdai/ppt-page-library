@@ -9,6 +9,7 @@ import pytest
 from pptlib.application.agent import (
     MAX_SELECTION_BYTES,
     SELECTION_SCHEMA,
+    describe_capabilities,
     validate_output_path,
     validate_selection_manifest,
 )
@@ -26,6 +27,20 @@ def _settings(tmp_path: Path):
         log_dir=tmp_path / "logs",
         output_root=tmp_path / "exports",
     )
+
+
+def test_html_exports_require_feature_flag_and_remain_inside_output_root(tmp_path: Path) -> None:
+    disabled = _settings(tmp_path)
+    enabled = replace(disabled, html_enabled=True)
+    assert describe_capabilities(disabled)["export_formats"] == ["pptx"]
+    assert describe_capabilities(enabled)["export_formats"] == ["pptx", "html", "zip"]
+    for suffix in ("html", "zip"):
+        target = enabled.output_root / f"deck.{suffix}"
+        with pytest.raises(AppError):
+            validate_output_path(disabled, target)
+        assert validate_output_path(enabled, target) == target
+        with pytest.raises(AppError):
+            validate_output_path(enabled, tmp_path / f"outside.{suffix}")
 
 
 def test_agent_manifest_requires_versioned_strict_shape(tmp_path: Path) -> None:

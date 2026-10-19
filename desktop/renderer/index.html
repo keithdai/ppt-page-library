@@ -23,6 +23,7 @@
           <span class="title">DeckAtlas<span class="brand-sub">本地演示页库</span></span>
         </div>
         <span class="chip">本地处理 · 源文件不外传</span>
+        <span class="chip" id="experimental-label" hidden></span>
         <span class="spacer"></span>
         <span class="chip mono" id="paths">仓库: …</span>
       </header>
@@ -42,7 +43,7 @@
           </button>
           <button type="button" class="nav-item" data-step="3">
             <span class="idx">3</span>
-            <span class="label">组合导出<span class="desc">按序拼出 PPTX</span></span>
+            <span class="label">组合导出<span class="desc" data-html-copy="按序导出 PPTX / HTML">按序拼出 PPTX</span></span>
             <span class="sd gray" data-dot></span>
           </button>
           <button type="button" class="nav-item manage" data-step="4">
@@ -72,7 +73,7 @@
             <div class="page-head">
               <div class="t">
                 <h2>导入并渲染</h2>
-                <p data-html-copy="选择本地 PPTX、HTML / HTM 或 HTML Deck ZIP，抽取文本、分类并生成静态预览。HTML 可在隔离窗口播放安全动态版本，暂不支持导出。">选择本地 PPTX，系统会抽取文本、自动分类，并按页渲染缩略图与预览。源文件只留在本地。</p>
+                <p data-html-copy="导入本地 PPTX、HTML / HTM、HTML Deck ZIP 或在线演示链接，归档后统一搜索、选片、排序与导出。">选择本地 PPTX，系统会抽取文本、自动分类，并按页渲染缩略图与预览。源文件只留在本地。</p>
               </div>
             </div>
             <div class="cols">
@@ -97,6 +98,17 @@
                       导入并渲染
                     </button>
                   </div>
+                  <form id="import-url-form" class="import-url-form" data-html-only hidden>
+                    <label for="import-url">在线演示链接</label>
+                    <div class="btn-row">
+                      <input id="import-url" class="input" type="url" required
+                        placeholder="https://example.com/deck.html" autocomplete="off"
+                        spellcheck="false" aria-describedby="import-url-hint import-url-error" />
+                      <button id="add-import-url" class="btn" type="submit">添加链接</button>
+                    </div>
+                    <p id="import-url-hint" class="note">导入时联网下载页面与资源，归档后留在本地。请仅添加有权保存的链接。</p>
+                    <p id="import-url-error" class="field-error" role="alert" hidden></p>
+                  </form>
                   <div id="import-selection-head" class="import-selection-head" hidden>
                     <span><b id="import-source-count">0</b> 个待导入来源</span>
                     <button id="clear-import-sources" class="btn ghost sm" type="button">
@@ -208,7 +220,7 @@
             <div class="page-head">
               <div class="t">
                 <h2>组合导出</h2>
-                <p>选好页后，选一个输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。</p>
+                <p id="compose-description">选好页后，选一个输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。</p>
               </div>
             </div>
             <div class="cols">
@@ -222,8 +234,16 @@
                       输出设置
                     </h3>
                     <p class="card-sub">选择保存位置后，先检查来源与兼容性，再生成文件。</p>
-                    <p class="export-blocked" data-html-only hidden>第一阶段仅支持 PPTX 页面导出。HTML 可选片和动态预览，暂不支持 HTML 或 PPTX 导出；包含 HTML 页面的清单无法组合。</p>
                     <div class="compose-selection-status" id="compose-selection-status" role="status" aria-live="polite"></div>
+                    <div class="field compose-format" data-html-only hidden>
+                      <label for="output-format">输出格式</label>
+                      <select id="output-format" class="select" aria-describedby="output-format-hint">
+                        <option value="pptx">PPTX（可编辑）</option>
+                        <option value="html">HTML 离线单文件（.html）</option>
+                        <option value="zip">HTML 资源包（.zip）</option>
+                      </select>
+                      <p id="output-format-hint" class="note">保留 PPTX 原生可编辑内容；HTML 页请选 HTML 输出。</p>
+                    </div>
                     <div class="btn-row">
                       <button id="pick-output" class="btn">选择保存位置…</button>
                     </div>
@@ -284,7 +304,7 @@
               <div class="side">
                 <div class="card">
                   <h3>组合方式</h3>
-                  <div class="kv"><span class="k">保真</span><span class="v">OOXML 复制</span></div>
+                  <div class="kv"><span class="k">方式</span><span class="v" id="compose-method">OOXML 复制</span></div>
                   <div class="kv"><span class="k">页序</span><span class="v">按清单顺序</span></div>
                   <div class="kv"><span class="k">哈希校验</span><span class="v" id="side-verify">开启</span></div>
                 </div>
@@ -491,7 +511,7 @@
       <div class="onboarding-copy">
         <span class="onboarding-step">首次使用 · 约 2 分钟完成设置</span>
         <h2 id="onboarding-title">从一份真实素材开始</h2>
-        <p>DeckAtlas 只读取你选择的本地目录。完成环境检查后，导入素材、选中页面，即可导出第一份新稿。</p>
+        <p data-html-copy="DeckAtlas 读取你选择的本地素材，也可下载你添加的在线链接。完成环境检查后，导入素材、选中页面，即可导出第一份新稿。">DeckAtlas 只读取你选择的本地目录。完成环境检查后，导入素材、选中页面，即可导出第一份新稿。</p>
       </div>
       <div id="onboarding-checks" class="onboarding-checks" role="status" aria-live="polite">
         <div><span>运行环境</span><strong>等待检查</strong></div>
@@ -621,6 +641,7 @@
             <button class="btn sm" id="lb-toggle-sel">加入选片</button>
           </div>
           <p class="lb-warnings" id="lb-warnings" role="status" hidden></p>
+          <p class="lb-source" id="lb-source" hidden></p>
           <p class="lb-preview-error" id="lb-preview-error" role="alert" hidden></p>
         </div>
         <button class="lb-nav next" id="lb-next" title="下一页（→）">

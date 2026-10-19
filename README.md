@@ -7,7 +7,8 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 源文件不上传、不复制，索引、预览和选片记录都留在本机。
 
 当前 Beta 支持 PPTX 导入、页级搜索、高清预览、跨文件选片、拖拽排序、可编辑 PPTX
-组合导出、重复管理和目录自动更新。HTML 适配仍是开发能力，发布包默认关闭。
+组合导出、重复管理和目录自动更新。本隔离分支补齐 HTML 本地/在线归档与组合输出，
+既有发布包默认关闭 HTML 的行为保持不变。
 
 [产品网站](website/) · [试用手册](docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md) ·
 [产品化路线图](docs/DeckAtlas-productization-engineering-roadmap.md) ·
@@ -19,7 +20,7 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 | --- | --- |
 | `pptlib`（Python CLI） | 统一导入、分类、检索、预览、catalog 和 PPTX 组合导出 |
 | PPTX 渲染器 | LibreOffice 高保真分段渲染，officecli 作为失败回退 |
-| HTML 适配器 | exact backfill、轻量依赖清单、安全浏览器截图和隔离动态预览 |
+| HTML 适配器 | 原生 DOM 拆页、在线资源归档、安全截图、隔离预览及离线 HTML/ZIP 组合 |
 | Electron 控制台 | 本地导入、搜索、选片、动态预览和组合导出 |
 
 ## 当前兼容性
@@ -56,9 +57,12 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
     PPTLIB_ENABLE_HTML=1 PPTLIB_HOME="$PWD/var/dev" \
       .venv/bin/pptlib import --html ./sources
 
-HTML 第一阶段只接受带 `fs-deck-generator=render-deck`、`.slide-frame` 和稳定
-`data-slide-key` 的本地 `.html` / `.htm`，以及包含唯一 `index.html` 的安全 ZIP bundle。
-来源脚本、事件、iframe、表单和外部网络不会进入隔离预览。
+HTML 支持 render-deck、Reveal 静态 section、`.slide` / `section[data-slide]`，
+以及包含唯一 `index.html` 的安全 ZIP。无需额外格式引擎。在线演示使用
+`pptlib import-url URL` 归档；组合输出选择 `.html` 或 `.zip`。
+来源脚本、事件、第三方 iframe 和外部网络不会进入隔离预览，
+原生视频、GIF、CSS 页内标签切换和讲稿保留。完整说明见
+[`HTML 归档与组合`](documentation/html-archive.md)。
 
 ### 渲染引擎选择
 

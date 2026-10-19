@@ -58,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="also accept standard render-deck HTML / ZIP bundles",
     )
+    import_remote = subparsers.add_parser(
+        "import-url", help="archive a public HTML deck and its resources for offline reuse"
+    )
+    import_remote.add_argument("url", help="public HTTP/HTTPS presentation URL")
+    import_remote.add_argument("--html", action="store_true", help="enable HTML for this import")
     scan_plan = subparsers.add_parser(
         "scan-plan", help="manage and execute desktop automatic-update plans"
     )
@@ -317,6 +322,45 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
         return 0
+    if args.command == "import-url":
+        from pptlib.application.import_url import import_url
+        from pptlib.infrastructure.db.connection import connect
+
+        if args.html:
+            settings = replace(settings, html_enabled=True)
+        initialize(settings)
+
+        def _remote_progress(event: dict[str, object]) -> None:
+            print("@@PPTLIB_PROGRESS " + json.dumps(event, ensure_ascii=False), flush=True)
+
+        def _cancel_remote(_signum: int, _frame: object) -> None:
+            # Unwind the capture's staging directory on desktop cancellation.
+            raise KeyboardInterrupt
+
+        previous_term = None
+        if threading.current_thread() is threading.main_thread():
+            previous_term = signal.signal(signal.SIGTERM, _cancel_remote)
+        connection = connect(settings.database_path)
+        try:
+            remote_result = import_url(
+                connection, args.url, settings=settings, on_progress=_remote_progress
+            )
+        except KeyboardInterrupt:
+            remote_result = {
+                "ok": False, "cancelled": True, "discovered": 0, "imported": [], "skipped": 0,
+                "failed": [{"path": args.url, "error": "在线归档已停止"}],
+            }
+        except (AppError, OSError, ValueError) as error:
+            remote_result = {
+                "ok": False, "discovered": 0, "imported": [], "skipped": 0,
+                "failed": [{"path": args.url, "error": str(error)}],
+            }
+        finally:
+            connection.close()
+            if previous_term is not None:
+                signal.signal(signal.SIGTERM, previous_term)
+        print(json.dumps(remote_result, ensure_ascii=False), flush=True)
+        return 0 if remote_result["ok"] else 1
     if args.command == "import":
         from pptlib.application.import_decks import scan_and_import
         from pptlib.infrastructure.db.connection import connect

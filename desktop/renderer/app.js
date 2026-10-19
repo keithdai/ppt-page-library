@@ -6,6 +6,7 @@ const state = {
   importSources: [],
   manifest: null,
   output: null,
+  outputFormat: 'pptx',
   htmlEnabled: false,
   composePreflight: null,
   composeResult: null,
@@ -106,6 +107,11 @@ document.getElementById('clear-log').addEventListener('click', (e) => {
 async function refreshPaths() {
   const paths = await window.pptlib.paths();
   applyHtmlFeature(paths.htmlEnabled === true);
+  const label = document.getElementById('experimental-label');
+  label.textContent = paths.experimentalLabel || '';
+  show(label, Boolean(paths.experimentalLabel));
+  document.title = paths.experimentalLabel
+    ? `DeckAtlas · ${paths.experimentalLabel}` : 'DeckAtlas · 本地演示页库';
   document.getElementById('paths').textContent = paths.runtimeMode === 'bundled'
     ? '运行时: 应用内置'
     : `仓库: ${paths.repoRoot}`;
@@ -126,7 +132,16 @@ function applyHtmlFeature(enabled) {
     if (!el.dataset.pptxCopy) el.dataset.pptxCopy = el.textContent;
     el.textContent = enabled ? el.dataset.htmlCopy : el.dataset.pptxCopy;
   });
-  if (!enabled) document.getElementById('filter-format').value = '';
+  if (!enabled) {
+    document.getElementById('filter-format').value = '';
+    if (state.outputFormat !== 'pptx') {
+      state.outputFormat = 'pptx';
+      state.output = null;
+      refreshComposeReady();
+    }
+  }
+  document.getElementById('output-format').value = state.outputFormat;
+  updateComposeCopy();
 }
 
 const onboardingEl = document.getElementById('onboarding');
@@ -253,6 +268,9 @@ const importSelectionHeadEl = document.getElementById('import-selection-head');
 const importSourceCountEl = document.getElementById('import-source-count');
 const importSelectionNoteEl = document.getElementById('import-selection-note');
 const clearImportSourcesBtn = document.getElementById('clear-import-sources');
+const importUrlEl = document.getElementById('import-url');
+const addImportUrlBtn = document.getElementById('add-import-url');
+const importUrlErrorEl = document.getElementById('import-url-error');
 let importRunning = false;
 const FILE_ICON =
   '<span class="fico"><svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>';
@@ -260,17 +278,40 @@ const FOLDER_ICON =
   '<span class="fico"><svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>';
 const SOURCE_REMOVE_ICON =
   '<svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+const URL_ICON =
+  '<span class="fico"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a18 18 0 0 1 0 18 18 18 0 0 1 0-18"/></svg></span>';
 
-// Picked import sources: each is { path, isDir }. The backend accepts both
-// files and directories (directories are scanned recursively).
+// URL sources deliberately have no path: they must never receive disk semantics.
+function importSourceKey(source) {
+  return source.url ? `url:${source.url}` : `path:${normalizedPath(source.path)}`;
+}
+
+function normalizeImportUrl(value) {
+  const text = String(value || '').trim();
+  if (!/^https?:\/\//i.test(text) || /[\s\\]/.test(text)) {
+    throw new Error('请输入完整的 http:// 或 https:// 链接');
+  }
+  let url;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error('链接格式无效，请检查后重试');
+  }
+  if (!url.hostname || url.username || url.password) {
+    throw new Error('在线链接不能包含用户名或密码');
+  }
+  return url.href;
+}
+
+// Local files and directories retain their existing source representation.
 function mergeImportSources(current, paths, isDir) {
   const sources = current.slice();
-  const known = new Set(sources.map((source) => normalizedPath(source.path)));
+  const known = new Set(sources.map(importSourceKey));
   let added = 0;
   let duplicates = 0;
   for (const rawPath of paths) {
     const path = String(rawPath || '').trim();
-    const key = normalizedPath(path);
+    const key = importSourceKey({ path });
     if (!path || known.has(key)) {
       if (path) duplicates += 1;
       continue;
@@ -283,11 +324,12 @@ function mergeImportSources(current, paths, isDir) {
 }
 
 function withoutImportSource(current, path) {
-  const key = normalizedPath(path);
-  return current.filter((source) => normalizedPath(source.path) !== key);
+  const key = typeof path === 'object' ? importSourceKey(path) : importSourceKey({ path });
+  return current.filter((source) => importSourceKey(source) !== key);
 }
 
 function importSourceType(source) {
+  if (source.url) return '在线链接';
   if (source.isDir) return '文件夹';
   const extension = source.path.split('.').pop().toLowerCase();
   if (extension === 'htm' || extension === 'html') return 'HTML';
@@ -314,6 +356,8 @@ function setImportBusy(on) {
   importRunning = on;
   pickImportBtn.disabled = on;
   pickFolderBtn.disabled = on;
+  importUrlEl.disabled = on;
+  addImportUrlBtn.disabled = on;
   clearImportSourcesBtn.disabled = on;
   renderImportSources();
 }
@@ -322,19 +366,20 @@ function renderImportSources() {
   importList.innerHTML = '';
   state.importSources.forEach((src) => {
     const li = document.createElement('li');
-    const icon = src.isDir ? FOLDER_ICON : FILE_ICON;
-    const label = src.path.split('/').pop() || src.path;
-    li.title = src.path;
+    const icon = src.url ? URL_ICON : src.isDir ? FOLDER_ICON : FILE_ICON;
+    const location = src.url || src.path;
+    const label = src.url ? new URL(src.url).host : src.path.split('/').pop() || src.path;
+    li.title = location;
     li.innerHTML =
       `${icon}<div class="fcopy"><div class="fname">${esc(label)}</div>` +
-      `<div class="fpath">${esc(src.path)}</div></div>` +
+      `<div class="fpath">${esc(location)}</div></div>` +
       `<span class="ftag">${importSourceType(src)}</span>` +
       `<button class="source-remove" type="button" title="移除" ` +
       `aria-label="移除 ${esc(label)}"${importRunning ? ' disabled' : ''}>` +
       `${SOURCE_REMOVE_ICON}</button>`;
     li.querySelector('.source-remove').addEventListener('click', () => {
       if (importRunning) return;
-      state.importSources = withoutImportSource(state.importSources, src.path);
+      state.importSources = withoutImportSource(state.importSources, src);
       resetImportOutcome();
       renderImportSources();
       announceImportSelection(`已移除“${label}”`);
@@ -372,6 +417,28 @@ pickFolderBtn.addEventListener('click', async () => {
   if (folders.length) addImportSources(folders, true);
 });
 
+document.getElementById('import-url-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (importRunning || !state.htmlEnabled) return;
+  show(importUrlErrorEl, false);
+  try {
+    const source = { kind: 'url', url: normalizeImportUrl(importUrlEl.value) };
+    if (state.importSources.some((item) => importSourceKey(item) === importSourceKey(source))) {
+      announceImportSelection('所选链接已在列表中，无需重复添加');
+      return;
+    }
+    state.importSources.push(source);
+    resetImportOutcome();
+    renderImportSources();
+    importUrlEl.value = '';
+    announceImportSelection('已添加 1 个在线来源，点击“导入并渲染”开始归档', 'ok');
+  } catch (error) {
+    importUrlErrorEl.textContent = error.message;
+    show(importUrlErrorEl, true);
+  }
+  importUrlEl.focus();
+});
+
 clearImportSourcesBtn.addEventListener('click', () => {
   if (importRunning || state.importSources.length === 0) return;
   const count = state.importSources.length;
@@ -384,10 +451,26 @@ clearImportSourcesBtn.addEventListener('click', () => {
 // Live import progress, driven by the backend's per-page/per-file events.
 function setImportProgress(event) {
   if (!event || !importProgEl) return;
+  if (event.taskKind && event.taskKind !== '导入并渲染') return;
   const { stage, index, total, name, page, pages } = event;
   let ratio = 0;
   let text = '准备中…';
-  if (stage === 'scan') {
+  if (stage?.startsWith('download_')) {
+    const location = event.url || event.source_url || event.path || name || '在线演示';
+    const downloadCopy = {
+      download_start: '正在连接在线演示',
+      download_resource: '正在下载页面资源',
+      download_done: '下载完成，准备归档',
+      download_complete: '下载完成，准备归档',
+      download_error: '下载失败',
+    };
+    text = `${downloadCopy[stage] || '正在归档在线演示'}：${location}`;
+    if (stage === 'download_resource' && Number.isFinite(event.resource_count)) {
+      text = `正在下载页面资源：已保存 ${event.resource_count} 项`;
+      if (event.bytes > 0) text += ` · ${formatBytes(event.bytes)}`;
+    }
+    if (event.error) text += ` · ${event.error}`;
+  } else if (stage === 'scan') {
     text = total > 0 ? `发现 ${total} 个文件，开始导入…` : '未发现可导入的文件';
   } else if (stage === 'file') {
     ratio = total ? (index - 1) / total : 0;
@@ -431,14 +514,22 @@ function summarizeImportResults(results) {
       (deck) => deck.action === 'unchanged' || (!deck.action && !deck.created)
     ),
     removed: results.flatMap((result) => result.removed || []),
-    failed: results.flatMap((result) => result.failed || []),
+    skipped: results.flatMap((result) => Array.isArray(result.skipped) ? result.skipped : []),
+    failed: results.flatMap((result) => {
+      if (result.failed?.length) return result.failed;
+      return result.ok === false ? [{ error: result.message || '导入失败，请查看运行日志' }] : [];
+    }),
   };
 }
 
 // Render the post-import summary grouped by sync outcome.
 function renderImportSummary(results) {
-  const { created, updated, moved, unchanged, removed, failed } = summarizeImportResults(results);
+  const { created, updated, moved, unchanged, removed, skipped, failed } = summarizeImportResults(results);
   const rows = [];
+  const notices = results.flatMap((result) => result.warnings || []);
+  for (const notice of notices) {
+    rows.push(`<li class="dup">${esc(String(notice))}</li>`);
+  }
   rows.push(`<li class="ok">新增导入 <b>${created.length}</b> 个文件</li>`);
   if (updated.length) {
     const names = updated.map((d) => esc(d.name || (d.path || '').split('/').pop())).join('、');
@@ -456,12 +547,18 @@ function renderImportSummary(results) {
     const names = removed.map((path) => esc(String(path).split('/').pop())).join('、');
     rows.push(`<li class="dup">源文件已不存在、同步移除 <b>${removed.length}</b> 个：${names}</li>`);
   }
+  if (skipped.length) {
+    const names = skipped.map((item) => esc(typeof item === 'string'
+      ? item : item.url || item.path || item.name || item.reason || '已跳过')).join('、');
+    rows.push(`<li class="dup">其他跳过 <b>${skipped.length}</b> 个：${names}</li>`);
+  }
   if (failed.length) {
     const details = failed
       .map((item) => {
-        const name = esc((item.path || '').split('/').pop());
+        const location = item.url || item.source_url || item.path || '';
+        const name = esc(item.url || item.source_url || item.name || location.split('/').pop() || '导入来源');
         const reason = esc(item.error || '未知错误');
-        return `<div class="import-failure"><strong>${name}</strong><span>${reason}</span></div>`;
+        return `<div class="import-failure"><strong title="${esc(location)}">${name}</strong><span>${reason}</span></div>`;
       })
       .join('');
     rows.push(`<li class="err">失败 <b>${failed.length}</b> 个${details}</li>`);
@@ -482,9 +579,9 @@ runImportBtn.addEventListener('click', async () => {
   show(importProgEl, true);
   navState(1, 'blue');
   try {
-    const paths = state.importSources.map((s) => s.path);
-    log(`开始导入 ${paths.length} 个来源…`);
-    const results = await window.pptlib.import(paths);
+    const sources = state.importSources.map((s) => s.url ? { kind: 'url', url: s.url } : s.path);
+    log(`开始导入 ${sources.length} 个来源…`);
+    const results = await window.pptlib.import(sources);
     const summary = summarizeImportResults(results);
     const created = summary.created.length;
     const updated = summary.updated.length;
@@ -494,16 +591,16 @@ runImportBtn.addEventListener('click', async () => {
     const failed = summary.failed.length;
     log(
       `同步完成：新增 ${created}，更新 ${updated}，路径同步 ${moved}，未变化 ${unchanged}，移除 ${removed}，失败 ${failed}`,
-      'ok'
+      failed ? 'stderr' : 'ok'
     );
     renderImportSummary(results);
     toast(
       document.getElementById('import-ok'),
       document.getElementById('import-err'),
-      'ok',
+      failed ? 'err' : 'ok',
       `同步完成：新增 ${created} 个${updated ? `，更新 ${updated} 个` : ''}${moved ? `，路径同步 ${moved} 个` : ''}${unchanged ? `，未变化 ${unchanged} 个` : ''}${removed ? `，移除 ${removed} 个` : ''}${failed ? `，失败 ${failed} 个` : ''}`
     );
-    navState(1, 'green');
+    navState(1, failed ? 'gray' : 'green');
   } catch (error) {
     log(`导入失败：${error.message}`, 'stderr');
     toast(
@@ -566,6 +663,7 @@ function rememberSlide(slide) {
   const normalized = {
     ...slide,
     source_path: slide.source_path || deck?.source_path || '',
+    source_url: slide.source_url || deck?.source_url || '',
     source_format: slide.source_format || deck?.source_format || 'pptx',
   };
   catalog.byId[normalized.slide_id] = normalized;
@@ -657,10 +755,10 @@ function selectedHtmlCount() {
 
 function updateSelectionExport() {
   const count = selectedHtmlCount();
-  selExportBtn.disabled = selectedIds.length === 0 || count > 0 || selExportBtn.dataset.busy === '1';
+  selExportBtn.disabled = selectedIds.length === 0 || selExportBtn.dataset.busy === '1';
   const warning = document.getElementById('sel-export-warning');
   warning.textContent = count
-    ? `已选 ${count} 页 HTML：第一阶段可选片、可预览，暂不支持 HTML / PPTX 导出。移出 HTML 页面后可组合 PPTX。`
+    ? 'HTML 页请选 HTML 输出'
     : '';
   show(warning, count > 0);
 }
@@ -713,7 +811,7 @@ function compactFolder(node) {
 }
 
 function buildDeckTree() {
-  const commonParts = commonDirectoryParts(catalog.decks);
+  const commonParts = commonDirectoryParts(catalog.decks.filter((deck) => !deck.source_url));
   catalog.commonRoot = commonParts.length ? `/${commonParts.join('/')}` : '';
   const root = createFolder('', commonParts);
   for (const deck of catalog.decks) {
@@ -721,6 +819,11 @@ function buildDeckTree() {
     const directoryParts = sourceParts.slice(0, -1);
     let relativeParts = directoryParts.slice(commonParts.length);
     if (!deck.source_path) relativeParts = ['未归档'];
+    if (deck.source_url) {
+      let host = '在线演示';
+      try { host = new URL(deck.source_url).hostname; } catch { /* stored legacy metadata */ }
+      relativeParts = [`在线归档 · ${host}`];
+    }
     let node = root;
     const fullParts = [...commonParts];
     deck.folderIds = [];
@@ -758,7 +861,7 @@ function buildDecks() {
     currentDeckId = catalog.decks.length ? catalog.decks[0].deck_id : null;
   }
   for (const deck of catalog.decks) {
-    deck.pathSearchText = `${deck.deck_name} ${deck.source_path}`.toLowerCase();
+    deck.pathSearchText = `${deck.deck_name} ${deck.source_path} ${deck.source_url || ''}`.toLowerCase();
   }
   catalog.tree = buildDeckTree();
   if (!treeInitialized) {
@@ -1149,7 +1252,7 @@ function showLightboxSlide() {
   if (isHtmlSlide(s)) {
     warnings.push('当前为静态预览。动态版本采用安全模式：原始脚本、事件、iframe 和表单已移除，仅运行受信任的播放代码。');
     if (s.capabilities?.requires_network) warnings.push('源页面依赖网络；隔离预览禁止外部请求，部分内容可能不可用。');
-    warnings.push('第一阶段暂不支持 HTML / PPTX 导出。');
+    if (state.htmlEnabled) warnings.push('HTML 页请选 HTML 输出。');
   }
   for (const warning of Array.isArray(s.warnings) ? s.warnings : []) {
     const message = typeof warning === 'string' ? warning : warning?.message || warning?.code;
@@ -1157,7 +1260,10 @@ function showLightboxSlide() {
   }
   lbWarningsEl.textContent = warnings.join(' ');
   show(lbWarningsEl, warnings.length > 0);
-  lightboxEl.classList.toggle('has-notices', warnings.length > 0);
+  const sourceEl = document.getElementById('lb-source');
+  sourceEl.textContent = s.source_url ? `在线来源：${s.source_url}` : '';
+  show(sourceEl, Boolean(s.source_url));
+  lightboxEl.classList.toggle('has-notices', warnings.length > 0 || Boolean(s.source_url));
   const picked = selectedIds.includes(s.slide_id);
   lbToggleSelBtn.textContent = picked ? '移出选片' : '加入选片';
   lbToggleSelBtn.classList.toggle('primary', !picked);
@@ -1420,6 +1526,7 @@ function normalizeDeck(deck) {
     deck_name: deck.name,
     slide_count: Number(deck.slide_count) || 0,
     source_path: deck.source_path || '',
+    source_url: deck.source_url || '',
     source_format: deck.source_format || 'pptx',
     cover_thumbnail_url: deck.cover_thumbnail_url || '',
   };
@@ -1713,7 +1820,7 @@ deleteDuplicatesBtn.addEventListener('click', async () => {
 
 // "用选片进入组合": persist the ordered ids as a manifest, arm compose, jump.
 selExportBtn.addEventListener('click', async () => {
-  if (selectedIds.length === 0 || selectedHtmlCount() > 0) {
+  if (selectedIds.length === 0) {
     updateSelectionExport();
     return;
   }
@@ -1752,6 +1859,68 @@ const composeSetupEl = document.getElementById('compose-setup');
 const composeCheckEl = document.getElementById('compose-check');
 const composeResultEl = document.getElementById('compose-result');
 const confirmComposeBtn = document.getElementById('confirm-compose');
+const outputFormatEl = document.getElementById('output-format');
+let composeRunning = false;
+
+function selectedOutputFormat() {
+  const formats = {
+    pptx: {
+      label: 'PPTX', extension: 'pptx', method: 'OOXML 复制',
+      hint: '保留 PPTX 原生可编辑内容；HTML 页请选 HTML 输出。',
+      description: '选好页后，选一个输出位置即可按序拼出新 PPTX。源页面保真复制（原生 OOXML，非重渲染图片）。',
+    },
+    html: {
+      label: 'HTML 离线单文件', extension: 'html', method: '离线单文件',
+      hint: '页面与资源存入一个 .html，可离线打开。PPTX 页使用高清图片，不保留原生编辑能力。',
+      description: '按选片顺序生成离线 HTML 演示，页面与资源整合到单个文件。导出前检查来源与兼容性。',
+    },
+    zip: {
+      label: 'HTML 资源包', extension: 'zip', method: 'HTML + 资源包',
+      hint: '解压后打开 HTML，分享时保留完整资源目录。PPTX 页使用高清图片。',
+      description: '按选片顺序生成 HTML 与资源目录，打包为 ZIP。解压后打开演示，分享时保留整个资源包。',
+    },
+  };
+  return formats[state.outputFormat] || formats.pptx;
+}
+
+function updateComposeCopy() {
+  const format = selectedOutputFormat();
+  document.getElementById('compose-description').textContent = format.description;
+  document.getElementById('output-format-hint').textContent = format.hint;
+  document.getElementById('compose-method').textContent = format.method;
+  confirmComposeBtn.textContent = state.htmlEnabled ? `确认导出 ${format.label}` : '确认导出';
+}
+
+function validateSelectedOutput(output) {
+  const extension = selectedOutputFormat().extension;
+  if (typeof output !== 'string' || !output.toLowerCase().endsWith(`.${extension}`)) {
+    throw new Error(`输出文件扩展名必须为 .${extension}，请重新选择保存位置`);
+  }
+}
+
+function setComposeBusy(on) {
+  composeRunning = on;
+  for (const control of [pickOutputBtn, pickManifestBtn, outputFormatEl, verifyHashEl]) {
+    control.disabled = on;
+  }
+  runComposeBtn.disabled = on || !(state.manifest && state.output);
+  confirmComposeBtn.disabled = on || !state.composePreflight?.ok ||
+    !state.composePreflight?.preflight_token || Boolean(state.composePreflight?.blockers?.length);
+}
+
+outputFormatEl.addEventListener('change', () => {
+  const value = outputFormatEl.value;
+  if (composeRunning || !state.htmlEnabled || !['pptx', 'html', 'zip'].includes(value)) {
+    outputFormatEl.value = state.outputFormat;
+    return;
+  }
+  if (value === state.outputFormat) return;
+  state.outputFormat = value;
+  state.output = null;
+  state.composeResult = null;
+  show(document.getElementById('compose-err'), false);
+  refreshComposeReady();
+});
 
 function setComposeView(view) {
   show(composeSetupEl, view === 'setup');
@@ -1762,7 +1931,8 @@ function setComposeView(view) {
 function refreshComposeReady() {
   state.composePreflight = null;
   setComposeView('setup');
-  runComposeBtn.disabled = !(state.manifest && state.output);
+  runComposeBtn.disabled = composeRunning || !(state.manifest && state.output);
+  updateComposeCopy();
   if (state.manifestFromSelection) {
     composeSelectionStatus.textContent = `已载入当前选片：${selectedIds.length} 页`;
   } else if (state.manifest) {
@@ -1796,8 +1966,11 @@ pickManifestBtn.addEventListener('click', async () => {
 
 pickOutputBtn.addEventListener('click', async () => {
   try {
-    const output = await window.pptlib.pickOutputPptx();
+    const format = state.outputFormat;
+    const output = await window.pptlib.pickSaveOutput({ format });
+    if (state.outputFormat !== format) return;
     if (output) {
+      validateSelectedOutput(output);
       state.output = output;
       refreshComposeReady();
     }
@@ -1830,6 +2003,18 @@ function formatBytes(value) {
 }
 
 function composeWarningCopy(code) {
+  if (code && typeof code === 'object') {
+    return code.message || composeWarningCopy(code.code);
+  }
+  if (typeof code === 'string' && code.startsWith('PPTX_FLATTENED_TO_IMAGE')) {
+    return 'PPTX 页已转为高清静态图片，不保留原生编辑、动画或交互。需要可编辑版本时请选择 PPTX 输出。';
+  }
+  const htmlWarnings = {
+    HTML_UNSAFE_OR_UNSUPPORTED_CONTENT_BLOCKED: 'HTML 中不安全或不支持的内容已移除，请复核导出效果。',
+    HTML_EXTERNAL_RESOURCES_BLOCKED: 'HTML 的外部资源已阻止访问，部分内容可能缺失。请先归档所需资源后重试。',
+    HTML_CYCLIC_RESOURCE_BLOCKED: 'HTML 中循环引用的资源已阻止加载，请复核相关页面。',
+  };
+  if (Object.hasOwn(htmlWarnings, code)) return htmlWarnings[code];
   if (code === 'EXTERNAL_LINK_PRESERVED') {
     return '包含外部链接。链接会保留，但离线打开时相关内容可能不可用。';
   }
@@ -1875,7 +2060,7 @@ function renderComposePreflight(result) {
   document.getElementById('compose-check-issues').innerHTML = issueRows
     .map((item) => `<div class="compose-issue ${item.kind}">${esc(item.text)}</div>`)
     .join('');
-  confirmComposeBtn.disabled = blockers.length > 0 || !result.preflight_token;
+  confirmComposeBtn.disabled = !result.ok || blockers.length > 0 || !result.preflight_token;
   setComposeView('check');
   requestAnimationFrame(() => {
     document.getElementById('compose-check-title').focus();
@@ -1883,21 +2068,22 @@ function renderComposePreflight(result) {
 }
 
 runComposeBtn.addEventListener('click', async () => {
-  if (!(state.manifest && state.output)) return;
+  if (composeRunning || !(state.manifest && state.output)) return;
   const verifyHash = verifyHashEl.checked;
-  busy(runComposeBtn, true);
+  const options = { manifest: state.manifest, output: state.output, format: state.outputFormat, verifyHash };
+  setComposeBusy(true);
   show(document.getElementById('compose-ok'), false);
   show(document.getElementById('compose-err'), false);
   show(document.getElementById('compose-prog'), true);
   document.querySelector('#compose-prog .prog-num').textContent = '正在检查来源与兼容性…';
   navState(3, 'blue');
   try {
+    validateSelectedOutput(options.output);
     log('开始导出前检查…');
-    const result = await window.pptlib.preflightCompose({
-      manifest: state.manifest,
-      output: state.output,
-      verifyHash,
-    });
+    const result = await window.pptlib.preflightCompose(options);
+    if (state.manifest !== options.manifest || state.output !== options.output) {
+      throw new Error('选片或输出位置已变化，请重新检查');
+    }
     renderComposePreflight(result);
     log(result.ok ? '导出前检查通过' : '导出前检查发现阻断项', result.ok ? 'ok' : 'stderr');
     if (!result.ok) navState(3, 'gray');
@@ -1912,7 +2098,7 @@ runComposeBtn.addEventListener('click', async () => {
     navState(3, 'gray');
   } finally {
     show(document.getElementById('compose-prog'), false);
-    busy(runComposeBtn, false);
+    setComposeBusy(false);
   }
 });
 
@@ -1923,8 +2109,14 @@ document.getElementById('compose-back').addEventListener('click', () => {
 
 function renderComposeResult(result) {
   state.composeResult = result;
+  const format = selectedOutputFormat();
+  const fidelity = result.fidelity_level ? `，保真等级 ${result.fidelity_level}` : '';
   document.getElementById('compose-result-copy').textContent =
-    `${result.page_count} 页已按选片顺序生成，保真等级 ${result.fidelity_level}。`;
+    `${result.page_count} 页已按选片顺序生成${state.htmlEnabled ? ` ${format.label}` : ''}${fidelity}。` +
+    (state.outputFormat === 'zip' ? '解压后打开 HTML 演示。' : '');
+  document.getElementById('compose-open').textContent =
+    state.outputFormat === 'zip' ? '打开资源包' : '打开文件';
+  show(document.getElementById('compose-manifest'), Boolean(result.manifest_path));
   document.getElementById('compose-result-summary').innerHTML =
     `<span>输出文件</span><strong>${esc(result.output_path)}</strong>`;
   const warningEl = document.getElementById('compose-result-warnings');
@@ -1938,23 +2130,28 @@ function renderComposeResult(result) {
 }
 
 confirmComposeBtn.addEventListener('click', async () => {
-  if (!state.composePreflight?.ok) return;
+  if (composeRunning || !state.composePreflight?.ok || !state.composePreflight?.preflight_token ||
+      state.composePreflight?.blockers?.length) return;
   const verifyHash = verifyHashEl.checked;
-  busy(confirmComposeBtn, true);
+  setComposeBusy(true);
   show(document.getElementById('compose-err'), false);
   show(document.getElementById('compose-prog'), true);
-  document.querySelector('#compose-prog .prog-num').textContent = '正在组合并校验输出…';
+  document.querySelector('#compose-prog .prog-num').textContent =
+    state.htmlEnabled ? `正在生成 ${selectedOutputFormat().label} 并校验输出…` : '正在组合并校验输出…';
   navState(3, 'blue');
   try {
+    validateSelectedOutput(state.output);
     log('开始组合…');
     const result = await window.pptlib.compose({
       manifest: state.manifest,
       output: state.output,
+      format: state.outputFormat,
       verifyHash,
       preflightToken: state.composePreflight.preflight_token,
     });
+    if (result.ok === false) throw new Error(result.message || '组合失败，请查看运行日志');
     log(
-      `组合完成：${result.page_count} 页 (保真 ${result.fidelity_level}) → ${result.output_path}`,
+      `组合完成：${result.page_count} 页 ${selectedOutputFormat().label} → ${result.output_path}`,
       'ok',
     );
     renderComposeResult(result);
@@ -1971,7 +2168,7 @@ confirmComposeBtn.addEventListener('click', async () => {
     navState(3, 'gray');
   } finally {
     show(document.getElementById('compose-prog'), false);
-    busy(confirmComposeBtn, false);
+    setComposeBusy(false);
   }
 });
 

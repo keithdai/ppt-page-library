@@ -1,26 +1,23 @@
-"""The only application boundary that knows the external render-deck CLI layout."""
+"""Native indexing and lightweight references for static HTML presentations."""
 
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
-import os
 import re
-import subprocess
-import sys
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 from urllib.parse import unquote_to_bytes
 
 from lxml import html as lh  # type: ignore[import-untyped]
 
-from pptlib.html.source import HtmlSource, css_urls, parse_document
+from pptlib.html.source import HtmlSource, css_urls
 from pptlib.ingestion.parser import ParsedDeck, ParsedSlide
 
-ADAPTER_VERSION = "render-deck-adapter-v1"
+ADAPTER_VERSION = "native-html-adapter-v1"
 _DATA_URI = re.compile(r"""data:[^\s"'<>)]*""", re.I)
 
 
@@ -31,19 +28,29 @@ class HtmlIngest:
     fingerprint: str
 
 
-def engine_cli() -> Path:
-    configured = os.environ.get("PPTLIB_HTML_ENGINE")
-    root = Path(configured) if configured else Path.home() / "Projects" / "feishu-deck-h5"
-    path = (
-        root if root.is_file() else (root / "skills/feishu-deck-h5/deck-json/sync-index-to-deck.py")
-    )
-    if not path.is_file():
-        raise ValueError("未找到 HTML 格式引擎，请设置 PPTLIB_HTML_ENGINE 为 feishu-deck-h5 路径")
-    return path.resolve()
-
-
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _notes(document: Any, warnings: list[str]) -> dict[str, str]:
+    notes: dict[str, str] = {}
+    for node in document.xpath("//script[@id='fs-deck-notes']"):
+        try:
+            payload = json.loads(node.text or "")
+        except (ValueError, RecursionError):
+            warnings.append("Invalid fs-deck-notes JSON; embedded speaker notes were not indexed.")
+            continue
+        if not isinstance(payload, dict) or any(
+            not isinstance(value, str) for value in payload.values()
+        ):
+            warnings.append("Unsupported fs-deck-notes format; expected a page-key to text map.")
+            continue
+        notes.update(payload)
+    return notes
+
+
+def _text(node: Any) -> str:
+    return " ".join(" ".join(node.itertext()).split())
 
 
 def ingest_html(
@@ -51,10 +58,10 @@ def ingest_html(
     *,
     temp_dir: Path,
 ) -> HtmlIngest:
-    """Replace media with references *before* invoking exact backfill.
+    """Index normalized DOM without an external engine or source execution.
 
-    The subprocess sees a lightweight structural document. Neither temporary
-    files nor the DB receive the source's embedded videos/images.
+    ``temp_dir`` remains for caller compatibility; native ingest needs no files.
+    Neither the canonical manifest nor the DB receives source media payloads.
     """
     dependencies: dict[str, dict[str, Any]] = {}
     current_key = ""
@@ -93,9 +100,11 @@ def ingest_html(
             item["page_keys"].append(current_key)
         return "pptlib-dependency:" + digest
 
-    # Work on a fresh tree: preview continues to use the untouched source.
-    document = parse_document(source.html)
-    script_count = len(document.xpath("//script"))
+    # Work on a fresh normalized tree: preview keeps its original source view.
+    document = deepcopy(source.document)
+    warnings: list[str] = []
+    notes = _notes(document, warnings)
+    script_count = len(document.xpath("//script[not(@type='application/json')]"))
     iframe_count = len(document.xpath("//iframe"))
     for node in document.xpath("//script"):
         node.drop_tree()
@@ -130,31 +139,6 @@ def ingest_html(
     structural = lh.tostring(document, encoding="unicode", method="html")
     if len(structural.encode()) > 8 * 1024 * 1024:
         raise ValueError("去除媒体后的 HTML 结构超过 8 MB 限制")
-    cli = engine_cli()
-    engine_version = hashlib.sha256(cli.read_bytes()).hexdigest()
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory(prefix="html-backfill-", dir=temp_dir) as directory:
-        job = Path(directory)
-        index = job / "index.html"
-        output = job / "deck.json"
-        index.write_text(structural, encoding="utf-8")
-        try:
-            result = subprocess.run(
-                [sys.executable, "-B", str(cli), str(index), str(output), "--backfill"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-            )
-        except (OSError, subprocess.SubprocessError) as error:
-            raise ValueError(f"HTML 格式引擎运行失败：{type(error).__name__}") from error
-        if result.returncode or not output.is_file():
-            raise ValueError("HTML 无法精确恢复：" + (result.stderr or result.stdout)[-600:])
-        canonical = json.loads(output.read_text("utf-8"))
-    pages = canonical.get("slides", [])
-    if [page.get("key") for page in pages] != source.page_keys:
-        raise ValueError("HTML 引擎恢复的页面顺序或 key 与来源不一致")
-    warnings = []
     if script_count:
         warnings.append("隔离预览保留 CSS 动效和原生媒体播放，不执行来源脚本或自定义播放器。")
     if iframe_count:
@@ -162,52 +146,97 @@ def ingest_html(
     if source.external_urls:
         warnings.append("来源包含联网依赖；离线预览已阻断外部网络，部分内容可能缺失。")
     slides = []
-    for number, page in enumerate(pages, 1):
-        key = page["key"]
-        frame = source.document.xpath("//*[@data-slide-key=$key]", key=key)[0]
-        text_node = parse_document(lh.tostring(frame, encoding="unicode"))
-        for excluded in text_node.xpath("//script|//style"):
+    pages = []
+    page_nodes = {
+        node.get("data-slide-key"): node
+        for node in document.xpath(
+            "//*[contains(concat(' ',normalize-space(@class),' '),' slide ')][@data-slide-key]"
+        )
+    }
+    for number, key in enumerate(source.page_keys, 1):
+        frame = page_nodes[key]
+        text_node = deepcopy(frame)
+        for excluded in text_node.xpath(".//script|.//style|.//template|.//noscript"):
+            excluded.drop_tree()
+        page_notes = ""
+        for alias in (
+            key,
+            frame.get("data-pptlib-original-key"),
+            frame.get("id"),
+            frame.get("data-slide"),
+        ):
+            if alias in notes:
+                page_notes = notes[alias]
+                break
+        for excluded in text_node.xpath(
+            ".//*[contains(concat(' ',normalize-space(@class),' '),' notes ')]"
+        ):
+            inline_notes = _text(excluded)
+            if inline_notes and inline_notes != page_notes:
+                page_notes = "\n\n".join(part for part in (page_notes, inline_notes) if part)
             excluded.drop_tree()
         title_nodes = text_node.xpath(
-            "//*[contains(concat(' ',normalize-space(@class),' '),' title-zh ')]|//h1|//h2"
+            ".//*[contains(concat(' ',normalize-space(@class),' '),' title-zh ')]|.//h1|.//h2|.//h3"
         )
-        title = (
-            " ".join(title_nodes[0].text_content().split())
-            if title_nodes
-            else str(page.get("screen_label") or key)
+        title = next((text for node in title_nodes if (text := _text(node))), "") or str(
+            frame.get("data-screen-label")
+            or frame.get("data-title")
+            or frame.get("aria-label")
+            or key
         )
-        text = " ".join(text_node.text_content().split())
+        text = _text(text_node)
         capability = {
             "dynamic_preview": True,
             "video": bool(frame.xpath(".//video")),
             "iframe": bool(frame.xpath(".//iframe")),
             "requires_network": bool(source.external_urls),
-            "html_export": False,
+            "html_export": True,
             "pptx_export": False,
+        }
+        width, height = source.page_sizes[key]
+        reference = {
+            "adapter": ADAPTER_VERSION,
+            "adapter_version": source.normalizer_version,
+            "dom_adapter": source.dom_adapter,
+            "source_sha256": source.fingerprint,
+            "entry_sha256": source.entry_sha256,
+            "page_key": key,
+            "entry": source.entry,
+            "width": width,
+            "height": height,
         }
         slides.append(
             ParsedSlide(
                 number,
                 title[:1000],
                 text[:100_000],
-                "",
+                page_notes,
                 page_key=key,
                 page_kind="h5_raw",
                 capabilities_json=_json(capability),
-                composition_ref_json=_json(
-                    {
-                        "adapter": ADAPTER_VERSION,
-                        "adapter_version": engine_version,
-                        "source_sha256": source.fingerprint,
-                        "page_key": key,
-                        "entry": source.entry,
-                    }
-                ),
+                composition_ref_json=_json(reference),
             )
         )
+        pages.append(
+            {
+                "key": key,
+                "layout": "raw",
+                "screen_label": title[:1000],
+                "notes": page_notes,
+                "width": width,
+                "height": height,
+                "composition_ref": reference,
+            }
+        )
+    canonical: dict[str, Any] = {
+        "format": "pptlib-html-reference",
+        "version": 1,
+        "slides": pages,
+    }
     canonical["pptlib"] = {
         "adapter": ADAPTER_VERSION,
-        "engine_sha256": engine_version,
+        "normalizer_version": source.normalizer_version,
+        "dom_adapter": source.dom_adapter,
         "source_sha256": source.fingerprint,
         "entry_sha256": source.entry_sha256,
         "entry": source.entry,
@@ -221,11 +250,11 @@ def ingest_html(
             tuple(slides),
             parser_version=ADAPTER_VERSION,
             source_format="render_deck_html",
-            canonical_format="deckjson_reference",
+            canonical_format="html_dom_reference",
             dependencies_json=_json(list(dependencies.values())),
-            capabilities_json=_json({"html_export": False, "pptx_export": False}),
+            capabilities_json=_json({"html_export": True, "pptx_export": False}),
             warnings_json=_json(warnings),
-            renderer_version=engine_version,
+            renderer_version=source.normalizer_version,
         ),
         canonical,
         source.fingerprint,

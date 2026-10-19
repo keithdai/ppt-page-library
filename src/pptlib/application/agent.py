@@ -35,6 +35,7 @@ def describe_capabilities(settings: Settings) -> dict[str, object]:
         "version": __version__,
         "protocol": AGENT_PROTOCOL,
         "library_available": settings.database_path.is_file(),
+        "export_formats": ["pptx", "html", "zip"] if settings.html_enabled else ["pptx"],
         "permissions": {
             "default": "read_only",
             "write_operations": ["compose.run"],
@@ -263,8 +264,12 @@ def validate_selection_manifest(manifest_path: Path) -> Path:
 def validate_output_path(settings: Settings, output_path: Path) -> Path:
     output = output_path.expanduser().resolve()
     output_root = settings.output_root.expanduser().resolve()
-    if output.suffix.lower() != ".pptx":
-        raise AppError(ErrorCode.REQUEST_INVALID, "output path must end with .pptx")
+    extensions = {".pptx", ".html", ".zip"} if settings.html_enabled else {".pptx"}
+    if output.suffix.lower() not in extensions:
+        raise AppError(
+            ErrorCode.REQUEST_INVALID,
+            "output extension must be one of: " + ", ".join(sorted(extensions)),
+        )
     related_paths = (
         output,
         output.with_suffix(".manifest.json").resolve(),
@@ -321,7 +326,13 @@ def _search_item(
         "page_type": slide.page_type,
         "source_format": slide.source_format,
         "page_kind": slide.page_kind,
-        "can_compose": slide.source_format == "pptx",
+        "can_compose": slide.source_format == "pptx" or (
+            settings.html_enabled and slide.source_format == "render_deck_html"
+        ),
+        "export_formats": (
+            (["pptx"] if slide.source_format == "pptx" else [])
+            + (["html", "zip"] if settings.html_enabled else [])
+        ),
         "thumbnail_path": _asset_path(settings, "thumbnails", slide.slide_id),
         "preview_path": _preview_path(settings, slide.slide_id),
         "capabilities": dict(slide.capabilities),

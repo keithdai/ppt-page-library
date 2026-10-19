@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+import subprocess
 from pathlib import Path
-from subprocess import CompletedProcess
 from zipfile import ZipFile
 
 import pytest
@@ -14,7 +14,7 @@ from pptlib.bootstrap import initialize
 from pptlib.config import load_settings
 from pptlib.html import adapter
 from pptlib.html.adapter import ingest_html
-from pptlib.html.source import HtmlSource, css_urls, parse_document
+from pptlib.html.source import HtmlSource, css_urls
 from pptlib.infrastructure.db.connection import connect
 from pptlib.infrastructure.db.repositories import search_slides
 from pptlib.rendering.thumbnails import ThumbnailError
@@ -31,49 +31,39 @@ def document(body: str = "<h1>财务分析</h1>", key: str = "finance") -> str:
 
 
 @pytest.fixture
-def fake_engine(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
-    script = tmp_path / "engine.py"
-    script.write_text("# deterministic test engine")
-    monkeypatch.setattr(adapter, "engine_cli", lambda: script)
+def native_ingests(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
+    monkeypatch.setenv("PPTLIB_HTML_ENGINE", str(tmp_path / "missing-engine"))
     inputs: list[str] = []
 
-    def run(command: list[str], **kwargs: object) -> CompletedProcess[str]:
-        text = Path(command[3]).read_text()
-        inputs.append(text)
-        tree = parse_document(text)
-        pages = [
-            {
-                "key": key,
-                "layout": "raw",
-                "data": {"html": "<h1>财务分析</h1>"},
-            }
-            for key in tree.xpath("//*[@data-slide-key]/@data-slide-key")
-        ]
-        Path(command[4]).write_text(json.dumps({"slides": pages}))
-        return CompletedProcess(command, 0, "", "")
+    def index(source: HtmlSource, *, temp_dir: Path) -> adapter.HtmlIngest:
+        inputs.append(source.fingerprint)
+        return ingest_html(source, temp_dir=temp_dir)
 
-    monkeypatch.setattr(adapter.subprocess, "run", run)
+    def no_process(*args: object, **kwargs: object) -> None:
+        pytest.fail("Native HTML ingest must not invoke a subprocess")
+
+    monkeypatch.setattr(adapter, "ingest_html", index)
+    monkeypatch.setattr(subprocess, "run", no_process)
     return inputs
 
 
-def test_media_removed_before_external_engine_and_no_payload_in_metadata(
+def test_native_ingest_needs_no_engine_and_keeps_payload_out_of_metadata(
     tmp_path: Path,
-    fake_engine: list[str],
+    native_ingests: list[str],
 ) -> None:
     encoded = base64.b64encode(b"original-video" * 100_000).decode()
     path = tmp_path / "deck.html"
     original = document(f'<h1>财务分析</h1><video src="data:video/mp4;base64,{encoded}"/>')
     path.write_text(original)
-    result = ingest_html(HtmlSource(path), temp_dir=tmp_path / "jobs")
-    assert len(fake_engine) == 1
-    assert encoded not in fake_engine[0]
-    assert "pptlib-dependency:" in fake_engine[0]
+    result = adapter.ingest_html(HtmlSource(path), temp_dir=tmp_path / "jobs")
+    assert len(native_ingests) == 1
+    assert encoded not in json.dumps(result.canonical)
     assert encoded not in result.parsed.dependencies_json
     assert len(result.parsed.dependencies_json) < 1000
     assert result.parsed.slides[0].title == "财务分析"
     assert json.loads(result.parsed.slides[0].capabilities_json)["video"]
     assert path.read_text() == original
-    assert list((tmp_path / "jobs").iterdir()) == []
+    assert not (tmp_path / "jobs").exists()
 
 
 def test_bundle_dependency_changes_fingerprint_without_entry_change(tmp_path: Path) -> None:
@@ -155,7 +145,7 @@ def test_zip_is_read_in_place_and_rejects_ambiguity_and_traversal(tmp_path: Path
 def test_html_sync_reuses_versions_moves_paths_and_updates_dependencies(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    fake_engine: list[str],
+    native_ingests: list[str],
 ) -> None:
     roots = tmp_path / "sources"
     roots.mkdir()
@@ -178,26 +168,26 @@ def test_html_sync_reuses_versions_moves_paths_and_updates_dependencies(
         assert search_slides(connection, "财务分析")[0].source_format == "render_deck_html"
         second = scan_and_import(connection, [roots], settings=settings)
         assert second.skipped == 1
-        assert len(fake_engine) == 1
+        assert len(native_ingests) == 1
         moved = roots / "renamed.html"
         path.rename(moved)
         third = scan_and_import(connection, [roots], settings=settings)
         assert third.imported[0].action == "moved"
         assert third.imported[0].version_id == original.version_id
-        assert len(fake_engine) == 1
+        assert len(native_ingests) == 1
         moved.write_text(document("<h1>经营分析</h1>"))
         fourth = scan_and_import(connection, [roots], settings=settings)
         assert fourth.imported[0].deck_id == original.deck_id
         assert fourth.imported[0].version_id != original.version_id
-        assert len(fake_engine) == 2
+        assert len(native_ingests) == 2
     finally:
         connection.close()
 
 
-def test_failed_preview_is_reported_and_reimport_retries_without_backfill(
+def test_failed_preview_is_reported_and_reimport_retries_without_reindexing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    fake_engine: list[str],
+    native_ingests: list[str],
 ) -> None:
     path = tmp_path / "deck.html"
     path.write_text(document())
@@ -223,14 +213,14 @@ def test_failed_preview_is_reported_and_reimport_retries_without_backfill(
         recovered = scan_and_import(connection, [path], settings=settings)
         assert not recovered.failed
         assert recovered.skipped == 1
-        assert len(fake_engine) == 1
+        assert len(native_ingests) == 1
     finally:
         connection.close()
 
 
 def test_feature_disabled_keeps_html_out_of_import(
     tmp_path: Path,
-    fake_engine: list[str],
+    native_ingests: list[str],
 ) -> None:
     (tmp_path / "deck.html").write_text(document())
     settings = load_settings({"PPTLIB_HOME": str(tmp_path / "home")})
@@ -239,6 +229,6 @@ def test_feature_disabled_keeps_html_out_of_import(
     try:
         report = scan_and_import(connection, [tmp_path], settings=settings)
         assert report.discovered == 0
-        assert not fake_engine
+        assert not native_ingests
     finally:
         connection.close()

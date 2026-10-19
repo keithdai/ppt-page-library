@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import posixpath
-import re
 import stat
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -13,7 +12,11 @@ from urllib.parse import unquote, urlsplit
 from zipfile import BadZipFile, ZipFile
 
 import tinycss2  # type: ignore[import-untyped]
-from lxml import html as lh  # type: ignore[import-untyped]
+from lxml import etree  # type: ignore[import-untyped]
+from lxml import html as lh
+
+from pptlib.html.embedded import unpack_offline_deck
+from pptlib.html.normalize import NORMALIZER_VERSION, normalize_document
 
 HTML_LIMIT = 128 * 1024 * 1024
 _MEDIA_TYPES = {
@@ -37,6 +40,7 @@ _MEDIA_TYPES = {
     ".woff2",
     ".ttf",
     ".otf",
+    ".vtt",
 }
 
 
@@ -60,6 +64,9 @@ def css_urls(css: str) -> list[str]:
                     value = [item for item in token.arguments if item.type != "whitespace"]
                     if len(value) == 1 and value[0].type == "string":
                         urls.append(str(value[0].value))
+                elif token.lower_name in {"image-set", "-webkit-image-set"}:
+                    urls.extend(str(arg.value) for arg in token.arguments if arg.type == "string")
+                    visit([arg for arg in token.arguments if arg.type != "string"])
                 else:
                     visit(token.arguments)
             elif hasattr(token, "content"):
@@ -86,6 +93,8 @@ def local_reference(value: str, base: str = "") -> str | None:
 
 
 def parse_document(text: str) -> Any:
+    if not text.strip():
+        raise ValueError("HTML source is empty; no static presentation pages to index")
     parser = lh.HTMLParser(encoding="utf-8", no_network=True, huge_tree=True)
     return lh.document_fromstring(text.encode("utf-8"), parser=parser)
 
@@ -95,6 +104,8 @@ class HtmlSource:
 
     A directory bundle is indexed by its HTML entry. ZIPs are read in place and
     never extracted. Resource keys are relative to the entry's own directory.
+    ``html`` retains the raw text; ``document`` exposes normalized static pages.
+    Fingerprints always cover raw bytes and dependencies, never normalized DOM.
     """
 
     def __init__(
@@ -128,8 +139,20 @@ class HtmlSource:
             raw = self.path.read_bytes()
         self.html = raw.decode("utf-8-sig")
         self.document = parse_document(self.html)
-        self.page_keys = self._page_keys()
+        self.document, self.page_documents = unpack_offline_deck(self.document)
         self._discover_resources()
+        normalized = normalize_document(
+            self.document,
+            stylesheets=[
+                self.read_resource(ref).decode("utf-8-sig")
+                for ref in self.resources
+                if ref.lower().endswith(".css")
+            ],
+        )
+        self.dom_adapter = normalized.adapter
+        self.normalizer_version = NORMALIZER_VERSION
+        self.page_keys = normalized.page_keys
+        self.page_sizes = normalized.page_sizes
         self.entry_sha256 = hashlib.sha256(raw).hexdigest()
         if self.is_zip:
             with self.path.open("rb") as handle:
@@ -174,31 +197,6 @@ class HtmlSource:
         except BadZipFile as error:
             raise ValueError("文件不是有效的 HTML ZIP 包") from error
 
-    def _page_keys(self) -> list[str]:
-        generators = self.document.xpath(
-            "//meta[translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
-            "'abcdefghijklmnopqrstuvwxyz')='fs-deck-generator']/@content"
-        )
-        if generators != ["render-deck"]:
-            raise ValueError("首版仅支持带 render-deck 标记的标准 HTML 演示")
-        frames = self.document.xpath(
-            "//*[contains(concat(' ',normalize-space(@class),' '),' slide-frame ')]"
-        )
-        keys: list[str] = []
-        for frame in frames:
-            slides = frame.xpath(
-                ".//*[contains(concat(' ',normalize-space(@class),' '),' slide ')]"
-            )
-            if len(slides) != 1 or not slides[0].get("data-slide-key"):
-                raise ValueError("每个 slide-frame 必须包含一个带稳定 key 的 slide")
-            key = str(slides[0].get("data-slide-key"))
-            if not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", key):
-                raise ValueError("HTML 页面 key 格式不受支持")
-            keys.append(key)
-        if not keys or len(keys) > 2000 or len(set(keys)) != len(keys):
-            raise ValueError("HTML 页面为空、过多或存在重复 key")
-        return keys
-
     def _read_raw_resource(self, reference: str, limit: int | None = None) -> bytes:
         allowed = min(
             self.max_package_bytes,
@@ -242,7 +240,7 @@ class HtmlSource:
             if not isinstance(node.tag, str):
                 continue
             tag = node.tag.lower()
-            if tag in {"img", "video", "audio", "source", "image", "use"}:
+            if tag in {"img", "video", "audio", "source", "track", "image", "use"}:
                 for attr in ("src", "poster", "href", "xlink:href"):
                     if node.get(attr):
                         pending.append((node.get(attr), ""))
@@ -289,6 +287,22 @@ class HtmlSource:
                 if len(raw) > 4 * 1024 * 1024:
                     raise ValueError("HTML 样式文件超过 4 MB 限制")
                 pending.extend((url, ref) for url in css_urls(raw.decode("utf-8-sig")))
+            elif ref.lower().endswith(".svg"):
+                svg = etree.fromstring(raw, parser=etree.XMLParser(
+                    resolve_entities=False, no_network=True, load_dtd=False,
+                ))
+                for node in svg.iter():
+                    if not isinstance(node.tag, str):
+                        continue
+                    tag = node.tag.rsplit("}", 1)[-1].lower()
+                    if tag in {"image", "use"}:
+                        for attr in ("href", "{http://www.w3.org/1999/xlink}href"):
+                            if node.get(attr):
+                                pending.append((node.get(attr), ref))
+                    if node.get("style"):
+                        pending.extend((url, ref) for url in css_urls(node.get("style")))
+                    if tag == "style":
+                        pending.extend((url, ref) for url in css_urls(node.text or ""))
 
     def read_resource(self, relative: str) -> bytes:
         if relative not in self.resources:

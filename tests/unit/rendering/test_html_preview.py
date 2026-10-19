@@ -86,6 +86,40 @@ def _assert_closed(url: str) -> None:
         pass
 
 
+def test_native_css_tabs_survive_but_text_inputs_and_handlers_do_not(tmp_path: Path) -> None:
+    source = _source(
+        tmp_path,
+        '<input type="radio" id="tab-a" name="tabs" checked onclick="fetch(\'/bad\')">'
+        '<label for="tab-a">Evidence</label><input type="password" value="secret">'
+        '<details open><summary>More</summary>Detail</details>',
+        pages=1,
+    )
+    with pytest.warns(PreviewWarning), start_preview(source, "page-1") as url:
+        status, _, body = _request(url)
+    document = html.fromstring(body)
+    assert status == 200
+    assert len(document.xpath('//input[@type="radio"][@checked][@name="tabs"]')) == 1
+    assert document.xpath('//label/@for') == ["tab-a"]
+    assert not document.xpath('//*[@onclick]|//input[@type="password"]')
+    assert len(document.xpath("//details[@open]/summary")) == 1
+
+
+def test_generic_page_geometry_reaches_preview_runtime(tmp_path: Path) -> None:
+    path = tmp_path / "generic.html"
+    path.write_text(
+        '<html><body><section class="slide" data-width="1024" data-height="768">'
+        "<h1>A four-by-three page</h1></section></body></html>"
+    )
+    source = HtmlSource(path)
+    with start_preview(source, source.page_keys[0]) as url:
+        _, _, body = _request(url)
+    document = html.fromstring(body)
+    page = document.xpath('//*[@data-slide-key]')[0]
+    assert page.get("data-pptlib-width") == "1024"
+    assert page.get("data-pptlib-height") == "768"
+    assert b"innerWidth / width" in body
+
+
 def test_selected_page_and_layout_styles_only(tmp_path: Path) -> None:
     source = _source(
         tmp_path,

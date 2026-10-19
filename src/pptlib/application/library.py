@@ -69,7 +69,7 @@ def ensure_pptx_exportable(source_format: str) -> None:
     if source_format != "pptx":
         raise AppError(
             ErrorCode.REQUEST_INVALID,
-            "HTML 页面当前支持入库和预览，组合导出将在后续阶段开放",
+            "选片中包含 HTML 页面，请选择离线 HTML 或 HTML 资源包输出",
             details={"source_format": source_format},
         )
 
@@ -160,6 +160,8 @@ class DeckSummary:
     cover_thumbnail_url: str | None = None
     source_path: str = ""
     source_format: str = "pptx"
+    source_url: str = ""
+    captured_at: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -169,6 +171,8 @@ class DeckSummary:
             "cover_thumbnail_url": self.cover_thumbnail_url,
             "source_path": self.source_path,
             "source_format": self.source_format,
+            "source_url": self.source_url,
+            "captured_at": self.captured_at,
         }
 
 

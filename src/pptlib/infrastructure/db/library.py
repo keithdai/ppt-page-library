@@ -165,10 +165,12 @@ class SqliteSlideCatalog(SlideCatalog):
                          WHERE cover.deck_version_id = v.id
                          ORDER BY cover.slide_number LIMIT 1
                        ) AS cover_slide_id,
-                       d.canonical_path, v.source_format
+                       d.canonical_path, v.source_format,
+                       COALESCE(o.source_url, ''), COALESCE(o.captured_at, '')
                 FROM decks d
                 JOIN deck_versions v ON v.id = d.current_version_id
                 JOIN slides s ON s.deck_version_id = v.id
+                LEFT JOIN html_origins o ON o.deck_id = d.id
                 WHERE v.status = 'parsed'
                 GROUP BY d.id, d.display_name, v.id, d.canonical_path, v.source_format
                 ORDER BY d.display_name
@@ -184,6 +186,8 @@ class SqliteSlideCatalog(SlideCatalog):
                 ),
                 source_path=str(row[4]),
                 source_format=str(row[5]),
+                source_url=str(row[6]),
+                captured_at=str(row[7]),
             )
             for row in rows
         )
