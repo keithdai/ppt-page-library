@@ -19,6 +19,7 @@ def test_export_error_code_maps_user_actionable_vs_internal() -> None:
     assert _export_error_code("EMPTY_SELECTION") == ErrorCode.REQUEST_INVALID
     assert _export_error_code("SLIDE_NOT_FOUND") == ErrorCode.REQUEST_INVALID
     assert _export_error_code("INVALID_SOURCE_PACKAGE") == ErrorCode.REQUEST_INVALID
+    assert _export_error_code("OUTPUT_CHANGED") == ErrorCode.INVALID_STATE_TRANSITION
     assert _export_error_code("EXPORT_FAILED") == ErrorCode.INTERNAL_ERROR
     assert _export_error_code("OUTPUT_INVALID") == ErrorCode.INTERNAL_ERROR
 

@@ -10,7 +10,8 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 组合导出、重复管理和目录自动更新。HTML 适配仍是开发能力，发布包默认关闭。
 
 [产品网站](website/) · [试用手册](docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md) ·
-[产品化路线图](docs/DeckAtlas-productization-engineering-roadmap.md)
+[产品化路线图](docs/DeckAtlas-productization-engineering-roadmap.md) ·
+[Agent CLI](documentation/agent-cli.md)
 
 ## 组成
 
@@ -35,6 +36,20 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib init
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib doctor
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/pptlib import ./sources
+
+## 给 AI Agent 使用
+
+`deckatlas` 是独立、版本化的机器接口，默认只读，不改变 Electron 使用的 `pptlib`
+私有协议。第一版支持能力发现、素材检索、单页详情，以及经过预检 token 约束的 PPTX
+组合导出：
+
+    PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas capabilities
+    PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas search --query "AI Native"
+    PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas slide get <slide_id>
+
+所有调用只向 stdout 输出一个 `deckatlas.agent/1.0` JSON 响应。导出只允许写入
+`PPTLIB_OUTPUT_ROOT`，且必须先执行 `compose preflight`。完整协议和示例见
+[`documentation/agent-cli.md`](documentation/agent-cli.md)。
 
 桌面开发态默认启用 HTML；`v0.3.0-beta.1` Beta 打包版默认关闭。CLI 需要显式开启：
 

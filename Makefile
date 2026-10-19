@@ -3,7 +3,7 @@ PYTEST := .venv/bin/pytest
 RUFF := .venv/bin/ruff
 MYPY := .venv/bin/mypy
 
-.PHONY: install lint typecheck test-unit test-integration check worker
+.PHONY: install lint typecheck test-unit test-integration check worker agent-runtime
 
 install:
 	python3.11 -m venv .venv
@@ -26,3 +26,6 @@ check: lint typecheck test-unit test-integration
 
 worker:
 	.venv/bin/pptlib worker --once
+
+agent-runtime:
+	./packaging/build_agent_cli.sh

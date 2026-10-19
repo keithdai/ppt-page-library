@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import posixpath
+import tempfile
 import uuid
 import zipfile
 from dataclasses import dataclass
@@ -615,13 +617,20 @@ def export_slides(
     """
     if not slides:
         raise ExportError("EMPTY_SELECTION", "至少选择一个页面")
-    output_path = output_path.expanduser().resolve()
+    output_path = output_path.expanduser().absolute()
     manifest_path = (
-        (manifest_path or output_path.with_suffix(".manifest.json")).expanduser().resolve()
+        (manifest_path or output_path.with_suffix(".manifest.json")).expanduser().absolute()
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_output = output_path.with_suffix(output_path.suffix + ".tmp")
+    output_descriptor, temp_output_name = tempfile.mkstemp(
+        prefix=f".{output_path.name}.",
+        suffix=".tmp",
+        dir=output_path.parent,
+    )
+    output_handle = os.fdopen(output_descriptor, "w+b")
+    temp_output = Path(temp_output_name)
+    temp_manifest: Path | None = None
     packages: dict[Path, _Package] = {}
     try:
         for ref in slides:
@@ -800,7 +809,9 @@ def export_slides(
             "warnings": sorted(warnings),
             "items": manifest_items,
         }
-        with zipfile.ZipFile(temp_output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        with output_handle, zipfile.ZipFile(
+            output_handle, "w", compression=zipfile.ZIP_DEFLATED
+        ) as archive:
             for name, data in output_parts.items():
                 archive.writestr(name, data)
         _validate_output(temp_output, len(slides))
@@ -822,10 +833,19 @@ def export_slides(
                 "来源清单在检查后发生变化，请重新确认导出",
                 {"path": str(manifest_path)},
             )
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=f".{manifest_path.name}.",
+            suffix=".tmp",
+            dir=manifest_path.parent,
+            delete=False,
+        ) as manifest_handle:
+            temp_manifest = Path(manifest_handle.name)
+            json.dump(manifest, manifest_handle, ensure_ascii=False, indent=2)
+            manifest_handle.write("\n")
         temp_output.replace(output_path)
-        manifest_path.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
+        temp_manifest.replace(manifest_path)
         return ExportResult(
             export_id, output_path, manifest_path, len(slides), tuple(sorted(warnings)), fidelity
         )
@@ -836,5 +856,9 @@ def export_slides(
         temp_output.unlink(missing_ok=True)
         raise ExportError("EXPORT_FAILED", "PPTX 导出失败", {"reason": type(exc).__name__}) from exc
     finally:
+        output_handle.close()
+        temp_output.unlink(missing_ok=True)
+        if temp_manifest is not None:
+            temp_manifest.unlink(missing_ok=True)
         for package in packages.values():
             package.close()

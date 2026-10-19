@@ -17,7 +17,7 @@ from pptlib.export.ooxml import (
     output_fingerprint,
     preflight_slides,
 )
-from pptlib.infrastructure.db.connection import connect
+from pptlib.infrastructure.db.connection import connect_readonly
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,7 +115,7 @@ def build_compose_plan(settings: Settings, slide_ids: list[str]) -> list[Compose
         raise AppError(ErrorCode.REQUEST_INVALID, "manifest 未包含任何页面")
     if not settings.database_path.is_file():
         raise AppError(ErrorCode.NOT_FOUND, "本地索引数据库不存在，请先导入 PPTX")
-    connection = connect(settings.database_path)
+    connection = connect_readonly(settings.database_path)
     try:
         return [_lookup_slide(connection, slide_id, settings.home) for slide_id in slide_ids]
     finally:
@@ -303,7 +303,6 @@ _REQUEST_ERROR_CODES = frozenset(
         "INCOMPATIBLE_SLIDE_SIZE",
         "SLIDE_NOT_FOUND",
         "INVALID_SOURCE_PACKAGE",
-        "OUTPUT_CHANGED",
     }
 )
 
@@ -311,6 +310,8 @@ _REQUEST_ERROR_CODES = frozenset(
 def _export_error_code(export_code: str) -> ErrorCode:
     if export_code == ErrorCode.SOURCE_CHANGED.value:
         return ErrorCode.SOURCE_CHANGED
+    if export_code == "OUTPUT_CHANGED":
+        return ErrorCode.INVALID_STATE_TRANSITION
     if export_code in _REQUEST_ERROR_CODES:
         return ErrorCode.REQUEST_INVALID
     return ErrorCode.INTERNAL_ERROR
@@ -336,7 +337,7 @@ def compose_from_manifest(
         )
         if not preflight.ok or preflight.preflight_token != preflight_token:
             raise AppError(
-                ErrorCode.REQUEST_INVALID,
+                ErrorCode.INVALID_STATE_TRANSITION,
                 "导出条件已发生变化，请重新执行导出前检查",
             )
         expected_output = preflight.output_fingerprint
@@ -348,7 +349,7 @@ def compose_from_manifest(
         and output_fingerprint(manifest_path) != expected_source_manifest
     ):
         raise AppError(
-            ErrorCode.REQUEST_INVALID,
+            ErrorCode.INVALID_STATE_TRANSITION,
             "选片清单在检查后发生变化，请重新执行导出前检查",
         )
     return compose_from_slide_ids(

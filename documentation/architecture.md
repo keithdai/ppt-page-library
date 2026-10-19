@@ -20,6 +20,7 @@ Key assumptions:
 | Electron main process | IPC boundary and composition root for security, task and scheduling modules |
 | Desktop state service | Paginated SQLite reads, persisted selection and desktop task snapshots |
 | `pptlib` CLI | Stable process interface used by Electron |
+| `deckatlas` CLI | Versioned, machine-readable interface for local AI agents |
 | Python application services | Import, preview planning, compose, deduplication and storage behavior |
 | SQLite | Deck/version/page index, selections, plans and run history |
 | Local assets | Thumbnails, previews, HTML manifests and render metadata |
@@ -43,6 +44,8 @@ Renderer action
 - Renderer to Electron: context isolation is enabled; only named preload methods are exposed.
 - Electron to CLI: arguments are passed without a shell; heavy commands are globally serialized.
 - CLI to source files: source files are read and hashed but must not be changed or deleted.
+- Agent CLI reads SQLite in query-only mode and exposes no import, delete or maintenance commands.
+- Agent exports are restricted to `PPTLIB_OUTPUT_ROOT` and require a state-bound preflight token.
 - CLI to LibreOffice: rendering is headless and uses isolated profile/cache directories.
 - HTML previews use a dedicated, short-lived loopback server rather than a general application API.
 - Custom asset protocol: serves only allowlisted image files below the configured assets directory;

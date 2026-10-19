@@ -28,6 +28,7 @@ dev = [
 
 [project.scripts]
 pptlib = "pptlib.cli:main"
+deckatlas = "pptlib.agent_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

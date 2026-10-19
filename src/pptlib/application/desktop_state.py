@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 from datetime import UTC, datetime
@@ -11,7 +10,7 @@ from pptlib.config import Settings
 from pptlib.domain.errors import AppError, ErrorCode
 from pptlib.infrastructure.db.connection import connect
 from pptlib.infrastructure.db.library import SqliteSelectionStore, SqliteSlideCatalog
-from pptlib.infrastructure.db.repositories import search_deck_ids
+from pptlib.infrastructure.db.repositories import library_revision, search_deck_ids
 
 DEFAULT_SELECTION_ID = "selection_default"
 MAX_PAGE_SIZE = 200
@@ -43,24 +42,6 @@ def _desktop_slide(slide: SlideSummary) -> dict[str, object]:
         "thumbnail_url": slide.thumbnail_url or "",
         "preview_url": slide.preview_url or "",
     }
-
-
-def _library_revision(connection: sqlite3.Connection) -> str:
-    rows = connection.execute(
-        """
-        SELECT d.id, d.current_version_id, d.updated_at, v.updated_at,
-               COUNT(s.id), COALESCE(MAX(t.classified_at), '')
-        FROM decks d
-        JOIN deck_versions v ON v.id = d.current_version_id
-        LEFT JOIN slides s ON s.deck_version_id = v.id
-        LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
-        WHERE v.status = 'parsed'
-        GROUP BY d.id, d.current_version_id, d.updated_at, v.updated_at
-        ORDER BY d.id
-        """
-    ).fetchall()
-    payload = json.dumps([tuple(row) for row in rows], ensure_ascii=False, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
 
 
 def _task_row(connection: sqlite3.Connection) -> dict[str, object] | None:
@@ -97,7 +78,7 @@ def desktop_bootstrap(
         assets_dir=settings.assets_dir,
     )
     with connect(settings.database_path) as connection:
-        revision = _library_revision(connection)
+        revision = library_revision(connection)
         task = _task_row(connection)
     selection_items, selection_revision = selection.snapshot()
     unchanged = bool(since_revision and since_revision == revision)

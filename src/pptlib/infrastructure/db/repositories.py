@@ -572,6 +572,31 @@ def _search_constraint(query: str) -> tuple[str, list[str]]:
     )
 
 
+def _search_result(row: sqlite3.Row) -> SearchResult:
+    return SearchResult(
+        slide_id=str(row[0]),
+        deck_id=str(row[1]),
+        version_id=str(row[2]),
+        path=Path(row[3]),
+        slide_number=int(row[4]),
+        title=str(row[5]),
+        body_text=str(row[6]),
+        notes_text=str(row[7]),
+        rank=float(row[8]),
+        topic=str(row[9] or ""),
+        page_type=str(row[10] or ""),
+        subtopic=str(row[11] or ""),
+        confidence=str(row[12] or ""),
+        classification_source=str(row[13] or ""),
+        classifier_version=str(row[14] or ""),
+        source_format=str(row[15]),
+        page_key=str(row[16]),
+        page_kind=str(row[17]),
+        capabilities=json.loads(row[18]),
+        warnings=json.loads(row[19]),
+    )
+
+
 def search_slides(
     connection: sqlite3.Connection,
     query: str,
@@ -605,31 +630,30 @@ def search_slides(
         """,
         (*search_values, *filter_values, limit, offset),
     ).fetchall()
-    return [
-        SearchResult(
-            slide_id=row[0],
-            deck_id=row[1],
-            version_id=row[2],
-            path=Path(row[3]),
-            slide_number=int(row[4]),
-            title=row[5],
-            body_text=row[6],
-            notes_text=row[7],
-            rank=float(row[8]),
-            topic=str(row[9] or ""),
-            page_type=str(row[10] or ""),
-            subtopic=str(row[11] or ""),
-            confidence=str(row[12] or ""),
-            classification_source=str(row[13] or ""),
-            classifier_version=str(row[14] or ""),
-            source_format=str(row[15]),
-            page_key=str(row[16]),
-            page_kind=str(row[17]),
-            capabilities=json.loads(row[18]),
-            warnings=json.loads(row[19]),
-        )
-        for row in rows
-    ]
+    return [_search_result(row) for row in rows]
+
+
+def get_current_slide(
+    connection: sqlite3.Connection,
+    slide_id: str,
+) -> SearchResult | None:
+    row = connection.execute(
+        """
+        SELECT s.id, d.id, v.id, d.canonical_path, s.slide_number,
+               s.title, s.body_text, s.notes_text, 0.0 AS rank,
+               t.topic, t.page_type, t.subtopic, t.confidence,
+               t.classification_source, t.classifier_version,
+               v.source_format, s.page_key, s.page_kind,
+               s.capabilities_json, v.warnings_json
+        FROM slides s
+        JOIN deck_versions v ON v.id = s.deck_version_id
+        JOIN decks d ON d.id = v.deck_id
+        LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
+        WHERE s.id = ? AND v.status = 'parsed' AND d.current_version_id = v.id
+        """,
+        (slide_id,),
+    ).fetchone()
+    return _search_result(row) if row is not None else None
 
 
 def count_search_slides(
@@ -652,6 +676,24 @@ def count_search_slides(
         (*search_values, *filter_values),
     ).fetchone()
     return int(row[0]) if row is not None else 0
+
+
+def library_revision(connection: sqlite3.Connection) -> str:
+    rows = connection.execute(
+        """
+        SELECT d.id, d.current_version_id, d.updated_at, v.updated_at,
+               COUNT(s.id), COALESCE(MAX(t.classified_at), '')
+        FROM decks d
+        JOIN deck_versions v ON v.id = d.current_version_id
+        LEFT JOIN slides s ON s.deck_version_id = v.id
+        LEFT JOIN slide_taxonomy t ON t.slide_id = s.id
+        WHERE v.status = 'parsed'
+        GROUP BY d.id, d.current_version_id, d.updated_at, v.updated_at
+        ORDER BY d.id
+        """
+    ).fetchall()
+    payload = json.dumps([tuple(row) for row in rows], ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
 
 
 def search_deck_ids(

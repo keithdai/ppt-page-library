@@ -290,6 +290,27 @@ def test_export_single_source_order_and_manifest(tmp_path: Path) -> None:
         assert len(root.find(f"{{{P}}}sldIdLst")) == 2  # type: ignore[arg-type]
 
 
+def test_export_replaces_companion_hardlinks_without_touching_their_targets(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.pptx"
+    _make_fixture(source)
+    output = tmp_path / "out.pptx"
+    manifest = output.with_suffix(".manifest.json")
+    legacy_temp = output.with_suffix(".pptx.tmp")
+    external = tmp_path / "external.txt"
+    external.write_bytes(b"must remain unchanged")
+    output.hardlink_to(external)
+    manifest.hardlink_to(external)
+    legacy_temp.hardlink_to(external)
+
+    export_slides([SlideRef("fv_a", source, 1)], output)
+
+    assert external.read_bytes() == b"must remain unchanged"
+    assert json.loads(manifest.read_text(encoding="utf-8"))["page_count"] == 1
+    assert legacy_temp.read_bytes() == b"must remain unchanged"
+
+
 def test_export_prunes_unselected_slide_parts(tmp_path: Path) -> None:
     source = tmp_path / "source.pptx"
     _make_fixture(source, slide_count=3)

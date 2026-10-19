@@ -12,6 +12,7 @@ remote multi-tenant data plane.
 | Generated previews/cache | Local application | Local application | Local application |
 | Export destination | Local application after user selection | Local application | Not automatic |
 | Electron IPC | Main renderer only for guarded methods | Named methods only | Named methods only |
+| Agent CLI | Local library metadata and previews | Preflight-bound export root only | Never |
 
 ## Enforcement
 
@@ -19,6 +20,9 @@ remote multi-tenant data plane.
 - Renderer capabilities are allowlisted in `desktop/preload.js`.
 - New automatic-update IPC handlers verify the sender is the main window and main frame.
 - CLI subprocesses are spawned with `shell: false`.
+- The public `deckatlas` CLI omits import, delete, repair and sync operations.
+- Agent export requires `--allow-write`, a matching preflight token, and a destination below
+  `PPTLIB_OUTPUT_ROOT`.
 - Scanner ignores symlinks and temporary/incomplete files.
 - Import and cleanup code never deletes source PPTX/HTML files.
 
