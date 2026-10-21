@@ -147,7 +147,9 @@ application continues.
 
 ## Distribution
 
-- Development: Python 3.11 virtual environment plus Electron/Node 20.
+- Development: Python 3.11 virtual environment plus Electron/Node 20. The main process treats a
+  run as packaged only when both `app.isPackaged` is true and `process.defaultApp` is unset, because
+  macOS dev launches can otherwise misreport `app.isPackaged` and hide the development sidecar.
 - Desktop package: Electron app plus version-matched PyInstaller `pptlib` sidecar.
 - Agent runtime: separate PyInstaller `deckatlas` executable reading the same local library.
 - Website: static assets deployed independently through GitHub Pages.
@@ -168,8 +170,9 @@ application continues.
 - Preview replacement is not fully atomic in every legacy rendering path.
 - Source paths, extracted text, notes, thumbnails, URLs and logs inherit presentation sensitivity.
 - Desktop release version (`desktop/package.json`) and Python/Agent component version
-  (`pyproject.toml`, `src/pptlib/__init__.py`) are separate today. Release automation must define
-  their compatibility explicitly before using one number as the whole-product version.
+  (`pyproject.toml`, `src/pptlib/__init__.py`) are aligned at `0.3.0-beta.1` today but remain
+  separate declarations. Release automation must keep them in lockstep and define their
+  compatibility explicitly before using one number as the whole-product version.
 - macOS Developer ID signing, notarization, update trust and upgrade testing remain release gaps.
 
 ## Conditional Capabilities

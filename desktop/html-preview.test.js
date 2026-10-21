@@ -788,6 +788,13 @@ test('main process defaults HTML on, respects off, rejects foreign IPC and waits
   assert.equal(handlers.get('paths')(event).htmlEnabled, true);
   assert.equal(run('app.isPackaged = true; runtimeAvailable()'), false);
   assert.equal(run('app.isPackaged = false; runtimeAvailable()'), true);
+  // Dev launches (`electron .`) can spuriously report app.isPackaged === true on
+  // macOS, so process.defaultApp must still pin us to the dev runtime path.
+  assert.equal(
+    run('process.defaultApp = true; app.isPackaged = true; runtimeAvailable()'),
+    true,
+  );
+  run('delete process.defaultApp; app.isPackaged = false');
   assert.equal(run(`planIsDue(
     {id:'p1', enabled:true, scheduleKind:'daily', scheduleTime:'02:30',
      windowStart:'02:00', windowEnd:'05:00'},

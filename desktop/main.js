@@ -79,16 +79,24 @@ function isRepoRoot(dir) {
   return !!dir && fs.existsSync(path.join(dir, 'src', 'pptlib'));
 }
 
+// app.isPackaged alone is unreliable in dev: on macOS the default Electron
+// binary is named "Electron", and depending on the launch path app.isPackaged
+// can report true even under `electron .`. process.defaultApp is set only when
+// the default app runs (dev) and never for a packaged .app, so require both.
+function isPackagedApp() {
+  return app.isPackaged === true && !process.defaultApp;
+}
+
 function bundledRuntimeBinary() {
   return path.join(process.resourcesPath || '', 'runtime', 'pptlib', 'pptlib');
 }
 
 function hasBundledRuntime() {
-  return app.isPackaged === true && fs.existsSync(bundledRuntimeBinary());
+  return isPackagedApp() && fs.existsSync(bundledRuntimeBinary());
 }
 
 function runtimeAvailable() {
-  if (app.isPackaged === true) return hasBundledRuntime();
+  if (isPackagedApp()) return hasBundledRuntime();
   return isRepoRoot(REPO_ROOT);
 }
 
@@ -173,7 +181,7 @@ function persistRepoRoot(dir) {
 }
 
 function defaultHome() {
-  if (app.isPackaged === true) {
+  if (isPackagedApp()) {
     const packagedHome = path.join(app.getPath('userData'), 'data');
     if (fs.existsSync(path.join(packagedHome, 'pages.db'))) return packagedHome;
     for (const legacyDir of legacyUserDataDirs()) {
@@ -196,7 +204,7 @@ function defaultHome() {
 
 function pptlibBinary() {
   if (hasBundledRuntime()) return bundledRuntimeBinary();
-  if (app.isPackaged === true) return bundledRuntimeBinary();
+  if (isPackagedApp()) return bundledRuntimeBinary();
   const venv = path.join(REPO_ROOT, '.venv', 'bin', 'pptlib');
   return fs.existsSync(venv) ? venv : 'pptlib';
 }
@@ -210,9 +218,9 @@ function childEnv() {
     ...process.env,
     PPTLIB_HOME: process.env.PPTLIB_HOME || defaultHome(),
     PPTLIB_ENABLE_HTML:
-      process.env.PPTLIB_ENABLE_HTML ?? (app.isPackaged === true ? '0' : '1'),
+      process.env.PPTLIB_ENABLE_HTML ?? (isPackagedApp() ? '0' : '1'),
   };
-  if (app.isPackaged === true) {
+  if (isPackagedApp()) {
     env.PPTLIB_LOG_DIR = process.env.PPTLIB_LOG_DIR || app.getPath('logs');
     env.PPTLIB_TEMP_DIR =
       process.env.PPTLIB_TEMP_DIR || path.join(app.getPath('temp'), 'com.pptlib.desktop');
@@ -226,7 +234,7 @@ function htmlEnabled() {
 }
 
 function experimentalLabel() {
-  return app.isPackaged === true ? '' : (process.env.PPTLIB_EXPERIMENTAL_LABEL || '').trim().slice(0, 80);
+  return isPackagedApp() ? '' : (process.env.PPTLIB_EXPERIMENTAL_LABEL || '').trim().slice(0, 80);
 }
 
 function importUrl(value) {
