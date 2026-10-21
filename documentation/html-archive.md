@@ -1,8 +1,7 @@
 # HTML 归档与组合
 
-实现分支：`feature/html-archive-20261019`。在原工作目录之外的独立 worktree
-开发，使用独立 `PPTLIB_HOME` 和 Electron userData。当前 Beta 默认开关不变；
-体验入口显式设置 `PPTLIB_ENABLE_HTML=1`。
+该能力已进入现役代码，但当前 Beta 打包版默认开关不变；开发态和体验入口可显式设置
+`PPTLIB_ENABLE_HTML=1`。历史实施过程和分支不是运行时事实，不作为后续维护入口。
 
 ## 当前能力
 

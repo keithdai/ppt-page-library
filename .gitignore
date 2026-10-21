@@ -8,6 +8,8 @@ __pycache__/
 *.egg-info/
 build/
 .superpowers/
+.worktrees/
+.trae-html-share-packages/
 .coverage
 htmlcov/
 var/*
@@ -15,3 +17,10 @@ var/*
 desktop/node_modules/
 desktop/dist/
 dist-app/
+sources/
+交付/
+*.bak
+*.old
+*.orig
+*.tmp
+*.log

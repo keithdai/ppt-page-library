@@ -1,101 +1,127 @@
 # Critical Flows
 
-## Import And Render
+Only flows that cross a trust boundary, mutate durable state or affect user-owned files belong
+here. Feature navigation and presentation-only interactions are intentionally omitted.
+
+## Local Import And Render
 
 Actor: local desktop user.
 
-Preconditions:
+Preconditions: source selected by a system dialog; supported extension/size; no heavy task active.
 
-- Selected paths exist and are readable.
-- The packaged Python runtime is available, or the development repository and `.venv` are available.
-- No other heavy task is running.
+1. Renderer invokes an allowlisted preload method.
+2. Electron verifies the main window/frame and normalizes the selected source list.
+3. Task coordinator durably records the running task and starts `pptlib import` without a shell.
+4. Scanner rejects symlinks, temporary files, unsupported formats and size-limit violations.
+5. Import service uses metadata for unchanged checks and SHA-256 for changed/new content.
+6. Parser rejects unsafe PPTX external relationships or invalid HTML structure.
+7. SQLite updates and generated assets commit only for an accepted version.
+8. Progress and result events return to the originating renderer.
 
-Sequence:
+Side effects: library rows, FTS rows, thumbnails, previews and render metadata. Original sources are
+not changed.
 
-1. Renderer invokes the allowlisted import IPC method.
-2. Electron acquires the in-process heavy-task slot and starts `pptlib import`.
-3. Scanner filters symlinks, temporary files, formats and size limits before hashing.
-4. Import service checks metadata, hashes only changed/new sources, parses changed content and
-   updates SQLite.
-5. LibreOffice renders PPTX to PDF; bundled PDFium creates thumbnails and previews.
-6. Progress events return to the originating renderer.
+Failure/deny: foreign IPC sender, invalid path/format, changed-during-read source, unsafe package,
+render failure, cancellation or active heavy task.
 
-Side effects: SQLite versions/pages, previews, thumbnails and render metadata. Source files remain
-unchanged.
+## Online HTML Archive
 
-Deny/failure cases: missing path, changed-during-read source, unsafe external relationship,
-invalid package, renderer failure, active heavy task.
+Actor: local desktop user.
+
+Preconditions: HTML feature enabled; public HTTP(S) URL; no heavy task active.
+
+1. Renderer sends a typed URL, not an arbitrary command.
+2. Electron routes URLs only to `pptlib import-url`.
+3. Downloader validates scheme, resolved public address, redirects, total time and byte limits.
+4. Static HTML and allowed dependencies are written to a temporary archive.
+5. Source scripts, handlers, forms, external frames and network dependencies are removed/blocked.
+6. Content hash identifies an immutable snapshot; identical content reuses the archive.
+7. Sanitized pages render in isolated Chromium with network blocked.
+8. Archive is published under `assets/html-archives` and indexed in SQLite.
+
+Side effects: immutable online snapshot, origin record, library rows and previews.
+
+Failure/deny: private/local address, redirect to private address, TLS/network failure, oversized
+content, script-only shell, no recognized pages or archive publish failure. Partial dependency
+downloads are recorded explicitly rather than hidden.
 
 ## Automatic Update
 
-Actor: local user for manual runs; Electron scheduler for scheduled runs.
+Actors: local user for manual runs; Electron scheduler for scheduled runs.
 
-Preconditions:
+Preconditions: plan enabled; app running and device awake; occurrence inside the execution window;
+no heavy task active.
 
-- Plan is enabled for scheduled execution.
-- Current local time is inside the execution window.
-- Application is running and device is awake.
-- No heavy task owns the task slot.
+1. Preview planner evaluates roots and rules without changing the library.
+2. User confirms manual work; scheduled work uses the saved plan and scheduled occurrence.
+3. Electron verifies sender for manual requests and starts `scan-plan run`.
+4. Python creates a run, processes files serially and checkpoints each result.
+5. Missing sources stay indexed by default; moves are resolved by content identity.
+6. Completion, partial failure, cancellation, missed window or interruption is persisted.
 
-Sequence:
+Side effects: plan/run history, root state, imported versions and generated assets.
 
-1. User or scheduler selects a plan.
-2. Preview planner returns accepted/skipped files and reasons without changing the library.
-3. User confirms manual work; scheduled work uses the saved plan.
-4. Electron starts a supervised `scan-plan run` process.
-5. Python records a run, processes roots and checkpoints file results.
-6. Missing sources remain in the library by default.
-7. Completion, partial failure, cancellation or interruption is persisted.
+Failure/deny: overlapping roots, invalid schedule/rules, missing root, concurrent task, stale file,
+duplicate occurrence or cancellation.
 
-Side effects: plan run history, root status, imported pages and generated assets.
+## Compose And Export
 
-Deny/failure cases: overlapping roots, invalid size/time rules, missing authorization, concurrent
-heavy task, stale file metadata, user stop.
+Actors: desktop user or explicitly authorized local Agent CLI caller.
 
-## Compose Export
+Preconditions: ordered selection; sources and dependencies available; output format compatible;
+preflight state still current.
 
-Actor: local desktop user.
+1. Desktop writes an ordered ID manifest in `PPTLIB_HOME`; Agent CLI accepts only
+   `deckatlas.selection/1.0`.
+2. Preflight resolves IDs, checks source hashes, dimensions, dependencies, output collision and
+   format compatibility, then returns a token bound to that state.
+3. Desktop confirmation or Agent `--allow-write` supplies the exact token.
+4. Exporter revalidates all state before writing to a temporary location.
+5. PPTX output clones reachable OOXML dependencies. HTML/ZIP output sanitizes and namespaces pages;
+   PPTX pages in mixed output use existing full-resolution previews.
+6. Package validation completes before atomic rename.
+7. A provenance manifest is written beside the output.
 
-Preconditions:
+Side effects: output presentation and provenance manifest only.
 
-- Selection contains PPTX pages only.
-- Source versions still exist.
-- Source SHA-256 values match unless the user explicitly disables verification.
-- Selected presentations use compatible page dimensions.
-
-Sequence:
-
-1. Renderer writes ordered slide IDs to a local manifest.
-2. Electron acquires the heavy-task slot and starts `pptlib compose`.
-3. Application resolves each ID to a current source version.
-4. Exporter copies selected OOXML pages and their reachable dependencies.
-5. Unselected slide parts are removed.
-6. Output is validated, atomically renamed and accompanied by a source manifest.
-
-Side effects: output PPTX and adjacent manifest. Source files and library records are unchanged.
-
-Deny/failure cases: stale selection, source change, missing source, mixed page dimensions, HTML
-selection, invalid OOXML package.
+Failure/deny: stale token/selection, changed source, missing preview/dependency, source overwrite,
+incompatible dimensions/format, output outside `PPTLIB_OUTPUT_ROOT` for Agent callers, existing
+output without explicit overwrite, invalid package or cancellation.
 
 ## Delete From Library
 
-Actor: local desktop user.
+Actor: local desktop user after explicit UI confirmation.
 
-Precondition: explicit confirmation in the UI.
+1. Renderer sends deck/page IDs, never SQL or a deletion path.
+2. Electron verifies sender and serializes the task.
+3. Application checks saved-selection references.
+4. SQLite transaction removes index/FTS rows and prunes unreferenced versions.
+5. Application deletes only generated assets associated with removed records.
 
-Sequence:
+Side effects: local library and generated cache only.
 
-1. Renderer sends deck/page IDs, never arbitrary SQL or source paths.
-2. Electron serializes the operation with other heavy tasks.
-3. Python removes index rows and generated assets.
-4. Existing selection references prevent unsafe deletion where required.
+Failure/deny: foreign IPC sender, empty/invalid IDs, active task or saved selection dependency.
+Original source files are never deleted.
 
-Side effects: local index and cache only. Original source files are never deleted.
+## Dynamic HTML Preview
+
+Actor: local desktop user for an already indexed slide.
+
+1. Renderer requests a valid slide ID through named IPC.
+2. Electron verifies sender and confirms the slide came from the current library response.
+3. Python opens a short-lived loopback server for the sanitized archived page.
+4. Electron creates a sandbox window with a unique nonpersistent session and no preload.
+5. Preview navigation is restricted to the exact loopback origin/capability.
+6. Close, crash, timeout, redirect or load failure tears down the server and window.
+
+Side effects: ephemeral process/window only; no library mutation.
 
 ## Application Exit During Work
 
-1. Electron intercepts quit.
-2. It sends `SIGTERM` to the active CLI process.
-3. The Python process stops before starting the next file.
-4. Electron waits up to the bounded timeout, then escalates to `SIGKILL`.
-5. On next launch, unfinished scan runs become `interrupted`.
+1. Electron intercepts quit and marks the active task stopping.
+2. It sends `SIGTERM` to the supervised CLI process.
+3. Python stops before starting the next file and cleans temporary work.
+4. Electron waits up to 15 seconds, then escalates to `SIGKILL`.
+5. On next launch, unfinished scan/task records are reconciled as interrupted.
+
+Side effects: durable interrupted state; no silent retry or background continuation after quit.

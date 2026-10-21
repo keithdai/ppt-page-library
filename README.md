@@ -7,10 +7,11 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 源文件不上传、不复制，索引、预览和选片记录都留在本机。
 
 当前 Beta 支持 PPTX 导入、页级搜索、高清预览、跨文件选片、拖拽排序、可编辑 PPTX
-组合导出、重复管理和目录自动更新。本隔离分支补齐 HTML 本地/在线归档与组合输出，
+组合导出、重复管理和目录自动更新。当前代码也支持 HTML 本地/在线归档与组合输出，
 既有发布包默认关闭 HTML 的行为保持不变。
 
-[产品网站](website/) · [试用手册](docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md) ·
+[产品网站](website/) · [维护文档](documentation/README.md) ·
+[试用手册](docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md) ·
 [产品化路线图](docs/DeckAtlas-productization-engineering-roadmap.md) ·
 [Agent CLI](documentation/agent-cli.md)
 
@@ -128,11 +129,11 @@ HTML 页面会显示格式、视频和兼容性状态，并可按需打开独立
 本周试用方法与注意事项见
 [`docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md`](docs/DeckAtlas-v0.3.0-beta.1-trial-manual.md)，
 组合导出实测见
-[`docs/compose-export-verification.md`](docs/compose-export-verification.md)。
+[`docs/acceptance/compose-export-verification.md`](docs/acceptance/compose-export-verification.md)。
 
 ## Verify
 
-    make check
+    make quality
 
 ## 固定页面分类
 

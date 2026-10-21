@@ -1,63 +1,92 @@
-# Test Coverage Map
+# Test And Release Verification Map
 
-## Existing Coverage
+`make quality` is the required local and CI gate. It checks repository boundaries, current
+documentation links, Python formatting/lint/type safety, all Python tests, all desktop tests and
+whitespace. Platform-specific release evidence remains a separate macOS release gate.
 
-| Use case | Rule | Expected behavior | Evidence | Status |
-| --- | --- | --- | --- | --- |
-| Scan filtering | Format/size/temporary files are filtered before hashing | Accepted and rejected sets include reasons | `tests/unit/discovery/test_scanner.py` | Existing |
-| Plan validation | Roots cannot overlap; schedule must be inside window | Invalid plans are rejected before save | `tests/unit/application/test_scan_plans.py` | Existing |
-| Safe missing source | Default automatic update does not remove library content | Current deck remains visible | `tests/unit/application/test_import_progress.py` | Existing |
-| Cross-root move | A moved file keeps deck identity | One deck remains at the new path | `tests/unit/application/test_scan_plans.py` | Existing |
-| Retry | Retry scope contains only failed/cancelled paths | Successful files are not rerun | `tests/unit/application/test_scan_plans.py` | Existing |
-| Rendering | LibreOffice is headless and uses safe environment | No UI flags; renderer behavior verified | `tests/unit/rendering/test_thumbnails.py` | Existing |
-| Compose order | Output follows selected order | Manifest and presentation page order match | `tests/unit/export/test_ooxml.py` | Existing |
-| Compose size | Unselected slides are not retained | Output contains only selected slide parts | `tests/unit/export/test_ooxml.py` | Existing |
-| Source integrity | Changed source is rejected | No output replaces a valid prior result | `tests/unit/export/test_ooxml.py` | Existing |
-| Export preflight binding | Manifest/output changes invalidate confirmation | Existing output is never silently replaced | `tests/unit/export/test_ooxml.py`, real compose smoke | Existing |
-| Database migration recovery | Failed migration restores verified backup | Last valid database remains readable | `tests/unit/test_bootstrap.py` | Existing |
-| Preview cache refresh | Failed refresh preserves complete cache | Existing thumbnails and previews remain usable | `tests/unit/rendering/test_thumbnails.py` | Existing |
-| Bundled PDF rasterizer | PDF pages map to expected slide positions | No `pdftoppm` executable is required | `tests/unit/rendering/test_thumbnails.py` | Existing |
-| First-run and export UI | Onboarding and preflight states are actionable | Blockers disable export; selection changes invalidate checks | `desktop/html-preview.test.js` | Existing |
-| IPC surface | Automatic-update IPC handlers exist | Main process registers required channels | `desktop/html-preview.test.js` | Existing |
-| Scheduler | Normal and cross-midnight windows do not duplicate | Due checks use scheduled occurrence | `desktop/html-preview.test.js` | Existing |
-| Package content | Built app contains UI and Python sidecar | `app.asar`, CLI, config and migrations are present | Build verification | Existing/manual |
+## Existing Automated Coverage
+
+| Use case | Rule / negative behavior pinned | Evidence |
+| --- | --- | --- |
+| Repository governance | Generated/user/delivery artifacts are not tracked; current doc links resolve | `scripts/check_repository.py` |
+| Scan filtering | Unsupported, temporary, oversized and symlink sources are rejected before hashing | `tests/unit/discovery/test_scanner.py` |
+| Import identity | Unchanged files skip work; moved content keeps identity; source drift fails closed | Import and scan-plan unit/integration tests |
+| Database safety | Ordered migrations, rollback and verified backup recovery | `tests/integration/db/`, `tests/unit/test_bootstrap.py` |
+| Taxonomy/search | Deterministic classification, filters, CJK search and pagination | Domain, application and ingestion tests |
+| PPTX parser safety | Unsafe external media/package limits are rejected | `tests/unit/ingestion/test_parser.py` |
+| PPTX rendering | Headless safe environment, segmentation, cache integrity and PDFium mapping | `tests/unit/rendering/test_thumbnails.py` |
+| Local HTML ingestion | Recognized pages, dependencies, notes, sanitization and ZIP constraints | `tests/unit/ingestion/test_html*.py` |
+| Online HTML archive | Public-network checks, redirects, limits, immutable snapshots and failures | `tests/unit/ingestion/test_remote_html.py` |
+| HTML round trip | Archive, import, compose and re-import keep page order and content | `tests/integration/test_html_roundtrip.py` |
+| HTML/mixed compose | Format compatibility, media, namespace isolation, rollback and source protection | `tests/integration/test_html_compose.py` |
+| PPTX compose | Order, reachable OOXML dependencies, system-color freeze, source hash and atomic output | `tests/unit/export/test_ooxml.py` |
+| Agent CLI | Strict protocol/schema, query-only reads, revision checks and bounded writes | `tests/unit/application/test_agent.py`, `tests/integration/test_agent_cli.py` |
+| Delete behavior | Cache/index removal only; saved selections block unsafe deletion | `tests/unit/application/test_delete.py` |
+| Automatic update | Plans, occurrence dedupe, moves, retries, stop and history | `tests/unit/application/test_scan_plans.py`, desktop tests |
+| Electron boundary | Sender/frame checks, asset confinement, sandbox preview and named preload methods | `desktop/architecture.test.js`, `html-preview.test.js` |
+| Desktop HTML workflow | URL typing, mixed import, format picker, stale preflight and feature gate | `desktop/html-archive.test.js` |
+| Task coordination | One heavy task, durable start/finish, cancellation and bounded quit | `desktop/architecture.test.js`, desktop tests |
+| Package content | Sidecar/config/migrations included and executable | `tests/integration/db/test_packaging.py`, build scripts |
+
+The current HTML branch contains 362 Python tests and 42 Node tests. Counts are diagnostic, not a
+quality target; rules and negative cases above are the maintained contract.
+
+## CI Merge Gate
+
+`.github/workflows/quality.yml` runs on pull requests and pushes to `main` using Python 3.11 and
+Node 20:
+
+1. Repository and documentation checks.
+2. Ruff lint for the Python codebase and formatter enforcement for governance scripts. Existing
+   application code predates a single Ruff-format baseline; that mechanical migration stays
+   separate from behavior changes.
+3. Strict mypy.
+4. Full Python unit/integration suite.
+5. Desktop Node tests.
+6. `git diff --check`.
+
+GitHub Pages deployment remains isolated in `pages.yml` and runs only for website changes.
+
+## Release-Candidate Gate
+
+Required on a clean macOS release machine:
+
+| Check | Expected evidence |
+| --- | --- |
+| Real PPTX import/render/search | Sanitized fixture manifest, command output and visual inspection |
+| Native PPTX compose/re-import | Page order, dimensions, OOXML package and visual comparison |
+| Local/online HTML archive | Public test URL, dependency manifest, offline preview and re-import |
+| Mixed HTML output | Full-resolution PPTX fallback and HTML media/interaction verification |
+| Large-library budget | 10k-page startup, search, memory and scrolling measurements |
+| Cancellation | Stop during real LibreOffice/Chromium work; no orphan process or partial publish |
+| Packaging | Version-matched Electron and Python sidecars, clean install and upgrade |
+| Security | Path grants, protocol traversal, private-network redirects and diagnostic redaction |
+| Distribution | Developer ID signature, hardened runtime, notarization and Gatekeeper |
+| Upgrade/recovery | Previous production DB, migration failure restore and settings preservation |
+| Accessibility | Keyboard-only, focus order, VoiceOver and dynamic text/layout review |
+
+Create a new immutable report under `docs/acceptance/`; do not edit prior evidence.
 
 ## Proposed Tests
 
 | Type | Use case | Expected behavior | Priority |
 | --- | --- | --- | --- |
-| Automated integration | Stop during LibreOffice rendering | Current file cleans up; next file never starts | P0 |
-| Automated E2E | Create plan → preflight → save → run → history | Complete desktop workflow succeeds | P0 |
-| Automated E2E | Compose from UI with native dialogs | Selected order, output path and completion state match | P1 |
-| Automated visual | 1120/1280/1600 widths | No clipped controls or overlapping text | P1 |
-| Automated performance | 10k-page catalog | Startup/search meet performance budgets | P1 |
-| Guarded live | Signed/notarized installer update | Upgrade preserves data and settings | P1 |
-| Manual review | VoiceOver and keyboard-only workflow | All actions and dialogs are operable | P1 |
+| Automated Electron integration | Dialog path-grant ledger | Import/open/reveal reject non-granted and stale paths | P0 |
+| Automated integration | Stop real LibreOffice/Chromium child | Temp cleanup completes; next source never starts | P0 |
+| Automated performance | 10k-page catalog | Published startup/search/memory budgets remain green | P1 |
+| Automated visual | 1120/1280/1600 widths | No clipping, overlap or unusable controls | P1 |
+| Guarded macOS | Signed/notarized upgrade | Data/settings preserved; update provenance verified | P1 |
+| Automated release | Desktop/runtime/Agent compatibility manifest | Release components declare compatible versions | P1 |
+| Manual accessibility | VoiceOver and keyboard-only | All actions/dialogs are operable and announced | P1 |
 
-## Gaps
+## Unverified Risks
 
-| Risk | Missing verification | Exposure |
+| Severity | Gap | Exposure |
 | --- | --- | --- |
-| High | End-to-end cancellation with real LibreOffice child processes | Orphan process or partial cache |
-| High | Signed update chain | Untrusted or broken desktop updates |
-| Medium | Asset protocol path-boundary test | Local file disclosure if renderer is compromised |
-| Medium | Large catalog memory and latency benchmark | Slow or unstable daily use |
-| Medium | Diagnostic bundle redaction | Sensitive path/content leakage |
-
-## Merge Gate Recommendation
-
-Required on every change:
-
-- Ruff.
-- Full Python suite.
-- Node desktop tests.
-- `git diff --check`.
-- Electron directory build.
-
-Required for release candidates:
-
-- Real import, compose and re-import smoke dataset.
-- LibreOffice + bundled PDFium render verification.
-- Keyboard/accessibility pass.
-- Signed/notarized package verification.
-- Upgrade from the previous production database schema.
+| High | Renderer-to-filesystem path grants are not persisted | Compromised renderer could request an existing local path |
+| High | Signed update chain is not implemented | External distribution cannot guarantee update provenance |
+| High | Real child-process cancellation is not end-to-end automated | Orphan process or partial cache after forced exit |
+| Medium | 10k-page performance budget is not continuously measured | Latency or memory regression in daily use |
+| Medium | Diagnostic bundle redaction has no automated proof | Sensitive paths/content may leak in support material |
+| Medium | Product and Python component versions are not governed together | Ambiguous package compatibility and support reports |
+| Medium | Accessibility is manual only | Keyboard or screen-reader regression |

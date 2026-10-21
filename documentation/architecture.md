@@ -1,92 +1,197 @@
-# Architecture
+# DeckAtlas Architecture
 
-## Product
+## Product And Boundary
 
-DeckAtlas is a local-first macOS desktop application for indexing presentation pages, searching and
-selecting them, and composing selected PPTX pages into a new native OOXML presentation.
+DeckAtlas is a local-first macOS presentation library. It indexes user-selected PPTX and HTML
+sources, generates searchable page metadata and previews, supports ordered page selection, and
+composes selected pages into native PPTX or offline HTML/ZIP outputs.
 
-Key assumptions:
+Product invariants:
 
-- Source PPTX/HTML files remain in their original local locations.
-- SQLite and generated previews are local application data.
-- PPTX preview rendering uses headless LibreOffice by default.
-- The Electron application must be running for scheduled work.
+- Imported local files remain in their original locations and are treated as read-only.
+- Online HTML must be archived into an immutable local snapshot before it enters the library.
+- SQLite, generated previews, archived web resources and selections remain under `PPTLIB_HOME`.
+- Deleting library content never deletes an original PPTX/HTML/ZIP source.
+- DeckAtlas is the external brand. Existing `pptlib`, `PPTLIB_*`, app ID, database and cache names
+  remain stable for upgrade compatibility.
+- There is no remote DeckAtlas account, shared tenant data plane or general-purpose application API.
+
+## Repository Map
+
+| Area | Current source of truth |
+| --- | --- |
+| Python domain rules | `src/pptlib/domain/` |
+| Use-case orchestration | `src/pptlib/application/` |
+| SQLite and migrations | `src/pptlib/infrastructure/db/`, `src/pptlib/migrations/` |
+| PPTX parse/render/export | `src/pptlib/ingestion/`, `rendering/`, `export/ooxml.py` |
+| HTML parse/archive/render/export | `src/pptlib/html/`, `application/import_url.py`, `export/html.py` |
+| Private desktop CLI | `src/pptlib/cli.py` |
+| Versioned Agent CLI | `src/pptlib/agent_cli.py`, `application/agent.py` |
+| Electron trust boundary | `desktop/main.js`, `preload.js`, `security.js` |
+| Desktop UI | `desktop/renderer/` |
+| In-app task/schedule control | `desktop/task-coordinator.js`, `scheduler.js` |
+| Runtime and app packaging | `packaging/`, `desktop/package.json` |
+| Static product website | `website/`, `.github/workflows/pages.yml` |
+| Quality gate | `scripts/quality-gate.sh`, `scripts/check_repository.py`, `.github/workflows/quality.yml` |
+| Current system documentation | `documentation/` |
+| Product documents and evidence | `docs/`, `docs/acceptance/`, `docs/_archive/` |
+
+Generated `build/`, `desktop/dist/`, `dist-app/`, `var/`, local worktrees, user `sources/` and
+delivery packages are not source code and must not be tracked.
 
 ## Runtime Components
 
 | Component | Responsibility |
 | --- | --- |
-| Electron renderer | User workflows, local page browsing, task status and configuration |
-| Electron main process | IPC boundary and composition root for security, task and scheduling modules |
-| Desktop state service | Paginated SQLite reads, persisted selection and desktop task snapshots |
-| `pptlib` CLI | Stable process interface used by Electron |
-| `deckatlas` CLI | Versioned, machine-readable interface for local AI agents |
-| Python application services | Import, preview planning, compose, deduplication and storage behavior |
-| SQLite | Deck/version/page index, selections, plans and run history |
-| Local assets | Thumbnails, previews, HTML manifests and render metadata |
-| Source folders | User-owned PPTX/HTML sources; treated as read-only |
+| Electron renderer | Local workflows, library browsing, selection and status presentation |
+| Preload bridge | Small allowlist of named renderer-to-main capabilities |
+| Electron main process | IPC authorization, dialogs, process supervision and composition root |
+| Task coordinator | One global heavy-task slot, cancellation and durable task snapshots |
+| Scheduler | Minute-level in-app scan-plan evaluation while the app is running |
+| `pptlib` CLI | Private JSON/progress process protocol used by Electron |
+| `deckatlas` CLI | Versioned, machine-readable, default-read-only interface for local agents |
+| Application services | Import, archive, search, compose, delete, deduplicate and plan use cases |
+| SQLite | Library index, FTS, selections, scan plans, runs and desktop task state |
+| Local assets | Thumbnails, previews, HTML snapshots, manifests and render metadata |
+| Render adapters | Headless LibreOffice/PDFium for PPTX; isolated Chromium for HTML |
+| Source folders | User-owned PPTX/HTML/ZIP files; read and hashed, never mutated |
 
-## Main Data Flow
+## Dependency Direction
+
+DeckAtlas is a modular monolith, not a network of services:
 
 ```text
-Renderer action
-  -> allowlisted preload method
-  -> validated Electron IPC handler
-  -> supervised pptlib child process
-  -> application service
-  -> SQLite + local assets + read-only source files
-  -> JSON result/progress events
-  -> renderer state refresh
+Electron / CLI delivery adapters
+              |
+        application use cases
+              |
+ domain policy + adapter interfaces
+              |
+ SQLite / filesystem / render / archive / export adapters
+```
+
+Business decisions belong in application/domain modules, not Electron handlers or argument
+parsers. Infrastructure adapters may return established application DTOs, but may not invoke
+desktop or CLI delivery code. Cross-module behavior is exercised through public functions and
+versioned JSON contracts rather than duplicate implementations.
+
+## Primary Data Flows
+
+Local source:
+
+```text
+User dialog -> validated IPC -> supervised pptlib command
+  -> scan/hash -> parse -> SQLite transaction -> generated previews
+  -> progress/result events -> renderer refresh
+```
+
+Online HTML:
+
+```text
+Public HTTPS URL -> public-address validation on every redirect
+  -> bounded download -> immutable local archive -> sanitized page model
+  -> isolated browser rendering -> SQLite + generated previews
+```
+
+Composition:
+
+```text
+Ordered slide IDs -> preflight and state token -> source/hash/dependency validation
+  -> temporary output -> package validation -> atomic rename + provenance manifest
+```
+
+Agent access:
+
+```text
+Local agent -> deckatlas CLI -> query-only SQLite for reads
+  -> explicit preflight token + allow-write for compose
+  -> output restricted to PPTLIB_OUTPUT_ROOT
 ```
 
 ## Trust Boundaries
 
-- Renderer to Electron: context isolation is enabled; only named preload methods are exposed.
-- Electron to CLI: arguments are passed without a shell; heavy commands are globally serialized.
-- CLI to source files: source files are read and hashed but must not be changed or deleted.
-- Agent CLI reads SQLite in query-only mode and exposes no import, delete or maintenance commands.
-- Agent exports are restricted to `PPTLIB_OUTPUT_ROOT` and require a state-bound preflight token.
-- CLI to LibreOffice: rendering is headless and uses isolated profile/cache directories.
-- HTML previews use a dedicated, short-lived loopback server rather than a general application API.
-- Custom asset protocol: serves only allowlisted image files below the configured assets directory;
-  traversal and symlink escapes fail closed.
+- Renderer to Electron: `contextIsolation` is on, Node integration is off, preload exports named
+  methods only, and every IPC handler verifies the main window and main frame.
+- Electron to Python: commands are spawned with `shell: false`; heavy commands are serialized and
+  receive bounded cancellation.
+- Application to source files: import reads and hashes sources but never modifies or removes them.
+- Agent to library: search/detail use SQLite query-only mode; no import, delete, repair or sync
+  command is exposed.
+- Agent to filesystem: composition requires explicit write consent, a state-bound preflight token
+  and a target below `PPTLIB_OUTPUT_ROOT`.
+- PPTX to renderer: external media relationships are rejected before rendering.
+- HTML URL to network: loopback, private, link-local and other non-public destinations are rejected
+  before every connection and redirect.
+- HTML content to browser: source scripts, events, forms, third-party frames and external network
+  are removed or blocked; the browser uses an isolated profile and mock keychain settings.
+- Custom asset protocol: only allowlisted thumbnail/preview image names below
+  `${PPTLIB_HOME}/assets` are served; traversal and symlink escapes fail closed.
+- Dynamic preview server: short-lived loopback-only capability URL, exact origin/token checks and
+  bounded teardown; it is not a general application API.
 
-## Persistence
+## Persistence And Ownership
 
-- Database: `${PPTLIB_HOME}/pages.db`, WAL mode.
-- Page browsing is paginated (100 pages per desktop request); the renderer keeps only loaded pages.
-- The default ordered selection and desktop task lifecycle are stored in SQLite.
-- Generated assets: `${PPTLIB_HOME}/assets`.
-- Temporary render files: configured `PPTLIB_TEMP_DIR`.
-- Export output: user-selected location.
-- Schema changes: ordered SQL migrations under `src/pptlib/migrations`.
+| Data | Location | Owner / lifecycle |
+| --- | --- | --- |
+| Library database | `${PPTLIB_HOME}/pages.db` | Application; WAL and ordered SQL migrations |
+| Thumbnails/previews | `${PPTLIB_HOME}/assets` | Derived cache; removable through library flows |
+| Online HTML snapshots | `${PPTLIB_HOME}/assets/html-archives` | Immutable application-managed archive |
+| Selections | SQLite plus `${PPTLIB_HOME}/selections` manifests | Application-managed |
+| Logs | `PPTLIB_LOG_DIR` | Local diagnostics; may contain sensitive paths |
+| Temporary rendering | `PPTLIB_TEMP_DIR` | Must be cleaned after success, failure or cancellation |
+| Exports | User-selected path or `PPTLIB_OUTPUT_ROOT` | User-owned output |
+| Local PPTX/HTML/ZIP | Original user path | User-owned, read-only to DeckAtlas |
 
-## Known Risks / Assumptions
+Migrations are append-only. A migration failure restores a verified database backup before the
+application continues.
 
-- Packaged Electron launches a versioned PyInstaller sidecar from
-  `Contents/Resources/runtime/pptlib/pptlib`; development mode continues to use `.venv/bin/pptlib`.
-- PDF rasterization is bundled through PDFium. LibreOffice remains an explicit, first-run checked
-  system dependency.
-- Electron still launches one short-lived CLI process per desktop database operation. A persistent
-  sidecar can be considered only if measured interaction latency becomes a problem.
-- Renderer view state remains in a single JavaScript module; security, task coordination and
-  scheduling boundaries are enforced in separate main-process modules.
-- Preview replacement is not yet fully atomic across all rendering paths.
-- macOS signing, notarization and update delivery are not configured.
+## Distribution
+
+- Development: Python 3.11 virtual environment plus Electron/Node 20.
+- Desktop package: Electron app plus version-matched PyInstaller `pptlib` sidecar.
+- Agent runtime: separate PyInstaller `deckatlas` executable reading the same local library.
+- Website: static assets deployed independently through GitHub Pages.
+- Release signing, notarization and a signed update channel are not yet production-ready.
+
+## Known Risks And Assumptions
+
+- `desktop/main.js` and `desktop/renderer/app.js` remain large composition/state modules. Security,
+  scheduling and task control are separated, but future feature work should continue extracting
+  cohesive modules instead of adding more global state.
+- Dialog paths are returned to the renderer and later accepted again by import/open handlers.
+  Sender checks are complete, but path-grant tracking is not; renderer compromise could request an
+  existing local path. External distribution should close this before claiming hardened sandboxing.
+- Online HTML support is intentionally static. Login-required pages, script-only applications,
+  Canvas/WebGL and custom players are rejected or degraded rather than executed.
+- Electron starts one short-lived Python process per operation. This is simple and recoverable, but
+  a measured latency problem may justify a supervised persistent sidecar later.
+- Preview replacement is not fully atomic in every legacy rendering path.
+- Source paths, extracted text, notes, thumbnails, URLs and logs inherit presentation sensitivity.
+- Desktop release version (`desktop/package.json`) and Python/Agent component version
+  (`pyproject.toml`, `src/pptlib/__init__.py`) are separate today. Release automation must define
+  their compatibility explicitly before using one number as the whole-product version.
+- macOS Developer ID signing, notarization, update trust and upgrade testing remain release gaps.
 
 ## Conditional Capabilities
 
-- Scheduled work exists; see [cron.md](cron.md).
-- No general-purpose HTTP application server.
+- Scheduled work exists only inside the running Electron app; see [cron.md](cron.md).
+- Agent automation exists as a bounded local CLI; see [automation.md](automation.md) and
+  [agent-cli.md](agent-cli.md).
+- HTML network archival and isolated rendering exist; see [html-archive.md](html-archive.md).
 - No transactional email.
-- No public/indexable routes requiring SEO.
-- No embedded LLM agent or autonomous external tool-calling workflow.
+- No public/indexable application routes. The separate static marketing website contains only
+  public product content; see [seo.md](seo.md).
 
 ## Related Documents
 
-- [Product and engineering roadmap](../docs/DeckAtlas-productization-engineering-roadmap.md)
+- [Documentation index](README.md)
 - [Critical flows](flows.md)
 - [Permissions](permissions.md)
 - [Variables](variables.md)
 - [Scheduled work](cron.md)
+- [Automation boundary](automation.md)
+- [Static website and public content](seo.md)
 - [Test coverage](tests.md)
+- [HTML archive and composition](html-archive.md)
+- [Agent CLI contract](agent-cli.md)
+- [Product and engineering roadmap](../docs/DeckAtlas-productization-engineering-roadmap.md)
