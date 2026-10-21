@@ -449,6 +449,38 @@ svg {
   font-size: 14px;
 }
 
+.pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  color: var(--blue);
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.formats {
+  background: var(--surface);
+}
+
+.formats__note {
+  max-width: 760px;
+  margin: 40px 0 0;
+  padding-top: 20px;
+  border-top: 3px solid var(--blue);
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.formats__note strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
 .local {
   background: var(--ink);
   color: #fff;

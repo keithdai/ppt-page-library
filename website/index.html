@@ -40,6 +40,7 @@
       </a>
       <nav class="site-nav" aria-label="主导航">
         <a href="#workflow">工作方式</a>
+        <a href="#formats">素材格式</a>
         <a href="#local">本地优先</a>
         <a href="#download">下载</a>
       </nav>
@@ -237,14 +238,45 @@
         </div>
       </section>
 
+      <section class="formats section" id="formats" aria-labelledby="formats-title">
+        <div class="section__inner">
+          <div class="section-heading section-heading--wide">
+            <p class="section-index">05 / FORMATS</p>
+            <h2 id="formats-title">不只是 PPT，网页演示也在同一个页库里。</h2>
+          </div>
+          <div class="capability-table">
+            <article>
+              <p>PPTX</p>
+              <h3>当前主线</h3>
+              <span>导入、拆页、搜索、选片，再复制原生结构导出可编辑 PPTX。</span>
+            </article>
+            <article>
+              <p>HTML</p>
+              <h3>本地与在线归档<span class="pill">实验</span></h3>
+              <span>本地 HTML 演示稿，或一条在线链接，都能静态归档成不可变的本地页面。</span>
+            </article>
+            <article>
+              <p>Export</p>
+              <h3>离线单文件<span class="pill">实验</span></h3>
+              <span>把跨格式选片组合成离线 HTML 或 ZIP，脱离原链接也能打开。</span>
+            </article>
+          </div>
+          <p class="formats__note">
+            在线归档只做无凭证、不执行脚本的静态截取，拒绝登录态与内网地址；来源脚本、
+            第三方 iframe 和外部网络不会进入预览。HTML 能力在开发态默认开启，
+            <strong>v0.3.0-beta.1 打包版默认关闭</strong>，先作为实验能力预告。
+          </p>
+        </div>
+      </section>
+
       <section class="download section" id="download" aria-labelledby="download-title">
         <div class="section__inner download__grid">
           <div>
-            <p class="section-index">05 / BETA</p>
+            <p class="section-index">06 / BETA</p>
             <h2 id="download-title">DeckAtlas 0.3.0 Beta</h2>
             <p>
-              首个公开 Beta 正在准备发布。当前构建面向 macOS 13+ Apple Silicon，
-              预览渲染需要 LibreOffice。
+              首个公开 Beta 正在走签名、公证与发布流程。当前构建面向 macOS 13+
+              Apple Silicon，预览渲染需要 LibreOffice。安装包开放后这里会提供直接下载。
             </p>
             <div class="download__actions">
               <span
@@ -291,13 +323,17 @@
       <section class="faq section" aria-labelledby="faq-title">
         <div class="section__inner faq__grid">
           <div>
-            <p class="section-index">06 / DETAILS</p>
+            <p class="section-index">07 / DETAILS</p>
             <h2 id="faq-title">当前边界</h2>
           </div>
           <div class="faq-list">
             <details>
               <summary>导出的 PPT 还能编辑吗？</summary>
               <p>可以。DeckAtlas 复制源页面的 OOXML 结构及其关联资源，不是把预览图贴回 PPT。</p>
+            </details>
+            <details>
+              <summary>HTML 和在线链接现在能用吗？</summary>
+              <p>代码已支持本地 HTML 与在线链接的静态归档、离线 HTML/ZIP 导出。它是无凭证、不执行脚本的静态截取，登录态页面和内网地址会被拒绝。该能力在开发态默认开启，v0.3.0-beta.1 打包版默认关闭，先作为实验预告。</p>
             </details>
             <details>
               <summary>删除页面会删除源文件吗？</summary>
