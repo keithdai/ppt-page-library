@@ -88,10 +88,13 @@ h3 { margin: 0; font-size: 23px; line-height: 1.4; font-weight: 650; }
 .lead { max-width: 740px; margin: 24px 0 0; color: var(--muted); font-size: 19px; }
 .hero__grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); gap: 64px; align-items: center; padding: 72px 0 80px; }
 .hero h1 { font-size: clamp(42px, 4.6vw, 66px); }
+.hero h1 span { color: var(--blue); }
 .hero__copy { max-width: 650px; margin: 28px 0 0; color: var(--muted); font-size: 20px; }
 .hero__value { max-width: 630px; margin: 18px 0 0; font-size: 17px; }
 .hero__actions, .download__actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
 .hero__meta { margin: 18px 0 0; color: var(--muted); font-size: 12px; }
+.hero__proof { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 24px; color: var(--muted); font-size: 13px; }
+.hero__proof span { padding-left: 12px; border-left: 2px solid var(--blue); }
 .button {
   min-height: 44px;
   display: inline-flex;
@@ -122,6 +125,7 @@ h3 { margin: 0; font-size: 23px; line-height: 1.4; font-weight: 650; }
 .search-story__query { margin: 0; padding: 13px 16px; border: 1px solid var(--blue); color: var(--blue); font-size: 16px; font-weight: 600; }
 .search-story__query span { margin-right: 10px; }
 .search-story__result { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+.search-story__disclosure { margin: 12px 0 0; font-size: 11px; color: var(--muted); }
 .pain { background: var(--surface); }
 .pain-story { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 32px; margin: 44px 0 0; padding: 0; list-style: none; }
 .pain-scene { margin: 0; height: 100%; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -150,7 +154,7 @@ h3 { margin: 0; font-size: 23px; line-height: 1.4; font-weight: 650; }
 .workflow-list__signal { margin-top: auto; font-size: 12px; font-weight: 600; color: var(--blue); }
 .workflow-support { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 32px; }
 .workflow-support p { margin: 0; color: var(--muted); font-size: 14px; }
-.workflow-support strong, .cli-principles strong { display: block; margin-bottom: 8px; color: var(--ink); font-size: 15px; }
+.workflow-support strong { display: block; margin-bottom: 8px; color: var(--ink); font-size: 15px; }
 .format-guide { margin-top: 56px; padding-top: 32px; border-top: 1px solid var(--line); }
 .subheading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
 .status-badge { display: inline-block; padding: 3px 9px; border: 1px solid var(--line); border-radius: 4px; color: var(--blue); font-size: 11px; font-weight: 600; line-height: 1.6; }
@@ -164,7 +168,7 @@ td { color: var(--muted); }
 .fine-print { margin: 20px 0 0; color: var(--muted); font-size: 13px; line-height: 1.75; }
 .quickstart { background: var(--surface); }
 .quickstart__grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 64px; margin-top: 48px; align-items: start; }
-.quickstart__grid > *, .recipe > *, .download__grid > *, .faq__grid > * { min-width: 0; }
+.quickstart__grid > *, .agent-experience > *, .download__grid > *, .faq__grid > * { min-width: 0; }
 .setup-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .setup-list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 18px; padding: 22px 0; border-bottom: 1px solid var(--line); }
 .setup-list .step-number { padding-top: 6px; }
@@ -184,18 +188,38 @@ code { font-family: "SF Mono", ui-monospace, "Menlo", "Consolas", monospace; fon
 pre code { font-size: inherit; overflow-wrap: normal; }
 .text-link { color: var(--blue); font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
 .cli { background: var(--paper); }
-.cli-principles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 40px; padding: 24px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.cli-principles p { margin: 0; font-size: 14px; color: var(--muted); }
-.cli-recipes { margin-top: 16px; }
-.recipe { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 64px; padding: 36px 0; border-bottom: 1px solid var(--line); align-items: start; }
-.recipe h3 { margin-top: 14px; }
-.recipe__intro p { margin: 12px 0 0; font-size: 15px; color: var(--muted); }
-.recipe .code-block { margin-top: 0; }
-.recipe .step-number { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.recipe--next { padding: 32px 24px; margin-top: 28px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--blue); }
-.cli-footnote { display: flex; align-items: start; justify-content: space-between; gap: 40px; margin-top: 28px; }
-.cli-footnote p { max-width: 720px; margin: 0; color: var(--muted); font-size: 13px; }
-.cli-footnote a { max-width: 280px; flex-shrink: 0; }
+.agent-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin: 40px 0 0; padding: 28px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); list-style: none; }
+.agent-steps h3 { margin: 18px 0 10px; font-size: 21px; }
+.agent-steps p { margin: 0; color: var(--muted); font-size: 15px; }
+.agent-experience { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 32px; margin-top: 36px; align-items: start; }
+.agent-connect { padding: 28px; border: 1px solid var(--line); border-top: 3px solid var(--blue); border-radius: 6px; background: var(--surface); }
+.agent-connect h3 { font-size: 22px; }
+.agent-prompt { margin: 20px 0; padding: 18px; background: var(--paper); color: var(--ink); font-size: 14px; line-height: 1.85; }
+.agent-connect .text-link { display: block; margin-top: 18px; }
+.agent-conversation { padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.conversation-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.conversation-message { padding: 18px; margin-top: 20px; border-radius: 5px; }
+.conversation-message--user { margin-left: 36px; background: var(--paper); border: 1px solid var(--line); }
+.conversation-message--agent { padding-left: 0; }
+.message-role { display: block; color: var(--blue); font-size: 12px; font-weight: 650; }
+.conversation-message p { margin: 8px 0 0; font-size: 15px; }
+.conversation-message ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 14px 0 0; padding: 0; color: var(--muted); font-size: 12px; }
+.conversation-message li { padding: 3px 8px; border: 1px solid var(--line); }
+.conversation-outcome { display: flex; gap: 14px; padding: 20px 0 0; color: var(--blue); }
+.conversation-outcome p { margin: 0; font-size: 14px; font-weight: 600; }
+.agent-prompts { margin-top: 36px; }
+.agent-prompts h3 { font-size: 21px; margin-bottom: 20px; }
+.agent-prompts > div { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 18px 0; border-top: 1px solid var(--line); }
+.agent-prompts p { margin: 0; font-size: 15px; max-width: 940px; }
+.agent-prompts .copy-button { color: var(--ink); border-color: var(--line); }
+.agent-prompts .copy-button:hover { background: var(--surface); }
+.agent-next { margin: 20px 0 0; color: var(--muted); font-size: 13px; }
+.agent-next .status-badge { margin-right: 10px; }
+.agent-technical { margin-top: 28px; padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.agent-technical summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--blue); }
+.agent-technical > p { max-width: 850px; color: var(--muted); font-size: 14px; }
+.agent-technical .code-block { max-width: 850px; }
+.agent-technical .text-link { display: inline-block; margin-top: 20px; }
 .download { background: var(--surface); }
 .download__grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 64px; margin-top: 48px; }
 .download-options article { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 0; border-top: 1px solid var(--line); }
@@ -232,7 +256,7 @@ pre code { font-size: inherit; overflow-wrap: normal; }
   .pain-scene figcaption { padding: 22px; }
   .pain-scene h3 { font-size: 21px; }
   .scene-quote { padding: 14px 18px; font-size: 14px; }
-  .quickstart__grid, .recipe, .download__grid, .faq__grid { gap: 32px; }
+  .quickstart__grid, .agent-experience, .download__grid, .faq__grid { gap: 32px; }
 }
 
 @media (max-width: 760px) {
@@ -259,21 +283,20 @@ pre code { font-size: inherit; overflow-wrap: normal; }
   .workflow-list li, .workflow-list li:first-child, .workflow-list li:last-child { padding: 24px 0; border-right: 0; border-bottom: 1px solid var(--line); }
   .workflow-list li:last-child { border-bottom: 0; }
   .workflow-list h3 { margin-top: 16px; font-size: 22px; }
-  .workflow-support, .cli-principles { grid-template-columns: 1fr; gap: 24px; }
+  .workflow-support, .agent-steps { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .format-guide { margin-top: 32px; }
   .subheading h3 { font-size: 20px; }
   table { min-width: 650px; }
   th, td { padding: 16px; }
-  .quickstart__grid, .recipe, .download__grid, .faq__grid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .quickstart__grid, .agent-experience, .download__grid, .faq__grid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .quickstart__grid, .download__grid { margin-top: 32px; }
   .setup-panel { padding: 22px; }
   .code-heading { padding: 10px 14px; }
   .code-heading > span { font-size: 11px; }
   pre { font-size: 12px; padding: 18px 14px; }
-  .recipe { padding: 28px 0; }
-  .recipe--next { padding: 24px 18px; }
-  .cli-footnote { flex-direction: column; gap: 20px; }
-  .cli-footnote a { max-width: none; }
+  .agent-connect, .agent-conversation { padding: 22px; }
+  .conversation-message--user { margin-left: 12px; }
+  .agent-prompts > div { align-items: start; gap: 16px; }
   .faq__grid { margin-top: 48px; }
   .site-footer { padding: 28px 0; flex-direction: column; align-items: flex-start; }
 }

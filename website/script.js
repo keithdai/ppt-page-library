@@ -19,9 +19,11 @@ for (const button of document.querySelectorAll('[data-copy]')) {
         selection.removeAllRanges();
         selection.addRange(range);
       }
-      code.closest('pre').focus();
+      const focusTarget = code.closest('pre') || code;
+      if (!focusTarget.hasAttribute('tabindex')) focusTarget.setAttribute('tabindex', '-1');
+      focusTarget.focus();
       button.textContent = '已选中';
-      if (copyStatus) copyStatus.textContent = '已选中代码，请按 Command+C 或 Ctrl+C 复制。';
+      if (copyStatus) copyStatus.textContent = '已选中内容，请按 Command+C 或 Ctrl+C 复制。';
     }
     setTimeout(() => { button.textContent = label; }, 2000);
   });

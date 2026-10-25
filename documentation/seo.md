@@ -9,6 +9,7 @@ static marketing site deployed to GitHub Pages.
 | --- | --- | --- | --- |
 | `/ppt-page-library/` | Yes | `website/index.html` | No |
 | CSS/JavaScript | Yes | `website/styles.css`, `script.js` | No |
+| `/ppt-page-library/agent-setup.md` | Yes | `website/agent-setup.md` | No |
 | Product screenshots/icons | Yes | `website/assets/` | Sanitized public assets only |
 | GitHub release/repository links | Yes | Hard-coded public URL | No local path or token |
 
@@ -35,15 +36,24 @@ download status. Main anchors are `#pain`, `#workflow`, `#quickstart`, `#cli` an
 - Large-file copy describes index/preview reuse, not compression or guaranteed loading time.
   Page-search copy distinguishes within-document text search from cross-file page indexing;
   Agent access requires an explicit configured interface, not automatic access to every local file.
-- Source startup and CLI examples use the same `PPTLIB_HOME`. Selection examples explicitly
-  require real search-result IDs, and export examples obtain the token only after ready preflight.
+- The hero leads with the value of reusing historical content. Its Agent scenario is labelled
+  illustrative and does not imply a live website chat or successful retrieval.
+- Agent onboarding is a copyable natural-language request linking to `agent-setup.md`. Daily
+  tasks are natural-language examples; installation, real slide IDs, selection manifests and
+  preflight tokens are handled by the host Agent. Developer commands are collapsed.
+- The public Agent guide is a static task instruction, not a Skill auto-registration or an
+  installer. It requires host tools and user access, checks existing executables and library paths,
+  and does not promise integration with all chat products. Independent CLI packages remain pending.
+- The guide preserves source ownership, configured output scope and explicit write/overwrite
+  authorization. It separates host persistence from installation and warns against replacing an
+  existing library with an empty one. Full command semantics remain in `documentation/agent-cli.md`.
 - Local Agent import is marked as a next-Beta preview until it is present in the published build.
   Callers must inspect `capabilities.commands` before using it.
 - HTML is marked experimental; packaged Beta defaults, mixed-output image fallback and static
   URL archival restrictions are stated.
 - Desktop and standalone CLI download controls remain disabled until verified release assets
   exist. The Releases index may be linked before an individual release exists.
-- Copy controls operate on static code text via the Clipboard API, with a selection fallback;
+- Copy controls operate on static code and prompt text via the Clipboard API, with a selection fallback;
   no commands execute in the website and no analytics or third-party scripts are added.
 
 ## Metadata

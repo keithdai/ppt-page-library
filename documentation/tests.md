@@ -104,6 +104,9 @@ inspection in addition to `make quality`:
   Wide code blocks and the format table may scroll inside their own containers.
 - Exercise copy success and denied-clipboard selection fallback, FAQ expansion, keyboard skip
   link, dark colors and reduced-motion behavior.
+- Copy plain-text Agent setup/task prompts as well as code. On denied clipboard access, verify
+  selection and focus for both paragraph and code targets. Verify the Agent guide link and
+  collapsed developer instructions; the scenario is illustrative, not a live Agent test.
 - Parse shell/JSON examples without executing imports or exports; compare commands to the
   versioned Agent CLI contract and label unreleased features explicitly.
 - Verify public download availability before enabling installer or CLI package links.

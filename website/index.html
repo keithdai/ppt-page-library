@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="PPT 文件大，找一页要逐份翻，AI 也缺少检索入口？DeckAtlas 把历史稿件变成可搜索、可预览、可重新组稿的本地页库，供人和 AI Agent 复用。">
+    <meta name="description" content="别让好内容困在旧 PPT 里。DeckAtlas 把历史稿件变成按页搜索、预览和组稿的本地资料库。给 Agent 接入说明，之后用自然语言找案例、选页面、组新稿。">
     <meta name="theme-color" content="#f7f7f3">
-    <meta property="og:title" content="DeckAtlas · 找到那一页，组好下一稿">
-    <meta property="og:description" content="大文件里的一页案例，让人和 AI 都能找到。按页索引、搜索、预览和选片，历史 PPT 留在本地，Agent 通过 CLI 读取和复用。">
+    <meta property="og:title" content="DeckAtlas · 别让好内容困在旧 PPT 里">
+    <meta property="og:description" content="历史案例、图表和观点，成为下一份方案的起点。人按页查找，接入后的 Agent 按你的需求检索、读取和组稿。资料留在本机。">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://keithdai.github.io/ppt-page-library/">
     <meta property="og:image" content="https://keithdai.github.io/ppt-page-library/assets/deckatlas-library.webp">
-    <title>DeckAtlas | 找到那一页，组好下一稿</title>
+    <title>DeckAtlas | 别让好内容困在旧 PPT 里</title>
     <link rel="canonical" href="https://keithdai.github.io/ppt-page-library/">
     <link rel="icon" href="assets/deckatlas-icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
@@ -32,7 +32,7 @@
         <a href="#pain">你的困扰</a>
         <a href="#workflow">工作流程</a>
         <a href="#quickstart">快速上手</a>
-        <a href="#cli">CLI</a>
+        <a href="#cli">给 AI 用</a>
         <a href="#download">版本与下载</a>
       </nav>
       <a class="header-link" href="https://github.com/keithdai/ppt-page-library" target="_blank" rel="noreferrer">GitHub ↗</a>
@@ -42,26 +42,28 @@
       <section class="hero section" id="top" aria-labelledby="hero-title">
         <div class="section__inner hero__grid">
           <div class="hero__text">
-            <p class="eyebrow">DECKATLAS / YOUR LOCAL SLIDE LIBRARY</p>
-            <h1 id="hero-title">那一页明明做过，<br>怎么又找不到？</h1>
-            <p class="hero__copy">大 PPT 打开要等，找一张案例页要逐份翻。AI 也缺少访问这些历史页面的检索入口，好内容仍然困在文件里。</p>
-            <p class="hero__value">DeckAtlas 把历史 PPT 建成按页索引的本地资料库。人可以搜索、预览和选片，AI Agent 可以通过 CLI 找到并复用。找到那一页，组好下一稿。</p>
+            <p class="eyebrow">DECKATLAS / 你的本地演示页库</p>
+            <h1 id="hero-title">别让好内容，<br><span>困在旧 PPT 里。</span></h1>
+            <p class="hero__copy">过去做过的案例、图表和观点，都可以成为下一份方案的起点。</p>
+            <p class="hero__value">DeckAtlas 把散落的大稿建成按页搜索、预览和选片的本地资料库。你可以直接找页，也可以让接入后的 AI Agent 按你的需求找素材、组新稿。</p>
             <div class="hero__actions">
               <a class="button button--primary" href="#workflow">看看怎么做 <span aria-hidden="true">↓</span></a>
-              <a class="button button--quiet" href="#quickstart">快速上手</a>
+              <a class="button button--quiet" href="#cli">让 Agent 用起来</a>
             </div>
-            <p class="hero__meta">面向高频做方案、提案和汇报的人 · macOS · 本地优先</p>
+            <div class="hero__proof"><span>按页找到</span><span>跨稿复用</span><span>Agent 可调用</span></div>
+            <p class="hero__meta">macOS · 本地优先 · PPTX 页面可编辑组合导出</p>
           </div>
           <aside class="search-story" aria-label="常见找稿场景">
-            <p class="search-story__label">每次找素材，都像在翻一遍记忆</p>
+            <p class="search-story__label">让散落的旧稿，变成下一稿的素材</p>
             <ul class="source-list">
-              <li><span class="file-symbol" aria-hidden="true">P</span><span>客户方案_最终版.pptx<small>那张案例页，好像在这里。</small></span></li>
-              <li><span class="file-symbol" aria-hidden="true">P</span><span>季度汇报_修改版.pptx<small>还是在上次汇报里？</small></span></li>
-              <li><span class="file-symbol" aria-hidden="true">H</span><span>AI生成的演示稿.html<small>新做的内容，下次怎么找到？</small></span></li>
+              <li><span class="file-symbol" aria-hidden="true">P</span><span>客户方案里的案例页<small>不用记住是哪份“最终版”。</small></span></li>
+              <li><span class="file-symbol" aria-hidden="true">P</span><span>季度汇报里的图表页<small>找到那一页，直接加入选片。</small></span></li>
+              <li><span class="file-symbol" aria-hidden="true">AI</span><span>Agent 也能读取同一个页库<small>接入后，直接交代任务。</small></span></li>
             </ul>
-            <div class="search-story__turn"><span aria-hidden="true">↓</span> 换成按页找内容</div>
-            <p class="search-story__query"><span aria-hidden="true">⌕</span> 搜“供应链案例”</p>
-            <p class="search-story__result">看页面 → 选中 → 加入下一份稿</p>
+            <div class="search-story__turn"><span aria-hidden="true">↓</span> 你说需求，Agent 调用页库</div>
+            <p class="search-story__query">“找出以前的供应链案例，<br>按背景、方案、成果排好。”</p>
+            <p class="search-story__result">检索旧稿 → 读取页面 → 提交选片建议</p>
+            <p class="search-story__disclosure">接入后的任务示意 · 非实时演示</p>
           </aside>
         </div>
       </section>
@@ -227,82 +229,49 @@ npm --prefix desktop start</code></pre>
           <div class="section-heading">
             <p class="section-index">04 / 给 AI 与自动化</p>
             <div>
-              <h2 id="cli-title">让 Agent 也能找到<br>你做过的那一页。</h2>
-              <p class="lead">通过 <code>deckatlas</code> CLI，Agent 可以搜索页库，读取页面正文、备注和已有预览路径，按选片导出。新版还加入本地稿件导入，让 AI 生成的新内容继续沉淀。</p>
+              <h2 id="cli-title">接入一次，<br>之后直接说你要什么。</h2>
+              <p class="lead">把接入说明交给能执行本机命令的 Agent。它完成安装、连接资料库并检查可用能力。之后，你交代任务，它调用页库。</p>
             </div>
           </div>
-          <div class="cli-principles">
-            <p><strong>和桌面端共用页库</strong>指定相同的 <code>PPTLIB_HOME</code>，无需另外上传一份素材。</p>
-            <p><strong>返回结构化结果</strong>每次命令返回一个 JSON 响应，Agent 能读到内容、状态和错误。</p>
-            <p><strong>写入需要明确授权</strong>默认只读；导入需授权，导出还需通过预检。</p>
+          <ol class="agent-steps">
+            <li><span class="step-number">01 / 一次接入</span><h3>把安装和连接交给 Agent</h3><p>复制下面的接入说明。Agent 检查环境，安装 CLI，连接你已有的资料库。</p></li>
+            <li><span class="step-number">02 / 日常使用</span><h3>直接说你的任务</h3><p>“找旧案例”“读取这页的备注”“按业务顺序组稿”。检索、选片清单和命令由 Agent 处理。</p></li>
+            <li><span class="step-number">03 / 交付新稿</span><h3>你把握内容和输出</h3><p>Agent 给出来源、选片和兼容性提示，按你的授权预检并导出；原始稿件保持不变。</p></li>
+          </ol>
+          <div class="agent-experience">
+            <aside class="agent-connect">
+              <p class="eyebrow">先把这段交给你的 Agent</p>
+              <h3>接入我的 DeckAtlas 页库</h3>
+              <p class="agent-prompt" id="agent-setup-prompt">请按 https://keithdai.github.io/ppt-page-library/agent-setup.md 为我安装或连接 DeckAtlas CLI。使用我已有的桌面资料库，不要新建空库替代它。检查当前可用能力，完成后告诉我可以直接用自然语言交代哪些任务。安装缺失依赖或需要资料库位置时，先说明需要我提供什么。</p>
+              <button class="button button--primary" type="button" data-copy="agent-setup-prompt">复制给 Agent</button>
+              <a class="text-link" href="agent-setup.md" target="_blank" rel="noreferrer">查看 Agent 接入说明 ↗</a>
+              <p class="fine-print">适用于能读取说明、执行本机命令的 Agent，需允许访问你的资料库。目前使用源码安装，公开 CLI 安装包待发布；普通网页聊天窗口不能直接访问本机文件。</p>
+            </aside>
+            <div class="agent-conversation" aria-label="接入后用自然语言调用页库的任务示意">
+              <div class="conversation-heading"><span>接入之后，你只要说</span><span class="status-badge">任务示意</span></div>
+              <div class="conversation-message conversation-message--user"><span class="message-role">你</span><p>从我的旧稿里找供应链案例，按“业务背景 → 解决方案 → 成果”推荐一组页面。先让我看来源和排序。</p></div>
+              <div class="conversation-message conversation-message--agent"><span class="message-role">Agent</span><p>我会搜索页库、读取候选页正文和备注，列出来源文件与页码，再给出选片建议。找不到的内容会说明，不会编造案例。</p><ul><li>搜索已有页面</li><li>读取内容与来源</li><li>提出选片与顺序</li></ul></div>
+              <div class="conversation-message conversation-message--user"><span class="message-role">你</span><p>按我确认的顺序导出新 PPT，先检查源文件和版式兼容性，保存到我们约定的导出目录。</p></div>
+              <div class="conversation-outcome"><span aria-hidden="true">↳</span><p>Agent 执行预检、生成新稿并返回文件位置。你继续在 PowerPoint 里编辑。</p></div>
+              <p class="fine-print">这是接入后的任务流程说明，不是网页内可运行的聊天功能。能否完成以你的 Agent 工具权限、页库内容和 CLI 当前能力为准。</p>
+            </div>
           </div>
-          <div class="cli-recipes">
-            <article class="recipe">
-              <div class="recipe__intro"><span class="step-number">01 / 连接页库</span><h3>先问它能做什么</h3><p>在刚才的仓库目录运行，设置页库与输出目录。查看返回的 <code>commands</code> 和 <code>export_formats</code>，确定当前版本支持的操作。</p></div>
-              <div class="code-block">
-                <div class="code-heading"><span>环境与能力发现</span><button type="button" class="copy-button" data-copy="capabilities-code">复制命令</button></div>
-                <pre tabindex="0"><code id="capabilities-code">export PPTLIB_HOME="$PWD/var/dev"
-export PPTLIB_OUTPUT_ROOT="$PWD/var/dev/exports"
+          <div class="agent-prompts">
+            <h3>接入后，还可以这样说</h3>
+            <div><p id="agent-read-prompt">找出旧稿里关于供应链的页面，读取正文和备注，告诉我哪些可以复用，并标明来源文件和页码。</p><button class="copy-button" type="button" data-copy="agent-read-prompt">复制任务</button></div>
+            <div><p id="agent-compose-prompt">用我刚确认的页面和顺序组一份新 PPT，检查源文件和兼容性后，导出到已约定的目录，不覆盖现有文件。</p><button class="copy-button" type="button" data-copy="agent-compose-prompt">复制任务</button></div>
+          </div>
+          <p class="agent-next"><span class="status-badge">新版导入预览</span>支持导入的新版 CLI，还能按你的授权将生成的本地 PPTX / HTML / ZIP 加入页库。Agent 会先检查这一能力是否可用，保留原文件和依赖。</p>
+          <details class="agent-technical">
+            <summary>开发者：查看安装命令与 CLI 接口</summary>
+            <p>在源码仓库中，可由 Agent 执行下面的命令检查安装。页库与输出目录应使用你已有或明确选择的位置；环境配置、检索、真实页面标识、选片结构、预检 token 和写入授权的细节见接入说明及完整协议。</p>
+            <div class="code-block">
+              <div class="code-heading"><span>源码安装 / 在仓库目录执行</span><button type="button" class="copy-button" data-copy="agent-install-code">复制命令</button></div>
+              <pre tabindex="0"><code id="agent-install-code">make install
 .venv/bin/deckatlas capabilities</code></pre>
-              </div>
-            </article>
-            <article class="recipe">
-              <div class="recipe__intro"><span class="step-number">02 / 搜索与阅读</span><h3>找案例，也读完整内容</h3><p>按关键词或分类搜索。结果包含页面标识、文本摘要和已有预览路径；将结果中的标识传给 <code>.venv/bin/deckatlas slide get &lt;slide_id&gt;</code>，读取完整正文与备注。</p></div>
-              <div class="code-block">
-                <div class="code-heading"><span>搜索示例</span><button type="button" class="copy-button" data-copy="search-code">复制命令</button></div>
-                <pre tabindex="0"><code id="search-code">.venv/bin/deckatlas search \
-  --query "供应链" --page-size 20
-
-.venv/bin/deckatlas search \
-  --topic "组织与人才" --page-type "观点与结论"</code></pre>
-              </div>
-            </article>
-            <article class="recipe">
-              <div class="recipe__intro"><span class="step-number">03 / 准备选片</span><h3>把页面顺序写下来</h3><p>将搜索结果的真实 <code>slide_id</code> 按顺序填入右侧结构，保存为 <code>selection.json</code>。示例文字需替换为实际标识；这个文件决定新稿的页面顺序。</p></div>
-              <div class="code-block">
-                <div class="code-heading"><span>selection.json / 结构示例</span><button type="button" class="copy-button" data-copy="selection-code">复制结构</button></div>
-                <pre tabindex="0"><code id="selection-code">{
-  "schema_version": "deckatlas.selection/1.0",
-  "slide_ids": [
-    "第一张页面的真实 slide_id",
-    "第二张页面的真实 slide_id"
-  ]
-}</code></pre>
-              </div>
-            </article>
-            <article class="recipe">
-              <div class="recipe__intro"><span class="step-number">04 / 受控导出</span><h3>检查通过，再写入新稿</h3><p>先预检同一份选片和保存位置。以下命令只有在返回成功且 <code>ready: true</code> 时才取得 token；随后用这个 token 授权导出。Python 用于读取 JSON。</p><p>源文件、选片或输出在预检后发生变化，会被拒绝。覆盖已有文件需要另加 <code>--overwrite</code>。</p></div>
-              <div class="code-block">
-                <div class="code-heading"><span>预检 → 确认 → 导出</span><button type="button" class="copy-button" data-copy="compose-code">复制命令</button></div>
-                <pre tabindex="0"><code id="compose-code">PREFLIGHT_TOKEN="$(
-  .venv/bin/deckatlas compose preflight \
-    selection.json "$PPTLIB_OUTPUT_ROOT/proposal.pptx" |
-  python3.11 -c 'import json,sys
-r=json.load(sys.stdin)
-assert r["ok"] and r["result"]["ready"], r
-print(r["result"]["preflight_token"])'
-)" &amp;&amp;
-.venv/bin/deckatlas compose run \
-  selection.json "$PPTLIB_OUTPUT_ROOT/proposal.pptx" \
-  --preflight-token "$PREFLIGHT_TOKEN" --allow-write</code></pre>
-              </div>
-            </article>
-            <article class="recipe recipe--next">
-              <div class="recipe__intro"><span class="step-number">05 / 新稿沉淀 <span class="status-badge">下一版 Beta 预览</span></span><h3>AI 做好的稿，也放回页库</h3><p>新版 <code>import</code> 接受明确指定的本地 PPTX、HTML 或 ZIP，生成索引和预览，便于之后搜索复用。先确认 <code>capabilities</code> 的 <code>commands</code> 中包含 <code>import</code>。</p><p>这里不接受目录和在线链接。源文件仍需保留；HTML 预览需要本地 Chrome。导入不完整时，检查 <code>searchable</code> 与 <code>preview_ready</code>，保留文件后重试。</p></div>
-              <div class="code-block">
-                <div class="code-heading"><span>支持 import 的新版 CLI / 本地文件示例</span><button type="button" class="copy-button" data-copy="import-code">复制命令</button></div>
-                <pre tabindex="0"><code id="import-code">.venv/bin/deckatlas import \
-  "$HOME/Documents/AI-generated.pptx" --allow-write
-
-.venv/bin/deckatlas import \
-  "$HOME/Documents/deck.html" --allow-write</code></pre>
-              </div>
-            </article>
-          </div>
-          <div class="cli-footnote">
-            <p>启用 <code>PPTLIB_ENABLE_HTML=1</code> 后，可用 HTML / ZIP 输出；混合选片中的 PPTX 页会转为高清图片。独立 CLI 包发布后，用 <code>deckatlas</code> 替换示例里的 <code>.venv/bin/deckatlas</code> 即可。</p>
-            <a class="text-link" href="https://github.com/keithdai/ppt-page-library/blob/main/documentation/agent-cli.md" target="_blank" rel="noreferrer">阅读完整 CLI 协议、权限与错误说明 ↗</a>
-          </div>
+            </div>
+            <a class="text-link" href="https://github.com/keithdai/ppt-page-library/blob/main/documentation/agent-cli.md" target="_blank" rel="noreferrer">完整 CLI 命令、协议与错误说明 ↗</a>
+          </details>
         </div>
       </section>
 
