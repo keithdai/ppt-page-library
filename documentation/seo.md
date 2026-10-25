@@ -43,6 +43,11 @@ download status. Main anchors are `#pain`, `#workflow`, `#quickstart`, `#cli` an
 - Agent onboarding is a copyable natural-language request linking to `agent-setup.md`. Daily
   tasks are natural-language examples; installation, real slide IDs, selection manifests and
   preflight tokens are handled by the host Agent. Developer commands are collapsed.
+- Quick start first asks users to send the GitHub repository and installation request to an
+  Agent with local command tools. The README links the same public guide; it covers desktop
+  dependency setup and launch as well as CLI connection. Manual terminal steps are collapsed.
+  It does not promise access from every chatbot, automatic dependency permission or successful
+  search before the first material has been indexed.
 - The public Agent guide is a static task instruction, not a Skill auto-registration or an
   installer. It requires host tools and user access, checks existing executables and library paths,
   and does not promise integration with all chat products. Independent CLI packages remain pending.

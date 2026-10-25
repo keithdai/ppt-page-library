@@ -15,6 +15,17 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 [产品化路线图](docs/DeckAtlas-productization-engineering-roadmap.md) ·
 [Agent CLI](documentation/agent-cli.md)
 
+## 让智能体帮你安装
+
+把本仓库链接发给能读取仓库并执行 Mac 本机命令的智能体：
+
+> 请帮我安装并打开 DeckAtlas。阅读 README 和 [Agent 接入说明](website/agent-setup.md)，
+> 检查依赖，启动桌面端并确认 CLI 可用。已有资料库请继续使用；首次使用时帮我选择位置。
+> 完成后教我导入一份 PPTX 或 HTML 汇报材料，并告诉我怎样直接请你搜索和组稿。
+
+智能体负责安装和命令编排，后续可以直接用自然语言交代任务。系统依赖和文件访问仍需符合
+本机工具的权限；当前从源码安装，HTML 保持实验状态。
+
 ## 组成
 
 | 层 | 作用 |
