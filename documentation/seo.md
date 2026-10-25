@@ -36,7 +36,9 @@ download status. Main anchors are `#pain`, `#workflow`, `#quickstart`, `#cli` an
 - Large-file copy describes index/preview reuse, not compression or guaranteed loading time.
   Page-search copy distinguishes within-document text search from cross-file page indexing;
   Agent access requires an explicit configured interface, not automatic access to every local file.
-- The hero leads with the value of reusing historical content. Its Agent scenario is labelled
+- The hero leads with the value of reusing presentation material across PPTX and HTML, rather
+  than defining the product as PPT-only. HTML's experimental status remains visible; per-format
+  output and mixed-output fidelity are described in the workflow. Its Agent scenario is labelled
   illustrative and does not imply a live website chat or successful retrieval.
 - Agent onboarding is a copyable natural-language request linking to `agent-setup.md`. Daily
   tasks are natural-language examples; installation, real slide IDs, selection manifests and
