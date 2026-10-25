@@ -15,9 +15,31 @@ static marketing site deployed to GitHub Pages.
 The desktop application, Agent CLI, SQLite library and HTML preview server are not deployed by this
 workflow.
 
+## Product Narrative And Usage Examples
+
+The homepage follows pain points, desktop workflow, quick start, Agent CLI usage, then version and
+download status. Main anchors are `#pain`, `#workflow`, `#quickstart`, `#cli` and `#download`;
+`#local` and `#formats` remain within the workflow for compatibility with older links.
+
+- Examples use fictional filenames and shell variables, never actual user-library paths or data.
+- The existing sanitized product screenshot is reused; the file-search scenario is explanatory
+  HTML, not a screenshot or a claim about measured search results.
+- Source startup and CLI examples use the same `PPTLIB_HOME`. Selection examples explicitly
+  require real search-result IDs, and export examples obtain the token only after ready preflight.
+- Local Agent import is marked as a next-Beta preview until it is present in the published build.
+  Callers must inspect `capabilities.commands` before using it.
+- HTML is marked experimental; packaged Beta defaults, mixed-output image fallback and static
+  URL archival restrictions are stated.
+- Desktop and standalone CLI download controls remain disabled until verified release assets
+  exist. The Releases index may be linked before an individual release exists.
+- Copy controls operate on static code text via the Clipboard API, with a selection fallback;
+  no commands execute in the website and no analytics or third-party scripts are added.
+
 ## Metadata
 
 - Canonical URL, Open Graph URL/image, title and description are static in `website/index.html`.
+- Title and descriptions describe page reuse, quick start and CLI access; they do not claim
+  an available installer or a published Agent import feature.
 - No dynamic user input enters metadata or page HTML.
 - The screenshot must use sanitized demo content and contain no customer, internal or personal
   material.

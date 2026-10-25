@@ -90,3 +90,21 @@ Create a new immutable report under `docs/acceptance/`; do not edit prior eviden
 | Medium | Diagnostic bundle redaction has no automated proof | Sensitive paths/content may leak in support material |
 | Medium | Product and Python component versions are not governed together | Ambiguous package compatibility and support reports |
 | Medium | Accessibility is manual only | Keyboard or screen-reader regression |
+
+## Static Website Verification
+
+The public site contract is described in [seo.md](seo.md). Website changes require manual browser
+inspection in addition to `make quality`:
+
+- Inspect the pain → workflow → quick start → CLI → download narrative and retained screenshot.
+- Check anchors, image loading and page overflow at 320, 390, 768, 1120 and 1440 pixel widths.
+  Wide code blocks and the format table may scroll inside their own containers.
+- Exercise copy success and denied-clipboard selection fallback, FAQ expansion, keyboard skip
+  link, dark colors and reduced-motion behavior.
+- Parse shell/JSON examples without executing imports or exports; compare commands to the
+  versioned Agent CLI contract and label unreleased features explicitly.
+- Verify public download availability before enabling installer or CLI package links.
+
+These browser and example checks are manual, not CI-enforced regression tests. Clipboard success
+and rejection were exercised with controlled API responses; OS clipboard integration, a complete
+fresh-machine installation and VoiceOver still require separate release verification.
