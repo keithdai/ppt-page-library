@@ -1,8 +1,9 @@
 {
   "name": "ppt-page-library-desktop",
   "productName": "DeckAtlas",
-  "version": "0.3.0-beta.1",
-  "description": "DeckAtlas · Find the right slide. Build the next deck. Local-first PPTX search, selection, and composition.",
+  "version": "0.3.0-beta.2",
+  "license": "MIT",
+  "description": "DeckAtlas · Local-first PPTX and HTML presentation search, selection, and composition.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

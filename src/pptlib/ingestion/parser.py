@@ -151,6 +151,8 @@ def parse_pptx(
                 raise ValueError("PPTX package exceeds the uncompressed size limit")
             if "ppt/presentation.xml" not in package.namelist():
                 raise ValueError("PPTX package is missing ppt/presentation.xml")
+            if "ppt/_rels/presentation.xml.rels" not in package.namelist():
+                raise ValueError("PPTX package is missing presentation relationships")
             slides: list[ParsedSlide] = []
             for number, part in enumerate(_slide_order(package), start=1):
                 if part not in package.namelist():

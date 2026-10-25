@@ -47,6 +47,7 @@ delivery packages are not source code and must not be tracked.
 | Preload bridge | Small allowlist of named renderer-to-main capabilities |
 | Electron main process | IPC authorization, dialogs, process supervision and composition root |
 | Task coordinator | One global heavy-task slot, cancellation and durable task snapshots |
+| Process operation lock | Per-library mutual exclusion across Agent and private CLI heavy tasks |
 | Scheduler | Minute-level in-app scan-plan evaluation while the app is running |
 | `pptlib` CLI | Private JSON/progress process protocol used by Electron |
 | `deckatlas` CLI | Versioned, machine-readable, default-read-only interface for local agents |
@@ -104,6 +105,8 @@ Agent access:
 
 ```text
 Local agent -> deckatlas CLI -> query-only SQLite for reads
+  -> explicit allow-write + validated local files for import
+  -> shared process lock -> existing import service -> SQLite + previews
   -> explicit preflight token + allow-write for compose
   -> output restricted to PPTLIB_OUTPUT_ROOT
 ```
@@ -115,8 +118,16 @@ Local agent -> deckatlas CLI -> query-only SQLite for reads
 - Electron to Python: commands are spawned with `shell: false`; heavy commands are serialized and
   receive bounded cancellation.
 - Application to source files: import reads and hashes sources but never modifies or removes them.
-- Agent to library: search/detail use SQLite query-only mode; no import, delete, repair or sync
-  command is exposed.
+- Agent to library: search/detail use SQLite query-only mode; local file import requires
+  `--allow-write` and uses the existing importer with missing-source policy KEEP. Delete, URL
+  archival, repair and sync commands remain private.
+- Heavy operations acquire `${PPTLIB_HOME}/.heavy-operation.lock` before initialization, rendering
+  or export. A competing command fails with a retryable busy error. Lock order is operation,
+  database maintenance, then SQLite. Database initialization and startup recovery wait for the
+  operation lock; initialization inside a heavy task reuses that task's lock. Desktop search and
+  task persistence only check migration readiness when the schema is current, so they remain
+  available during heavy work. A desktop request requiring initialization fails busy rather than
+  blocking progress persistence.
 - Agent to filesystem: composition requires explicit write consent, a state-bound preflight token
   and a target below `PPTLIB_OUTPUT_ROOT`.
 - PPTX to renderer: external media relationships are rejected before rendering.
@@ -152,6 +163,9 @@ application continues.
   macOS dev launches can otherwise misreport `app.isPackaged` and hide the development sidecar.
 - Desktop package: Electron app plus version-matched PyInstaller `pptlib` sidecar.
 - Agent runtime: separate PyInstaller `deckatlas` executable reading the same local library.
+- Beta.2 distribution includes desktop and complete Agent runtime ZIPs, SHA-256 checksums,
+  a source/version manifest and license texts. Runtime builders accept `PPTLIB_BUILD_ROOT`;
+  release intermediates stay outside the repository. HTML remains off in packaged desktop by default.
 - Website: static assets deployed independently through GitHub Pages.
 - Release signing, notarization and a signed update channel are not yet production-ready.
 
@@ -170,7 +184,7 @@ application continues.
 - Preview replacement is not fully atomic in every legacy rendering path.
 - Source paths, extracted text, notes, thumbnails, URLs and logs inherit presentation sensitivity.
 - Desktop release version (`desktop/package.json`) and Python/Agent component version
-  (`pyproject.toml`, `src/pptlib/__init__.py`) are aligned at `0.3.0-beta.1` today but remain
+  (`pyproject.toml`, `src/pptlib/__init__.py`) are aligned at `0.3.0-beta.2` today but remain
   separate declarations. Release automation must keep them in lockstep and define their
   compatibility explicitly before using one number as the whole-product version.
 - macOS Developer ID signing, notarization, update trust and upgrade testing remain release gaps.

@@ -5,8 +5,8 @@
 ## 一次接入
 
 1. 确认你的执行环境能访问用户的 Mac 和本地文件；仅有远程聊天或云端沙箱时，不声称已接入本机页库。
-2. 优先使用用户已有的 `deckatlas` 或源码虚拟环境。当前没有公开的独立 CLI 安装包，不使用猜测的下载链接。
-3. 没有安装时，在用户允许的位置获取官方仓库：`https://github.com/keithdai/ppt-page-library.git`。先检查 Git 和 Python 3.11。阅读仓库说明，再在仓库目录执行 `make install`。该步骤创建 `.venv` 并安装 Python 依赖。缺少系统依赖时说明需要什么，遵循用户与宿主已有授权；不自行改动全局 Python、系统设置或已有仓库内容。
+2. 优先使用用户已有的 `deckatlas` 或源码虚拟环境。新安装可以读取本仓库的 `v0.3.0-beta.2` Release，获取完整 `deckatlas-0.3.0-beta.2-macos-arm64.zip` 和校验值。确认资源实际可下载后再安装，不使用猜测的下载链接。包仅适用于 Apple Silicon Mac，未完成 Developer ID 与公证。
+3. 使用 Release 包时保留完整 `deckatlas/` 与 `_internal` 目录，按用户选择的位置解压并核对 SHA-256；无需安装 Python / Node。若没有适用包或用户选择源码，在允许的位置获取 `https://github.com/keithdai/ppt-page-library.git`，检查 Git、Python 3.11，再执行 `make install`。缺少依赖、macOS 拦截或权限时说明具体情况，不关闭系统安全保护或改动用户已有仓库。
 4. 确定现有资料库的 `PPTLIB_HOME`。优先使用用户提供的位置或已经授权的桌面配置，不把新建的空库当成原资料库。无法确定时只询问资料库位置。未使用过 DeckAtlas 的用户，可在明确选择目录后，通过桌面端导入初始稿件。
 5. 确定用户允许导出的 `PPTLIB_OUTPUT_ROOT`，与资料库配置分别记录。在后续命令中保持环境一致；不要依赖临时终端的工作目录。
 6. 调用 `deckatlas capabilities`，或使用已安装源码环境中该可执行文件的绝对路径。检查响应成功、`library_available`、`commands`、`export_formats` 和输出目录。没有资料库时，不为了让能力检查成功擅自初始化或迁移数据。
@@ -16,6 +16,8 @@
 
 按用户已经授权的安装请求完成桌面端和 CLI 两个入口：
 
+- Apple Silicon Mac 可以从同一 Release 获取 `DeckAtlas-0.3.0-beta.2-mac-arm64.zip`，解压后安装应用，并连接独立 CLI。包已经包含 Electron 和 Python；LibreOffice / Chrome 仍为外部工具。只有实际下载、启动成功后才报告安装完成；不能绕过 macOS 拦截。
+- 使用包时按发布说明连接桌面实际资料库，并说明 HTML 默认关闭。下面的 Python、Node 和 npm 步骤只适用于源码安装。
 - 除 Python 3.11、Git 外，检查 Node.js 20 和 PPTX 预览所需的 LibreOffice。HTML 预览还需要本地 Chrome。缺少系统依赖或宿主权限时说明具体阻碍；不要把“源码已下载”当成“应用已可用”。
 - 在已检查的源码仓库中完成 `make install`，再执行 `npm --prefix desktop install` 安装桌面依赖。复用既有安装，不覆盖用户尚未提交的改动。
 - 使用前面确定的 `PPTLIB_HOME`、`PPTLIB_OUTPUT_ROOT`。用户第一次使用且已选择位置时，可以采用仓库的 `var/dev` 作为体验库；已有用户不能未经确认切到空库。
@@ -37,7 +39,7 @@
 
 ## 新稿沉淀与格式
 
-- 先查看 `capabilities.commands`，确认 `import` 可用。新版导入还没有公开发布，旧版可能没有这个命令。
+- 先查看 `capabilities.commands`，确认 `import` 可用。`v0.3.0-beta.2` 提供此命令，旧版可能没有。
 - 只有用户明确授权加入页库时，才调用 `deckatlas import <明确的本地文件路径> --allow-write`。接受 PPTX、HTML、HTM 和 ZIP；不接受目录、在线 URL 或符号链接。
 - 导入沿用原文件位置，不能删除或移动源稿；HTML 的本地依赖也应保留。索引与预览可能分别成功或失败，检查 `searchable` 和 `preview_ready`，不把部分成功描述成完整导入。
 - PPTX 预览需要 LibreOffice；HTML 预览需要本地 Chrome。首次索引和渲染会花时间并生成缓存。

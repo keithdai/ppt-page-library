@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import signal
 import sqlite3
 import sys
+import threading
 import uuid
 from collections.abc import Sequence
+from contextlib import redirect_stdout
 from enum import IntEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
@@ -18,6 +21,7 @@ from pptlib.application.agent import (
     run_agent_compose,
     search_library,
 )
+from pptlib.application.agent_import import import_agent_files
 from pptlib.application.library import LibraryFilters
 from pptlib.config import load_settings
 from pptlib.domain.errors import AppError, ErrorCode
@@ -33,6 +37,7 @@ class ExitCode(IntEnum):
     PRECONDITION_FAILED = 4
     BUSY = 5
     CAPABILITY_UNAVAILABLE = 6
+    IMPORT_INCOMPLETE = 7
     INTERNAL_ERROR = 10
 
 
@@ -62,6 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--request-id", help="caller-provided request identifier")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("capabilities", help="describe commands, permissions, and schemas")
+    import_command = commands.add_parser(
+        "import", help="index local PPTX/HTML/ZIP files in place and generate previews"
+    )
+    import_command.add_argument("paths", type=Path, nargs="+")
+    import_command.add_argument("--allow-write", action="store_true", required=True)
 
     search = commands.add_parser("search", help="search the local slide library")
     search.add_argument("--query", default="")
@@ -175,6 +185,24 @@ def _dispatch(args: argparse.Namespace) -> tuple[str, dict[str, object]]:
     settings = load_settings()
     if args.command == "capabilities":
         return "capabilities", describe_capabilities(settings)
+    if args.command == "import":
+        cancelled = threading.Event()
+        previous = {
+            sig: signal.signal(sig, lambda *_args: cancelled.set())
+            for sig in (signal.SIGTERM, signal.SIGINT)
+        }
+        try:
+            with redirect_stdout(sys.stderr):
+                result = import_agent_files(
+                    settings,
+                    args.paths,
+                    allow_write=args.allow_write,
+                    should_cancel=cancelled.is_set,
+                )
+            return "import", result
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
     if args.command == "search":
         filters = LibraryFilters(
             topic=args.topic,
@@ -259,6 +287,8 @@ def _app_error_exit_code(code: ErrorCode) -> ExitCode:
         return ExitCode.BUSY
     if code == ErrorCode.LIBREOFFICE_NOT_FOUND:
         return ExitCode.CAPABILITY_UNAVAILABLE
+    if code == ErrorCode.IMPORT_INCOMPLETE:
+        return ExitCode.IMPORT_INCOMPLETE
     return ExitCode.INTERNAL_ERROR
 
 

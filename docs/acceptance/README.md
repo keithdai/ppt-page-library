@@ -16,3 +16,4 @@ Rules:
 Current evidence:
 
 - [PPTX compose/export verification](compose-export-verification.md)
+- [Beta.2 package verification](beta2-package-verification-2026-10-25.md)

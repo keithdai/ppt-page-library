@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pptlib.config import Settings
 from pptlib.domain.taxonomy import CLASSIFIER_VERSION, classify_slide_result
-from pptlib.infrastructure.db.connection import connect
+from pptlib.infrastructure.db.connection import connect, connect_readonly
 from pptlib.infrastructure.db.migrations import migrate, pending_migrations
 from pptlib.infrastructure.db.safety import (
     check_database_integrity,
@@ -15,10 +15,29 @@ from pptlib.infrastructure.db.safety import (
     database_maintenance_lock,
     restore_database_backup,
 )
+from pptlib.infrastructure.operation_lock import heavy_operation_lock
 from pptlib.logging import configure_logging
 
 
 def initialize(settings: Settings) -> list[str]:
+    with heavy_operation_lock(settings.home, wait=True, allow_reentry=True):
+        return _initialize(settings)
+
+
+def ensure_initialized(settings: Settings) -> None:
+    if settings.database_path.is_file():
+        connection = connect_readonly(settings.database_path)
+        try:
+            migrations_dir = Path(__file__).resolve().parent / "migrations"
+            if not pending_migrations(connection, migrations_dir):
+                return
+        finally:
+            connection.close()
+    with heavy_operation_lock(settings.home):
+        initialize(settings)
+
+
+def _initialize(settings: Settings) -> list[str]:
     for directory in (
         settings.home,
         settings.assets_dir,

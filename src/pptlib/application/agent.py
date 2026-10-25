@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from pptlib import __version__
+from pptlib.application.agent_import import IMPORT_EXTENSIONS, MAX_IMPORT_FILES
 from pptlib.application.compose import (
     compose_from_manifest,
     preflight_compose_from_manifest,
@@ -19,6 +20,7 @@ from pptlib.infrastructure.db.repositories import (
     library_revision,
     search_slides,
 )
+from pptlib.infrastructure.operation_lock import heavy_operation_lock
 
 AGENT_PROTOCOL = "deckatlas.agent/1.0"
 SELECTION_SCHEMA = "deckatlas.selection/1.0"
@@ -36,13 +38,21 @@ def describe_capabilities(settings: Settings) -> dict[str, object]:
         "protocol": AGENT_PROTOCOL,
         "library_available": settings.database_path.is_file(),
         "export_formats": ["pptx", "html", "zip"] if settings.html_enabled else ["pptx"],
+        "import_extensions": list(IMPORT_EXTENSIONS),
         "permissions": {
             "default": "read_only",
-            "write_operations": ["compose.run"],
+            "write_operations": ["compose.run", "import"],
             "output_root": str(settings.output_root),
         },
         "commands": {
             "capabilities": {"mutates": False},
+            "import": {
+                "mutates": True,
+                "requires": ["allow_write"],
+                "max_files": MAX_IMPORT_FILES,
+                "source_handling": "indexed_in_place",
+                "missing_policy": "keep",
+            },
             "search": {
                 "mutates": False,
                 "filters": ["topic", "subtopic", "page_type", "deck_id", "source_format"],
@@ -189,12 +199,13 @@ def run_agent_compose(
             "output already exists; pass --overwrite after reviewing preflight",
             details={"output_path": str(output)},
         )
-    result = compose_from_manifest(
-        settings,
-        manifest,
-        output,
-        preflight_token=preflight_token,
-    )
+    with heavy_operation_lock(settings.home):
+        result = compose_from_manifest(
+            settings,
+            manifest,
+            output,
+            preflight_token=preflight_token,
+        )
     return {
         "export_id": result.export_id,
         "output_path": str(result.output_path),

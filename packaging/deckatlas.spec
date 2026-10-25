@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files
+
 
 project_root = Path(SPECPATH).parent
 package_root = project_root / "src" / "pptlib"
@@ -7,6 +9,7 @@ datas = [
     (str(package_root / "default.toml"), "pptlib"),
     (str(package_root / "migrations"), "pptlib/migrations"),
 ]
+datas += collect_data_files("playwright")
 
 a = Analysis(
     [str(project_root / "packaging" / "deckatlas_entry.py")],

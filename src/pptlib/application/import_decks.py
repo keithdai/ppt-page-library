@@ -9,6 +9,9 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from hashlib import sha256
 from pathlib import Path
+from xml.etree.ElementTree import ParseError
+
+from defusedxml.common import DefusedXmlException  # type: ignore[import-untyped]
 
 from pptlib.config import Settings
 from pptlib.discovery.scanner import (
@@ -606,7 +609,10 @@ def scan_and_import(
                     "slides": imported_deck.slide_count,
                 }
             )
-        except (OSError, ValueError, sqlite3.Error, ThumbnailError, AppError) as error:
+        except (
+            OSError, ValueError, sqlite3.Error, ThumbnailError, AppError,
+            ParseError, DefusedXmlException,
+        ) as error:
             failed.append((item.path, str(error)))
             emit(
                 {

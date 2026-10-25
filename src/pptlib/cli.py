@@ -8,6 +8,7 @@ import sqlite3
 import threading
 import uuid
 import warnings
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 
@@ -19,9 +20,10 @@ from pptlib.application.desktop_state import (
     set_desktop_task,
 )
 from pptlib.application.library import LibraryFilters
-from pptlib.bootstrap import initialize
-from pptlib.config import load_settings
+from pptlib.bootstrap import ensure_initialized, initialize
+from pptlib.config import Settings, load_settings
 from pptlib.domain.errors import AppError
+from pptlib.infrastructure.operation_lock import heavy_operation_lock
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -169,6 +171,23 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     settings = load_settings()
+    recovery = args.command == "scan-plan" and args.scan_action == "recover"
+    heavy = args.command in {
+        "init", "import", "import-url", "render-html", "render-missing",
+        "remove", "duplicates", "compose",
+    } or (args.command == "scan-plan" and args.scan_action in {"run", "retry", "recover"})
+    try:
+        with heavy_operation_lock(settings.home, wait=recovery) if heavy else nullcontext():
+            return _execute(args, settings)
+    except AppError as error:
+        print(json.dumps({
+            "ok": False, "error": error.code.value, "message": error.message,
+            "retryable": error.retryable, "details": dict(error.details),
+        }, ensure_ascii=False), flush=True)
+        return 1
+
+
+def _execute(args: argparse.Namespace, settings: Settings) -> int:
     if args.command == "doctor":
         from pptlib.application.doctor import run_doctor
 
@@ -179,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"applied_migrations": applied}, ensure_ascii=False))
         return 0
     if args.command == "desktop":
-        initialize(settings)
+        ensure_initialized(settings)
         try:
             if args.desktop_action == "bootstrap":
                 result = desktop_bootstrap(

@@ -24,6 +24,26 @@ not changed.
 Failure/deny: foreign IPC sender, invalid path/format, changed-during-read source, unsafe package,
 render failure, cancellation or active heavy task.
 
+## Agent File Import
+
+Actor: explicitly authorized local Agent CLI caller.
+
+1. `deckatlas import` requires `--allow-write` and 1–100 local PPTX/HTML/ZIP files.
+2. File validation and the existing diagnostic scanner reject missing, symlink, directory,
+   unsupported, temporary and oversized sources before initialization.
+3. A per-library process lock excludes concurrent private CLI/Agent heavy work.
+4. Initialization uses existing migrations; the importer parses, classifies, indexes and renders
+   files in place with missing-source policy KEEP.
+5. A single JSON response returns current deck/version IDs and per-file status.
+6. Later `search` reads the same index. Re-import reuses unchanged versions and retries previews.
+
+Side effects: index, FTS, classification and generated assets. Original files remain read-only and
+must be retained; unrelated missing sources are never removed.
+
+Failure/deny: missing consent, invalid file, busy task, parser or renderer failure. Incomplete
+imports return exit 7 with results: some pages may already be searchable. SIGINT/SIGTERM stop
+before the next file and release the lock when work returns.
+
 ## Online HTML Archive
 
 Actor: local desktop user.

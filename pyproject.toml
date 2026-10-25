@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ppt-page-library"
-version = "0.3.0-beta.1"
-description = "Local macOS PPT page index and composition tool"
+version = "0.3.0-beta.2"
+description = "Local macOS PPTX and HTML presentation library and composition tool"
 readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "defusedxml>=0.7,<1",

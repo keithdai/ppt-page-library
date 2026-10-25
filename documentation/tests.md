@@ -21,6 +21,7 @@ whitespace. Platform-specific release evidence remains a separate macOS release 
 | HTML/mixed compose | Format compatibility, media, namespace isolation, rollback and source protection | `tests/integration/test_html_compose.py` |
 | PPTX compose | Order, reachable OOXML dependencies, system-color freeze, source hash and atomic output | `tests/unit/export/test_ooxml.py` |
 | Agent CLI | Strict protocol/schema, query-only reads, revision checks and bounded writes | `tests/unit/application/test_agent.py`, `tests/integration/test_agent_cli.py` |
+| Agent import | Explicit write consent, file validation, import/search/re-import/update, partial failures, cancellation and shared CLI lock | `tests/integration/test_agent_import.py` |
 | Delete behavior | Cache/index removal only; saved selections block unsafe deletion | `tests/unit/application/test_delete.py` |
 | Automatic update | Plans, occurrence dedupe, moves, retries, stop and history | `tests/unit/application/test_scan_plans.py`, desktop tests |
 | Electron boundary | Sender/frame checks, asset confinement, sandbox preview and named preload methods | `desktop/architecture.test.js`, `html-preview.test.js` |
@@ -28,7 +29,7 @@ whitespace. Platform-specific release evidence remains a separate macOS release 
 | Task coordination | One heavy task, durable start/finish, cancellation and bounded quit | `desktop/architecture.test.js`, desktop tests |
 | Package content | Sidecar/config/migrations included and executable | `tests/integration/db/test_packaging.py`, build scripts |
 
-The current HTML branch contains 362 Python tests and 42 Node tests. Counts are diagnostic, not a
+The current branch contains 376 Python tests and 42 Node tests. Counts are diagnostic, not a
 quality target; rules and negative cases above are the maintained contract.
 
 ## CI Merge Gate
@@ -66,6 +67,9 @@ Required on a clean macOS release machine:
 | Accessibility | Keyboard-only, focus order, VoiceOver and dynamic text/layout review |
 
 Create a new immutable report under `docs/acceptance/`; do not edit prior evidence.
+Beta.2 has limited local package/import/compose evidence in
+[`../docs/acceptance/beta2-package-verification-2026-10-25.md`](../docs/acceptance/beta2-package-verification-2026-10-25.md).
+It does not close the clean-machine, distribution-trust or security gaps below.
 
 ## Proposed Tests
 

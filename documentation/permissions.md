@@ -8,15 +8,15 @@ boundaries and explicit file dialogs/CLI flags.
 
 | Resource | Desktop renderer | Electron main / `pptlib` | Agent CLI |
 | --- | --- | --- | --- |
-| Local source files | Receives selected paths | Read/hash only | Not exposed |
+| Local source files | Receives selected paths | Read/hash only | Explicit file import; read/hash only |
 | Online HTML URL | Submit public URL | Bounded static archive | Not exposed for import |
-| SQLite library | No direct access | Read/write through use cases | Query-only for search/detail |
-| Generated assets | Opaque asset URLs | Create/read/delete cache | Existing preview paths may be returned |
+| SQLite library | No direct access | Read/write through use cases | Query-only reads; explicit import writes |
+| Generated assets | Opaque asset URLs | Create/read/delete cache | Import generates previews; reads return paths |
 | Saved selection | Named IPC | Read/write | Caller provides strict manifest |
 | Export destination | System dialog | Explicit write | Write only below `PPTLIB_OUTPUT_ROOT` |
 | Source deletion | Never | Never | Never |
 | Library deletion | Confirmation UI | IDs only; cache/index only | Never |
-| Maintenance/import/sync | Named IPC/CLI | Explicit command | Not exposed |
+| Maintenance/import/sync | Named IPC/CLI | Explicit command | File import only, with `--allow-write` |
 | Dynamic preview | Request known slide ID | Short-lived sandbox server/window | Not exposed |
 
 There is no database row-level security. All protection is local process and code-enforced.
@@ -27,12 +27,14 @@ There is no database row-level security. All protection is local process and cod
 - Every registered IPC handler calls `requireMainSender`; unit tests cover foreign sender/frame
   rejection.
 - CLI subprocesses use argument arrays with `shell: false`.
-- Heavy mutations share one task coordinator.
+- Heavy mutations share a per-library process lock; Electron also retains its task coordinator.
 - Asset protocol accepts only fixed thumbnail/preview relative names under the resolved assets root.
 - HTML preview uses a sandbox window without preload and an exact loopback capability boundary.
 - Scanner rejects symlinks and temporary/incomplete sources.
 - Import/cleanup code never deletes source PPTX/HTML/ZIP files.
-- `deckatlas` omits import, archive, delete, repair, sync and plan-maintenance commands.
+- `deckatlas` omits URL archive, delete, repair, sync and plan-maintenance commands.
+- Agent import requires `--allow-write` and explicit supported file paths, uses the same scanner
+  and importer as desktop ingestion, and preserves unrelated library records.
 - Agent reads open SQLite with `mode=ro`/query-only behavior.
 - Agent export requires a strict selection schema, `--allow-write`, matching preflight token and
   destination below `PPTLIB_OUTPUT_ROOT`.

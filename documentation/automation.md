@@ -10,6 +10,7 @@ CLI that an external AI agent may call under the operating-system user's authori
 | `capabilities` | Effective local capability/configuration | Nothing | Fixed versioned response |
 | `search` | Query-only library metadata and preview paths | Nothing | Length, page and page-size limits |
 | `slide get` | One current slide's extracted text/metadata | Nothing | Slide ID and current-version check |
+| `import` | Explicit local PPTX/HTML/ZIP files | Index, classification and previews | `--allow-write`, scanner limits, KEEP policy and process lock |
 | `compose preflight` | Strict selection manifest and source state | Nothing | Schema, size, source and output validation |
 | `compose run` | Same state as preflight | Output presentation + manifest | Token, `--allow-write`, output-root and overwrite checks |
 
@@ -28,8 +29,10 @@ Code-enforced controls:
 - The strict selection schema has byte and page-count limits.
 - Preflight token binds manifest content, output target, source files and existing output state.
 - Write requires `--allow-write`; overwrite requires a separate explicit flag.
+- Import uses existing ingestion and never copies, moves or deletes local presentation sources.
+- Import and private CLI heavy tasks share a per-library process lock; busy requests do no work.
 - Output must resolve below `PPTLIB_OUTPUT_ROOT`.
-- No Agent command can import, archive URLs, delete, deduplicate, repair, sync or manage schedules.
+- No Agent command can archive URLs, delete, deduplicate, repair, sync or manage schedules.
 - Original presentation sources are never write targets.
 
 ## Ownership And Failure
@@ -39,6 +42,9 @@ Code-enforced controls:
   schema.
 - Failures return a non-zero documented exit code and structured `{code, message, retryable,
   details}`. A preflight with `ready: false` is a successful read and returns exit code 0.
+- Incomplete import returns exit 7 and preserves per-file results under `error.details.result`.
+  Rendering can fail after the page text has been indexed; callers must inspect `searchable`
+  and `preview_ready` separately. Interrupted imports keep completed files.
 - There is no automatic retry inside DeckAtlas. The caller may retry only when `retryable` is true.
 - There is no remote audit service. Callers should supply `--request-id`; local process/log
   retention follows `PPTLIB_LOG_DIR`.

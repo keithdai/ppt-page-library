@@ -25,6 +25,7 @@ passes a controlled environment to supervised child processes.
 | `PPTLIB_ELECTRON_USER_DATA` | Electron | Electron user data | Test-only isolated profile and instance lock |
 | `PPTLIB_SMOKE` | Electron | unset | Test-only bounded startup/exit hook |
 | `PPTLIB_EXPERIMENTAL_LABEL` | Electron | unset | Development-only UI label; never shown in packaged app |
+| `PPTLIB_BUILD_ROOT` | Runtime build scripts | Repository `build/` | Optional absolute build/smoke directory; release builds use a temporary location |
 
 Defaults owned by Python live in `src/pptlib/default.toml`. Electron-only defaults live in
 `desktop/main.js`. Adding or changing a variable requires updating this document and tests.

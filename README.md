@@ -1,10 +1,10 @@
 # DeckAtlas
 
-**Find the right slide. Build the next deck.**
+**让每一份好材料，成为下一份的起点。**
 
-DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文件夹中的历史 PPTX
-拆成可搜索、可预览、可重新组稿的页面，帮助高频做方案的人更快找到并复用已有内容。
-源文件不上传、不复制，索引、预览和选片记录都留在本机。
+DeckAtlas 是一款本地优先的 macOS 演示页库。它把 PPTX 和 HTML 汇报材料建成可搜索、
+可预览、可重新组稿的页面，帮助高频做方案的人和接入后的 AI Agent 找到并复用已有内容。
+本地源文件只读引用，索引、预览和选片记录留在本机；在线 HTML 会另存资源快照。
 
 当前 Beta 支持 PPTX 导入、页级搜索、高清预览、跨文件选片、拖拽排序、可编辑 PPTX
 组合导出、重复管理和目录自动更新。当前代码也支持 HTML 本地/在线归档与组合输出，
@@ -15,6 +15,30 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 [产品化路线图](docs/DeckAtlas-productization-engineering-roadmap.md) ·
 [Agent CLI](documentation/agent-cli.md)
 
+## 下载与试用
+
+[v0.3.0-beta.2 Pre-release](https://github.com/keithdai/ppt-page-library/releases/tag/v0.3.0-beta.2)
+提供 Apple Silicon Mac 的桌面 ZIP 和独立 CLI ZIP，并附 SHA-256 校验文件、组件版本与
+安装说明。下载时认准本仓库 Releases，保留 CLI 包中的整个目录。
+
+这是实验性 Beta：当前包未完成 Developer ID 签名和 Apple 公证，macOS 可能阻止打开；
+桌面文件路径授权、真实渲染取消、旧库升级和大库性能仍有验收缺口。不建议用唯一一份敏感
+资料直接试用，先备份资料库。自动更新尚未提供，采用手动下载升级。
+
+- 桌面：解压 `DeckAtlas-0.3.0-beta.2-mac-arm64.zip`，将 `DeckAtlas.app` 放入 Applications。
+  PPTX 预览仍需要 LibreOffice。
+- CLI：解压 `deckatlas-0.3.0-beta.2-macos-arm64.zip`；可执行文件为 `deckatlas/deckatlas`，
+  保留其旁的 `_internal` 目录。不需要另外安装 Python 或 Node。
+- HTML：仍为实验能力，桌面打包版默认关闭。按发布说明以 `PPTLIB_ENABLE_HTML=1`
+  启动来试用，HTML 预览需要本地 Chrome。新版 Agent 的明确本地文件导入自动识别 HTML。
+- 遇到 macOS 拦截，请先核对下载来源与校验值，再参考 Apple 的
+  [安全打开应用说明](https://support.apple.com/102445)。不关闭系统安全保护；也可以从源码运行。
+
+完整安装、CLI 接入、更新与限制见
+[本版发布说明](docs/releases/v0.3.0-beta.2.md)。问题反馈请提交
+[GitHub Issue](https://github.com/keithdai/ppt-page-library/issues)，不要上传敏感源稿、
+完整路径或未经脱敏的日志。
+
 ## 让智能体帮你安装
 
 把本仓库链接发给能读取仓库并执行 Mac 本机命令的智能体：
@@ -24,7 +48,7 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 > 完成后教我导入一份 PPTX 或 HTML 汇报材料，并告诉我怎样直接请你搜索和组稿。
 
 智能体负责安装和命令编排，后续可以直接用自然语言交代任务。系统依赖和文件访问仍需符合
-本机工具的权限；当前从源码安装，HTML 保持实验状态。
+本机工具的权限；可以使用 Release 包或源码安装，HTML 保持实验状态。
 
 ## 组成
 
@@ -40,7 +64,7 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 - macOS 13+，当前预览构建仅提供 Apple Silicon 版本。
 - 需要安装 LibreOffice，作为 PPTX 预览渲染引擎。
 - 当前 Beta 尚未完成 Apple Developer ID 签名与公证。
-- 从源码运行需要 Python 3.11；开发桌面端还需要 Node 18+。
+- 从源码运行需要 Python 3.11；开发桌面端使用 Node.js 20。
 - Chrome 和 [officecli](https://d.officecli.ai/install.sh) 仅用于开发态 HTML 与回退渲染。
 
 ## 快速开始（CLI）
@@ -53,13 +77,16 @@ DeckAtlas 是一款本地优先的 macOS 演示页库。它把散落在不同文
 ## 给 AI Agent 使用
 
 `deckatlas` 是独立、版本化的机器接口，默认只读，不改变 Electron 使用的 `pptlib`
-私有协议。第一版支持能力发现、素材检索、单页详情，以及经过预检 token 约束的 PPTX
-组合导出：
+私有协议。支持能力发现、素材检索、单页详情、AI 生成文件入库，以及经过预检 token
+约束的组合导出：
 
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas capabilities
+    PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas import ./generated.pptx --allow-write
+    PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas import ./generated.html --allow-write
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas search --query "AI Native"
     PPTLIB_HOME="$PWD/var/dev" .venv/bin/deckatlas slide get <slide_id>
 
+入库自动识别 PPTX、HTML、ZIP，生成索引与预览后即可检索；源文件留在原位置，需长期保留。
 所有调用只向 stdout 输出一个 `deckatlas.agent/1.0` JSON 响应。导出只允许写入
 `PPTLIB_OUTPUT_ROOT`，且必须先执行 `compose preflight`。完整协议和示例见
 [`documentation/agent-cli.md`](documentation/agent-cli.md)。
@@ -145,6 +172,11 @@ HTML 页面会显示格式、视频和兼容性状态，并可按需打开独立
 ## Verify
 
     make quality
+
+## License
+
+项目代码采用 [MIT License](LICENSE)。导入的演示材料归其所有者，第三方组件采用各自许可；
+发布包附 `THIRD_PARTY_NOTICES.txt` 与第三方许可证文本。
 
 ## 固定页面分类
 
