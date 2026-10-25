@@ -50,16 +50,17 @@ download status. Main anchors are `#pain`, `#workflow`, `#quickstart`, `#cli` an
   search before the first material has been indexed.
 - The public Agent guide is a static task instruction, not a Skill auto-registration or an
   installer. It requires host tools and user access, checks existing executables and library paths,
-  and does not promise integration with all chat products. Independent CLI packages remain pending.
+  and does not promise integration with all chat products. Beta.2 provides a complete arm64 CLI ZIP.
 - The guide preserves source ownership, configured output scope and explicit write/overwrite
   authorization. It separates host persistence from installation and warns against replacing an
   existing library with an empty one. Full command semantics remain in `documentation/agent-cli.md`.
-- Local Agent import is marked as a next-Beta preview until it is present in the published build.
+- Local Agent import is available in beta.2 and matches the published build.
   Callers must inspect `capabilities.commands` before using it.
 - HTML is marked experimental; packaged Beta defaults, mixed-output image fallback and static
   URL archival restrictions are stated.
-- Desktop and standalone CLI download controls remain disabled until verified release assets
-  exist. The Releases index may be linked before an individual release exists.
+- Desktop and standalone CLI download links target verified beta.2 release assets and SHA-256
+  checksums. This is an experimental Pre-release with ad-hoc signing and no Apple notarization;
+  the page states install, filesystem-permission and remaining acceptance limits.
 - Copy controls operate on static code and prompt text via the Clipboard API, with a selection fallback;
   no commands execute in the website and no analytics or third-party scripts are added.
 
@@ -67,7 +68,7 @@ download status. Main anchors are `#pain`, `#workflow`, `#quickstart`, `#cli` an
 
 - Canonical URL, Open Graph URL/image, title and description are static in `website/index.html`.
 - Title and descriptions describe page reuse, quick start and CLI access; they do not claim
-  an available installer or a published Agent import feature.
+  automatic Agent registration or production readiness.
 - No dynamic user input enters metadata or page HTML.
 - The screenshot must use sanitized demo content and contain no customer, internal or personal
   material.
