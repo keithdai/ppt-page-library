@@ -97,6 +97,9 @@ The public site contract is described in [seo.md](seo.md). Website changes requi
 inspection in addition to `make quality`:
 
 - Inspect the pain → workflow → quick start → CLI → download narrative and retained screenshot.
+- Inspect the four illustrative pain scenes, captions and workflow links. Scroll each lazy image
+  into view and confirm it loads; no scene may be an empty placeholder. Check two-column desktop
+  and one-column mobile layouts without clipping, including dark colors and blocked images.
 - Check anchors, image loading and page overflow at 320, 390, 768, 1120 and 1440 pixel widths.
   Wide code blocks and the format table may scroll inside their own containers.
 - Exercise copy success and denied-clipboard selection fallback, FAQ expansion, keyboard skip

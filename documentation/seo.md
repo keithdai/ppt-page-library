@@ -24,6 +24,17 @@ download status. Main anchors are `#pain`, `#workflow`, `#quickstart`, `#cli` an
 - Examples use fictional filenames and shell variables, never actual user-library paths or data.
 - The existing sanitized product screenshot is reused; the file-search scenario is explanatory
   HTML, not a screenshot or a claim about measured search results.
+- Four generated office-comic illustrations under `website/assets/pain-*.webp` explain large
+  files, cross-deck page search, Agent access and manual reuse. They are illustrative scenarios,
+  labelled as such, with HTML captions, alt text and links to the corresponding workflow.
+  Generation uses the text-to-image backend
+  `https://copilot-cn.bytedance.net/api/ide/v1/tool_text_to_image`; the published site serves the
+  optimized static assets without contacting that backend or including generation credentials.
+- The four illustrations total about 261 KiB, reserve 4:3 space and lazy-load. Desktop uses two
+  columns and mobile one. Inspect all scenes before publishing, including dark colors.
+- Large-file copy describes index/preview reuse, not compression or guaranteed loading time.
+  Page-search copy distinguishes within-document text search from cross-file page indexing;
+  Agent access requires an explicit configured interface, not automatic access to every local file.
 - Source startup and CLI examples use the same `PPTLIB_HOME`. Selection examples explicitly
   require real search-result IDs, and export examples obtain the token only after ready preflight.
 - Local Agent import is marked as a next-Beta preview until it is present in the published build.

@@ -123,10 +123,19 @@ h3 { margin: 0; font-size: 23px; line-height: 1.4; font-weight: 650; }
 .search-story__query span { margin-right: 10px; }
 .search-story__result { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
 .pain { background: var(--surface); }
-.pain-list { margin-top: 48px; border-top: 1px solid var(--line); }
-.pain-list article { display: grid; grid-template-columns: 60px minmax(250px, .9fr) minmax(0, 1.2fr); gap: 28px; align-items: start; padding: 28px 0; border-bottom: 1px solid var(--line); }
-.pain-list .step-number { padding-top: 6px; }
-.pain-list p { margin: 0; color: var(--muted); font-size: 16px; }
+.pain-story { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 32px; margin: 44px 0 0; padding: 0; list-style: none; }
+.pain-scene { margin: 0; height: 100%; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.pain-scene__image { position: relative; background: #faf6e9; }
+.pain-scene img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; }
+.scene-number { position: absolute; z-index: 1; top: 16px; left: 16px; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #ccd4e1; border-radius: 4px; background: #ffffff; color: #245bd8; font-family: "SF Mono", ui-monospace, monospace; font-size: 14px; font-weight: 700; }
+.scene-quote { margin: 0; padding: 15px 22px; background: #f1f4fa; border-top: 1px solid #d9dfe9; border-bottom: 1px solid var(--line); color: #283953; font-size: 16px; font-weight: 600; }
+.pain-scene figcaption { display: flex; flex-direction: column; gap: 12px; padding: 26px; }
+.pain-scene h3 { font-size: 23px; }
+.pain-scene figcaption p { margin: 0; color: var(--muted); font-size: 15px; }
+.scene-solution { align-self: flex-start; margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--blue); font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.pain-takeaway { margin-top: 36px; padding: 24px 28px; background: var(--paper); border-left: 3px solid var(--blue); }
+.pain-takeaway .section-bridge { margin: 0; }
+.pain-takeaway .fine-print { max-width: 960px; margin-top: 12px; }
 .section-bridge { margin: 28px 0 0; color: var(--blue); font-size: 17px; font-weight: 600; }
 .product-shot { margin: 48px 0 0; }
 .product-shot__link { display: block; cursor: zoom-in; }
@@ -139,7 +148,7 @@ h3 { margin: 0; font-size: 23px; line-height: 1.4; font-weight: 650; }
 .workflow-list h3 { margin: 24px 0 14px; }
 .workflow-list p { margin: 0 0 24px; color: var(--muted); font-size: 16px; }
 .workflow-list__signal { margin-top: auto; font-size: 12px; font-weight: 600; color: var(--blue); }
-.workflow-support { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; margin-top: 32px; }
+.workflow-support { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 32px; }
 .workflow-support p { margin: 0; color: var(--muted); font-size: 14px; }
 .workflow-support strong, .cli-principles strong { display: block; margin-bottom: 8px; color: var(--ink); font-size: 15px; }
 .format-guide { margin-top: 56px; padding-top: 32px; border-top: 1px solid var(--line); }
@@ -219,8 +228,10 @@ pre code { font-size: inherit; overflow-wrap: normal; }
   .hero h1 { font-size: 42px; }
   .hero__copy { font-size: 18px; }
   .section-heading { grid-template-columns: 125px minmax(0, 1fr); gap: 24px; }
-  .pain-list article { grid-template-columns: 40px minmax(230px, .8fr) minmax(0, 1fr); gap: 20px; }
-  .pain-list h3 { font-size: 20px; }
+  .pain-story { gap: 28px 24px; }
+  .pain-scene figcaption { padding: 22px; }
+  .pain-scene h3 { font-size: 21px; }
+  .scene-quote { padding: 14px 18px; font-size: 14px; }
   .quickstart__grid, .recipe, .download__grid, .faq__grid { gap: 32px; }
 }
 
@@ -236,10 +247,12 @@ pre code { font-size: inherit; overflow-wrap: normal; }
   .section-index { margin-bottom: 8px; padding-top: 0; }
   h2 { font-size: clamp(30px, 6vw, 40px); }
   .lead { font-size: 17px; margin-top: 18px; }
-  .pain-list { margin-top: 32px; }
-  .pain-list article { grid-template-columns: 30px minmax(0, 1fr); gap: 10px 16px; }
-  .pain-list p { grid-column: 2; font-size: 15px; }
-  .pain-list h3 { font-size: 19px; }
+  .pain-story { grid-template-columns: minmax(0, 1fr); gap: 28px; margin-top: 32px; }
+  .pain-scene figcaption { padding: 22px; }
+  .pain-scene h3 { font-size: 21px; }
+  .scene-number { top: 12px; left: 12px; width: 32px; height: 32px; }
+  .scene-quote { padding: 14px 18px; font-size: 15px; }
+  .pain-takeaway { padding: 20px; }
   .section-bridge { font-size: 16px; }
   .product-shot { margin-top: 32px; }
   .workflow-list { grid-template-columns: 1fr; margin-top: 32px; }

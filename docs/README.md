@@ -10,6 +10,7 @@ or user communication.
 | [Productization and engineering roadmap](DeckAtlas-productization-engineering-roadmap.md) | Current product direction |
 | [Automatic update PRD](PRD-DeckAtlas-auto-update.md) | Implemented V1 behavior and future scope |
 | [Beta trial manual](DeckAtlas-v0.3.0-beta.1-trial-manual.md) | Version-specific user guide |
+| [Website and public Beta launch review](PreMortem-DeckAtlas-2026-10-25.md) | Recommended priorities and release acceptance conditions |
 
 ## Other Layers
 

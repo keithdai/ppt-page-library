@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="记得做过那一页，却找不到？DeckAtlas 把历史 PPT 变成可搜索、可预览、可重新组稿的本地页库。了解工作流程、快速上手和 Agent CLI。">
+    <meta name="description" content="PPT 文件大，找一页要逐份翻，AI 也缺少检索入口？DeckAtlas 把历史稿件变成可搜索、可预览、可重新组稿的本地页库，供人和 AI Agent 复用。">
     <meta name="theme-color" content="#f7f7f3">
     <meta property="og:title" content="DeckAtlas · 找到那一页，组好下一稿">
-    <meta property="og:description" content="从翻文件找素材，到按页面搜索、选片、导出。历史 PPT 留在本地，也能通过 CLI 给 AI Agent 使用。">
+    <meta property="og:description" content="大文件里的一页案例，让人和 AI 都能找到。按页索引、搜索、预览和选片，历史 PPT 留在本地，Agent 通过 CLI 读取和复用。">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://keithdai.github.io/ppt-page-library/">
     <meta property="og:image" content="https://keithdai.github.io/ppt-page-library/assets/deckatlas-library.webp">
@@ -44,8 +44,8 @@
           <div class="hero__text">
             <p class="eyebrow">DECKATLAS / YOUR LOCAL SLIDE LIBRARY</p>
             <h1 id="hero-title">那一页明明做过，<br>怎么又找不到？</h1>
-            <p class="hero__copy">写下一份方案之前，先翻文件夹、打开旧稿、来回复制。好内容积累了很多，复用却总要从记忆开始。</p>
-            <p class="hero__value">DeckAtlas 把历史 PPT 变成按页搜索、预览和选片的本地资料库。找到那一页，组好下一稿。</p>
+            <p class="hero__copy">大 PPT 打开要等，找一张案例页要逐份翻。AI 也缺少访问这些历史页面的检索入口，好内容仍然困在文件里。</p>
+            <p class="hero__value">DeckAtlas 把历史 PPT 建成按页索引的本地资料库。人可以搜索、预览和选片，AI Agent 可以通过 CLI 找到并复用。找到那一页，组好下一稿。</p>
             <div class="hero__actions">
               <a class="button button--primary" href="#workflow">看看怎么做 <span aria-hidden="true">↓</span></a>
               <a class="button button--quiet" href="#quickstart">快速上手</a>
@@ -71,16 +71,76 @@
           <div class="section-heading">
             <p class="section-index">01 / 你的困扰</p>
             <div>
-              <h2 id="pain-title">内容越积越多，<br>找素材还是靠记忆。</h2>
-              <p class="lead">一份新稿的准备工作，常常卡在三个地方。</p>
+              <h2 id="pain-title">大文件里的一页案例，<br>人和 AI 都难找。</h2>
+              <p class="lead">准备一份新方案时，这四幕可能每天都在发生。</p>
             </div>
           </div>
-          <div class="pain-list">
-            <article><span class="step-number">01</span><h3>记得内容，记不住文件名</h3><p>想找一张案例页，却只能搜文件名。打开几份“最终版”，才知道哪一份里有那张图。</p></article>
-            <article><span class="step-number">02</span><h3>找到了，还要搬来搬去</h3><p>封面在这份、案例在那份、结论在第三份。来回切窗口、复制页面，再检查顺序和版式。</p></article>
-            <article><span class="step-number">03</span><h3>新稿做完，下次又从头找</h3><p>历史 PPT、AI 生成的网页演示各存一处。做过的好内容没有进入可检索的页库，复用仍然靠人记住。</p></article>
+          <ol class="pain-story" aria-label="从大稿里找页面，到重新组稿的四幕困扰">
+            <li>
+              <figure class="pain-scene">
+                <div class="pain-scene__image">
+                  <span class="scene-number" aria-hidden="true">01</span>
+                  <img src="assets/pain-large-deck.webp" alt="场景插画：做方案的人托着下巴等待大演示文件加载，电脑显示进度条，旁边是成叠稿件和时钟" width="960" height="720" loading="lazy" decoding="async">
+                  <p class="scene-quote">“我只要一页，先等整份稿打开。”</p>
+                </div>
+                <figcaption>
+                  <span class="step-number">第一幕 / 文件太大</span>
+                  <h3>大稿打开慢，找一页也要等</h3>
+                  <p>图片、视频越放越多，文件越来越大。只想看一张案例页，却要反复打开整份稿，再逐页翻找。</p>
+                  <a class="scene-solution" href="#workflow">本地索引与预览 → 按页浏览</a>
+                </figcaption>
+              </figure>
+            </li>
+            <li>
+              <figure class="pain-scene">
+                <div class="pain-scene__image">
+                  <span class="scene-number" aria-hidden="true">02</span>
+                  <img src="assets/pain-page-search.webp" alt="场景插画：做方案的人在电脑文件列表里搜索，桌上有多叠包含图表和流程的演示页面，难以定位想要的一页" width="960" height="720" loading="lazy" decoding="async">
+                  <p class="scene-quote">“记得那页写了什么，不记得在哪份。”</p>
+                </div>
+                <figcaption>
+                  <span class="step-number">第二幕 / 页面难搜</span>
+                  <h3>搜的是文件，想找的是页内内容</h3>
+                  <p>案例藏在标题、正文或备注里。缺少跨稿的页面检索入口，仍得猜文件名、打开几份“最终版”，才能定位。</p>
+                  <a class="scene-solution" href="#workflow">标题、正文、备注索引 → 直接找页</a>
+                </figcaption>
+              </figure>
+            </li>
+            <li>
+              <figure class="pain-scene">
+                <div class="pain-scene__image">
+                  <span class="scene-number" aria-hidden="true">03</span>
+                  <img src="assets/pain-agent-access.webp" alt="场景插画：电脑里的 AI 助手面对空白回答框，做方案的人拿着案例页，旁边的历史稿件缺少可连接的检索入口" width="960" height="720" loading="lazy" decoding="async">
+                  <p class="scene-quote">“让 AI 找旧案例，还得我先找到它。”</p>
+                </div>
+                <figcaption>
+                  <span class="step-number">第三幕 / AI 缺少入口</span>
+                  <h3>历史内容在，AI 却难以调用</h3>
+                  <p>散落的 PPT 缺少统一索引和明确的读取接口。让 AI 沿用以前的案例时，往往还得自己翻稿，再把内容交给它。</p>
+                  <a class="scene-solution" href="#cli">Agent CLI → 检索与读取真实页面</a>
+                </figcaption>
+              </figure>
+            </li>
+            <li>
+              <figure class="pain-scene">
+                <div class="pain-scene__image">
+                  <span class="scene-number" aria-hidden="true">04</span>
+                  <img src="assets/pain-slide-reuse.webp" alt="场景插画：做方案的人从多份稿件挑出封面、图表和案例页面，在桌上手工排好顺序，准备拼成新稿" width="960" height="720" loading="lazy" decoding="async">
+                  <p class="scene-quote">“找齐了，还要一页页搬到新稿。”</p>
+                </div>
+                <figcaption>
+                  <span class="step-number">第四幕 / 复用费劲</span>
+                  <h3>跨稿复制，新稿又散落一处</h3>
+                  <p>封面、案例、结论在不同文件里，来回复制再核对顺序。新做的 PPT 和 AI 演示也各存一处，下次又得从头找。</p>
+                  <a class="scene-solution" href="#workflow">跨稿选片 → 排序与组合导出</a>
+                </figcaption>
+              </figure>
+            </li>
+          </ol>
+          <div class="pain-takeaway">
+            <p class="section-bridge">把文件里的内容变成可检索的页面，给人和 AI 同一个复用入口。</p>
+            <p class="fine-print">以上为场景插画。单份 PPT 中可以查找文字；这里解决的是跨文件的页级索引与复用。首次导入仍需解析和生成预览，源 PPT 大小不会改变，也不会自动缩小其中的图片或视频。</p>
           </div>
-          <p class="section-bridge">把“去哪份文件里找”变成“直接找到这一页”，是 DeckAtlas 的起点。</p>
         </div>
       </section>
 
@@ -105,6 +165,7 @@
             <li><span class="step-number">03 / 组合导出</span><h3>排好顺序，检查后导出</h3><p>拖拽排序，选择保存位置，再预检源文件和格式。PPTX 页面导出为可继续编辑的新 PPTX。</p><span class="workflow-list__signal">结果：拿到新稿，继续在 PowerPoint 编辑</span></li>
           </ol>
           <div class="workflow-support" id="local">
+            <p><strong>索引一次，之后按页查找</strong>先解析源稿并生成预览，后续浏览页库无需为看一页反复打开整份稿。首次导入时间随页数、文件复杂度和本机环境变化。</p>
             <p><strong>常用目录持续更新</strong>先预检新增与变化，再手动或按计划更新；定时执行需要应用运行、电脑唤醒。</p>
             <p><strong>资料留在本地</strong>本地源文件只读引用；清理页库只移除索引和缓存，被已保存选片引用的页面会受到保护。</p>
           </div>
@@ -167,7 +228,7 @@ npm --prefix desktop start</code></pre>
             <p class="section-index">04 / 给 AI 与自动化</p>
             <div>
               <h2 id="cli-title">让 Agent 也能找到<br>你做过的那一页。</h2>
-              <p class="lead">用 <code>deckatlas</code> CLI 查询页库、读取内容、按选片导出。新版还加入本地稿件导入，让 AI 生成的新内容继续沉淀。</p>
+              <p class="lead">通过 <code>deckatlas</code> CLI，Agent 可以搜索页库，读取页面正文、备注和已有预览路径，按选片导出。新版还加入本地稿件导入，让 AI 生成的新内容继续沉淀。</p>
             </div>
           </div>
           <div class="cli-principles">
